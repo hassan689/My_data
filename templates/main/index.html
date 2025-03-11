@@ -1,24 +1,25 @@
 {% extends "base.html" %}
 
 {% load static %}
-{% block 'title' %}Growth Skool{% endblock %}
+{% block 'title' %}Dispatch Skool{% endblock %}
 
 {% block 'content' %}
 
-<div class="bg-white">
+<div class="bg-white pt-20">
 	<section class="flex flex-col items-center text-center px-4 md:px-4 lg:px-5 py-6">
 		<span class="text-md font-medium text-gray-700 bg-slate-200 px-4 py-1 rounded-full">
-				The Future of Dispatch Training
+			No Cold Calls, No Sales Agents
 		</span>
 		<h1 class="text-4xl md:text-6xl font-bold text-gray-900 leading-tight mt-4 py-2">
 				Find Carriers <br class="hidden sm:block">
-				Without Cold Calling
+				Without Cold Calling <br class="hidden sm:block">
+				Or Sales Agents!
 		</h1>
 		<h2 class="text-4xl md:text-6xl font-bold text-gray-700 mt-2 lg:py-2">
 				Train & Automate <br class="hidden sm:block">
 				with Dispatch Skool
 		</h2>
-		<p class="text-gray-500 text-xl sm:text-2xl md:text-2xl max-w-2xl lg:mt-4">
+		<p class="text-gray-500 text-xl sm:text-2xl md:text-2xl max-w-2xl mt-4">
 				Transform your dispatch business with our all-in-one platform.
 				Automate your workflow, find quality carriers, and scale your operations.
 		</p>
@@ -115,7 +116,7 @@
 
 	</div>
 
-	<div class="bg-white py-16 pb-10 px-5">
+	<div id="how-it-works" class="bg-white py-16 pb-10 px-5">
 
 		<div class="text-center max-w-4xl mx-auto px-4 pt-16 pb-5">
 			<h2 class="text-3xl md:text-4xl font-bold">
@@ -139,24 +140,24 @@
 					<div class="flex items-center bg-gray-50 p-6 rounded-lg shadow">
 							<i class="fa-solid fa-check"></i>
 							<div class="ml-4">
-									<h3 class="font-semibold text-lg">2. Complete Training</h3>
-									<p class="text-gray-600">Learn our proven methods for finding and working with carriers</p>
+									<h3 class="font-semibold text-lg">2. Upload Your MC List</h3>
+									<p class="text-gray-600">Upload your MC list or select from our vast carrier database</p>
 							</div>
 					</div>
 	
 					<div class="flex items-center bg-gray-50 p-6 rounded-lg shadow">
 							<i class="fa-solid fa-check"></i>
 							<div class="ml-4">
-									<h3 class="font-semibold text-lg">3. Use Our Tools</h3>
-									<p class="text-gray-600">Access our automation suite to streamline your workflow</p>
+									<h3 class="font-semibold text-lg">3. Automate Email Outreach</h3>
+									<p class="text-gray-600">Our system sends personalized emails automatically</p>
 							</div>
 					</div>
 	
 					<div class="flex items-center bg-gray-50 p-6 rounded-lg shadow">
 							<i class="fa-solid fa-check"></i>
 							<div class="ml-4">
-									<h3 class="font-semibold text-lg">4. Scale Your Business</h3>
-									<p class="text-gray-600">Grow your dispatch business with our ongoing support</p>
+									<h3 class="font-semibold text-lg">4. Get Responses & Book Carriers</h3>
+									<p class="text-gray-600">Start booking carriers without hiring a sales team</p>
 							</div>
 					</div>
 			</div>
@@ -226,45 +227,30 @@
 	</div>
 
 
-	<div class="bg-white py-16 px-5">
+	<div id="pricing" class="bg-white py-16 px-5">
 
 		<div class="text-center max-w-4xl mx-auto px-4 mt-20">
 			<h2 class="text-3xl md:text-4xl font-bold">
 				Simple, Transparent Pricing
 			</h2>
-			<p class="text-gray-500 text-lg md:text-xl mt-5">
-				Choose the plan that best fits your needs
+			<p class="mt-10 text-md font-medium text-gray-700 bg-slate-200 px-4 max-w-sm mx-auto py-3 rounded-full mb-5">
+					1 Week Free Trial, No Credit Card Required
 			</p>
 		</div>
 
 		<div class="flex flex-col md:flex-row justify-center gap-8 p-8">
-			<!-- Basic Plan -->
-			<div class="w-full md:w-1/2 lg:w-1/3 bg-white shadow-lg rounded-2xl p-8 border text-center">
-					<h2 class="text-2xl font-extrabold">Basic</h2>
-					<p class="text-4xl font-extrabold mt-3">Free</p>
-					<p class="text-gray-500 text-lg mt-2">Perfect for getting started</p>
-					<ul class="text-left mt-6 space-y-3 text-lg">
-							<li>✔ Basic training modules</li>
-							<li>✔ Community access</li>
-							<li>✔ Limited carrier search</li>
-							<li>✔ Email support</li>
-					</ul>
-					<button class="mt-8 bg-black text-white text-lg font-semibold py-3 px-6 rounded-xl w-full">
-							Get Started
-					</button>
-			</div>
 	
 			<!-- Pro Plan -->
 			<div class="w-full md:w-1/2 lg:w-1/3 bg-white shadow-lg rounded-2xl p-8 border text-center">
-					<h2 class="text-2xl font-extrabold">Pro</h2>
-					<p class="text-4xl md:text-5xl font-extrabold mt-3">$97/month</p>
+					<h2 class="text-2xl font-extrabold">All Features Included</h2>
+					<p class="text-4xl md:text-5xl font-extrabold mt-3">$99/month</p>
 					<p class="text-gray-500 text-lg mt-2">Everything you need to scale</p>
-					<ul class="text-left mt-6 space-y-3 text-lg">
-							<li>✔ Advanced training modules</li>
+					<ul class="text-left mt-6 space-y-3 text-lg sm:px-16">
+							<li>✔ Automated Carrier Outreach</li>
 							<li>✔ Full carrier database access</li>
-							<li>✔ Automation tools</li>
-							<li>✔ Priority support</li>
-							<li>✔ Weekly coaching calls</li>
+							<li>✔ Onboarding Automation</li>
+							<li>✔ Daily MC Sheet Updates</li>
+							<li>✔ Priority Support</li>
 							<li>✔ Custom templates</li>
 					</ul>
 					<button class="mt-8 bg-black text-white text-lg font-semibold py-3 px-6 rounded-xl w-full">
@@ -277,7 +263,7 @@
 
 	</div>
 
-	<div class="text-center max-w-4xl mx-auto px-4 pt-20 pb-10">
+	<div id="contact" class="text-center max-w-4xl mx-auto px-4 pt-20 pb-10">
 		<h2 class="text-3xl md:text-4xl font-bold">
 			Get In Touch
 		</h2>
@@ -286,29 +272,33 @@
 		</p>
 	</div>
 
-	<div class="flex flex-col md:flex-row justify-center gap-6 pb-16 px-5">
-    <!-- Chat Card -->
-    <div class="w-full md:w-1/3 bg-white border shadow-sm rounded-2xl p-6 flex items-center gap-4 transition-transform duration-300 hover:shadow-lg hover:-translate-y-1 cursor-pointer">
-        <svg class="w-8 h-8 text-black" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M8 10.5h.01M12 10.5h.01M16 10.5h.01M8 14.5h.01M12 14.5h.01M16 14.5h.01M21 12c0 4.971-4.029 9-9 9a8.963 8.963 0 01-4.31-1.09L3 21l1.09-4.31A8.963 8.963 0 013 12c0-4.971 4.029-9 9-9s9 4.029 9 9z"></path>
-        </svg>
-        <div>
-            <h3 class="text-xl font-semibold">Chat With Us</h3>
-            <p class="text-gray-500">Get instant help from our support team</p>
+	<div class="container max-w-5xl mx-auto px-4 py-8">
+    <div class="flex flex-col md:flex-row gap-6">
+        <!-- Contact Form -->
+        <div class="md:w-2/3 w-full">
+            <form class="bg-white p-6 rounded-lg shadow">
+                <input type="text" placeholder="Your Name" class="w-full p-3 border rounded mb-4" />
+                <input type="email" placeholder="Your Email" class="w-full p-3 border rounded mb-4" />
+                <textarea placeholder="Your Message" class="w-full p-3 border rounded mb-4"></textarea>
+                <button class="w-full bg-black text-white py-3 rounded">Send Message</button>
+            </form>
+        </div>
+        
+        <!-- Contact Information -->
+        <div class="md:w-1/3 w-full flex flex-col gap-4">
+            <div class="bg-gray-100 p-6 rounded-lg shadow">
+                <h2 class="font-bold text-lg mb-2">Contact Information</h2>
+                <p class="flex items-center gap-2"><span>&#9993;</span> support@dispatchskool.com</p>
+                <p class="flex items-center gap-2"><span>&#9742;</span> (800) 555-1234</p>
+            </div>
+            <div class="bg-gray-100 p-6 rounded-lg shadow">
+                <h2 class="font-bold text-lg mb-2">Business Hours</h2>
+                <p>Monday - Friday: 9am - 5pm EST</p>
+                <p>Weekend support available via email</p>
+            </div>
         </div>
     </div>
-
-    <!-- Email Card -->
-    <div class="w-full md:w-1/3 bg-white border shadow-sm rounded-2xl p-6 flex items-center gap-4 transition-transform duration-300 hover:shadow-lg hover:-translate-y-1 cursor-pointer">
-        <svg class="w-8 h-8 text-black" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M21 8V6a2 2 0 00-2-2H5a2 2 0 00-2 2v2m18 0v10a2 2 0 01-2 2H5a2 2 0 01-2-2V8m18 0l-9 6-9-6"></path>
-        </svg>
-        <div>
-            <h3 class="text-xl font-semibold">Email Us</h3>
-            <p class="text-gray-500">Send us your questions anytime</p>
-        </div>
-    </div>
-	</div>
+</div>
 
 
 
