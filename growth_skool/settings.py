@@ -21,11 +21,13 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = 'django-insecure-+9qyu0$!3np#mzlsgluumdww4^dg0+@wpn8@^r*ni9cu)e47z#'
+ENCRYPT_KEY = b'0T8rrQtvapiIr6znitchWIAkX-nZE8K3qLq2AGasHpM='
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
 ALLOWED_HOSTS = []
+AUTH_USER_MODEL = "users.CustomUser"
 
 
 # Application definition
@@ -39,11 +41,13 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
 
 		'main.apps.MainConfig',
+		'users.apps.UsersConfig',
+		'subscriptions.apps.SubscriptionsConfig',
+		'leads_data.apps.LeadsDataConfig',
 
 		'widget_tweaks',
-		"django_q",
+		'django_q',
 ]
-
 
 Q_CLUSTER = {
     'name': 'pdm',

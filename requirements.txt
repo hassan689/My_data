@@ -2,3 +2,5 @@ Django==5.1.7
 django-widget-tweaks==1.5.0
 psycopg2
 django-q2==1.7.6
+cryptography==44.0.2
+python-dotenv==1.0.1
