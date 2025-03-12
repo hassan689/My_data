@@ -3,18 +3,27 @@ from django.db import models
 from cryptography.fernet import Fernet
 from django.conf import settings
 from django.core.exceptions import ValidationError
+import base64
 
+
+
+def get_cipher():
+    """Ensure ENCRYPT_KEY is properly converted to bytes before using it."""
+    if isinstance(settings.ENCRYPT_KEY, str):  
+        key = base64.urlsafe_b64decode(settings.ENCRYPT_KEY)  # Decode base64 string
+    else:
+        key = settings.ENCRYPT_KEY  # Already in bytes
+    return Fernet(key)
 
 def encrypt_password(password: str) -> str:
     """Encrypts the password using Fernet encryption."""
-    cipher = Fernet(settings.ENCRYPT_KEY.encode())
-    return cipher.encrypt(password.encode()).decode()
-
+    cipher = get_cipher()
+    return cipher.encrypt(password.encode()).decode()  # Encrypt and return as string
 
 def decrypt_password(encrypted_password: str) -> str:
     """Decrypts the password using Fernet encryption."""
-    cipher = Fernet(settings.ENCRYPT_KEY.encode())
-    return cipher.decrypt(encrypted_password.encode()).decode()
+    cipher = get_cipher()
+    return cipher.decrypt(encrypted_password.encode()).decode()  # Decrypt and return as string
 
 class CustomUser(AbstractUser):
     phone_number = models.CharField(max_length=20, unique=True, null=True, blank=True)
