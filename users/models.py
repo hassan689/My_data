@@ -25,6 +25,10 @@ def decrypt_password(encrypted_password: str) -> str:
     cipher = get_cipher()
     return cipher.decrypt(encrypted_password.encode()).decode()  # Decrypt and return as string
 
+
+
+# set the status to free trial on creation, then auto check it to false once 7 days are over and also send an email to the user to pay
+# for the subscription
 class CustomUser(AbstractUser):
     phone_number = models.CharField(max_length=20, unique=True, null=True, blank=True)
     company_name = models.CharField(max_length=255, null=True, blank=True)
