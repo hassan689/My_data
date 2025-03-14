@@ -4,19 +4,22 @@ from django.core.management.base import BaseCommand
 from leads_data.models import Lead
 from tqdm import tqdm
 
-DATA_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../../data/complete_data.xlsx")
+# python manage.py import_leads ../../../data/complete_data.xlsx
 
 class Command(BaseCommand):
-    help = "Import leads from a single Excel file using bulk create"
+    help = "Import leads from a specified Excel file using bulk create"
 
-    def handle(self, *args, **kwargs):
-        """Import leads from complete_data.xlsx"""
+    def add_arguments(self, parser):
+        parser.add_argument("file_path", type=str, help="Path to the Excel file")
 
-        if not os.path.exists(DATA_FILE):
-            self.stderr.write(self.style.ERROR(f"❌ File not found: {DATA_FILE}"))
+    def handle(self, *args, **options):
+        file_path = options["file_path"]
+
+        if not os.path.exists(file_path):
+            self.stderr.write(self.style.ERROR(f"❌ File not found: {file_path}"))
             return
 
-        self.stdout.write(self.style.NOTICE(f"📂 Processing file: complete_data.xlsx..."))
+        self.stdout.write(self.style.NOTICE(f"📂 Processing file: {os.path.basename(file_path)}..."))
 
         try:
             df = pd.read_excel(DATA_FILE, dtype=str).fillna("")

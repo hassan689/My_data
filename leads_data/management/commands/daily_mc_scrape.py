@@ -17,6 +17,8 @@ from datetime import datetime
 from django.core.mail import EmailMessage
 from users.models import CustomUser
 from django.conf import settings
+from django.db.models import Q
+from django.core.management import call_command
 
 # Initialize WebDriver Service using WebDriver Manager
 service = Service(ChromeDriverManager().install())
@@ -454,6 +456,11 @@ if dataframes:
     # Write the combined dataframe to a new Excel file
     merged_df.to_excel(output_file, index=False)
     print(f"📄 Merged Excel file saved as {output_file}")
+    
+		# Call your management command to import data into the Lead model
+    print("🚀 Importing data into the Lead model...")
+    call_command("import_leads", str(output_file))
+    print("✅ Data import completed!")
 
     # Delete the original files
     for filename in os.listdir(folder_path):
@@ -475,7 +482,7 @@ if dataframes:
             print(f"❌ Failed to send email to {recipient_email}: {e}")
 
     # Fetch user emails where subscription status is active
-    active_users = CustomUser.objects.filter(subscriptions__status="active").distinct()
+    active_users = CustomUser.objects.filter(Q(subscriptions__status="active") | Q(on_free_trial=True)).distinct()
     user_emails = list(active_users.values_list("email", flat=True))
 
     if user_emails:
@@ -492,4 +499,4 @@ else:
 
 # update recipient list to send it to the free trial users or active subs
 # save the new list to the leads database
-
+#Maybe done
