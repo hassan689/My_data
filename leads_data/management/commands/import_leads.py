@@ -22,7 +22,7 @@ class Command(BaseCommand):
         self.stdout.write(self.style.NOTICE(f"📂 Processing file: {os.path.basename(file_path)}..."))
 
         try:
-            df = pd.read_excel(DATA_FILE, dtype=str).fillna("")
+            df = pd.read_excel(file_path, dtype=str).fillna("")
             print("🔍 Preview of DataFrame:")
             print(df.head(), flush=True)  # Force immediate output
         except Exception as e:
@@ -33,7 +33,7 @@ class Command(BaseCommand):
         existing_mc_numbers = set(Lead.objects.exclude(mc_number="").values_list("mc_number", flat=True))
         new_leads = []
 
-        for _, row in tqdm(df.iterrows(), total=len(df), desc=f"Importing {DATA_FILE}"):
+        for _, row in tqdm(df.iterrows(), total=len(df), desc=f"Importing {file_path}"):
             try:
                 new_leads.append(
                     Lead(

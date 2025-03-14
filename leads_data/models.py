@@ -1,5 +1,7 @@
 from django.db import models
 
+
+# Should also have a date set to auto, cause we need to have the record of on what date was this mc number's data was added
 class Lead(models.Model):
     
     mc_number = models.CharField(max_length=50, verbose_name="MC Number")  # Unique identifier
