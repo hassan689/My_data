@@ -351,27 +351,27 @@ class Command(BaseCommand):
                           print(f"Data Extracted for MC Number {mc_number}")
 
                         data.append({
-                          'MCNumber': f"MC {mc_number}",
-                          'USDOT Status': usd_status_value,
-                          'LegalName': legal_name,
-                          'Telephone': telephone,
-                          'Email': email,
-                          'Address': address,
-                          'U.S DOT': us_dot,
-                          'Vehicle Miles Traveled': vehicle_miles_traveled,
-                          'VMT Year': vmt_year,
-                          'Power Units': power_units,
-                          'DUNS Number': duns_number,
-                          'Drivers': drivers,
-                          'Carrier Operation': carrier_operation,
-                          'Passenger': passenger,
-                          'HM': hm,
-                          'HHG': hhg,
-                          'New Entrant': new_entrant,
-                          'Operation Classification': operation_classification,
-                          'Cargo Classifications': cargo_classifications,
-                          'Cargo Info': cargo_info_single_row
-                        })
+													'MC Number': f"MC {mc_number:07}",
+													'USDOT Status': usd_status_value,
+													'Legal Name': legal_name,
+													'Telephone': telephone,
+													'Email': email,
+													'Address': address,
+													'U.S DOT': us_dot,
+													'Vehicle Miles Traveled': vehicle_miles_traveled,
+													'VMT Year': vmt_year,
+													'Power Units': power_units,
+													'DUNS Number': duns_number,
+													'Drivers': drivers,
+													'Carrier Operation': carrier_operation,
+													'Passenger': passenger,
+													'HM': hm,
+													'HHG': hhg,
+													'New Entrant': new_entrant,
+													'Operation Classification': operation_classification,
+													'Cargo Classifications': cargo_classifications,
+													'Cargo Info': cargo_info_single_row
+												})
 
                         # Close the tabs after processing, except the original tab
                         driver.close()  # Close the Carrier tab

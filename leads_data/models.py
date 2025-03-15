@@ -24,6 +24,8 @@ class Lead(models.Model):
     operation_classification = models.TextField(null=True, blank=True)
     cargo_classifications = models.TextField(null=True, blank=True)
     cargo_info = models.TextField(null=True, blank=True)
+    
+    added_on = models.DateField(auto_now_add=True, null=True, blank=True)
 
     def __str__(self):
         return f"{self.mc_number} - {self.legal_name}"
