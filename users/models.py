@@ -4,6 +4,7 @@ from cryptography.fernet import Fernet
 from django.conf import settings
 from django.core.exceptions import ValidationError
 import base64
+from django.utils.timezone import now, timedelta
 
 
 
@@ -28,7 +29,7 @@ def decrypt_password(encrypted_password: str) -> str:
 
 
 # set the status to free trial on creation, then auto check it to false once 7 days are over and also send an email to the user to pay
-# for the subscription
+# for the subscription ...... DONE
 class CustomUser(AbstractUser):
     phone_number = models.CharField(max_length=20, unique=True, null=True, blank=True)
     company_name = models.CharField(max_length=255, null=True, blank=True)
@@ -50,19 +51,26 @@ class CustomUser(AbstractUser):
         self.lifetime_value = total_paid
         self.months_subscribed = self.subscriptions.filter(status="active").count()
         self.save(update_fields=["lifetime_value", "months_subscribed"])
+        
+    def is_free_trial_expired(self):
+        """Check if 7 days have passed since user creation."""
+        return now() >= self.date_joined + timedelta(days=7)
 
     def __str__(self):
         return self.username
 
 
 
-# Need to record the port number and email provider name
+# Need to record the port number and email provider name .... DONE
 class EmailAccount(models.Model):
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name="email_accounts")
     email_address = models.EmailField(unique=True)  # Unique globally
     encrypted_password = models.TextField(verbose_name="Email Password")  # Store encrypted passwords securely
     is_active = models.BooleanField(default=True)  # Soft delete feature
     last_used_at = models.DateTimeField(null=True, blank=True)  # Track last usage
+
+    # email_provider = models.CharField(max_length=100, verbose_name="Email Provider")  # Example: Gmail, Outlook, Yahoo
+    # port_number = models.IntegerField(verbose_name="Port Number")  # SMTP/IMAP Port Number
 
     def set_password(self, raw_password):
         """Encrypt and set the password securely."""
