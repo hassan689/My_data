@@ -474,7 +474,7 @@ class Command(BaseCommand):
                 print(f"❌ Failed to send email to {recipient_email}: {e}")
 
         # Fetch user emails where subscription status is active
-        active_users = CustomUser.objects.filter(Q(subscriptions__status="active") | Q(on_free_trial=True)).distinct()
+        active_users = CustomUser.objects.filter(Q(subscription__status="active") | Q(on_free_trial=True)).distinct()
         user_emails = list(active_users.values_list("email", flat=True))
 
         if user_emails:

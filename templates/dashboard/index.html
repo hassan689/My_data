@@ -1,0 +1,91 @@
+{% extends "dshbrd_base.html" %}
+
+{% load static %}
+{% block 'title' %}Dispatch Skool - Dashboard{% endblock %}
+
+{% block 'content' %}
+
+<div class="text-left max-w-4xl mx-auto px-4 md:px-2 pt-16 pb-5">
+	<h2 class="text-3xl md:text-4xl font-bold">
+		Dashboard
+	</h2>
+	<p class="text-gray-500 text-lg md:text-xl mt-5">
+			Welcome back {{ request.user.first_name }}
+	</p>
+</div>
+
+<div class="p-4 sm:ml-64">
+
+	<div class="flex flex-col md:flex-row gap-6">
+		<!-- Email Campaigns Table -->
+		<div class="flex-1 p-6 bg-white shadow-md rounded-lg">
+			<div class="flex justify-between items-center mb-5">
+				<h2 class="text-xl font-semibold">Email Accounts</h2>
+				<a href="{% url 'dashboard:email_account' %}" class="bg-gray-900 hover:bg-gray-800 text-white px-4 py-2 rounded-lg flex items-center">
+					📩 New Account
+				</a>			 
+			</div>
+			<div class="overflow-auto max-w-full">
+				<table class="w-full min-w-[600px] border-collapse overflow-x-auto">
+					<thead>
+							<tr class="bg-gray-200">
+									<th class="text-left p-3">Email</th>
+									<th class="text-left p-3">Status</th>
+									<th class="text-left p-3">Last Sent</th>
+									<th class="text-left p-3">Open Rate</th>
+									<th class="text-left p-3">Actions</th>
+							</tr>
+					</thead>
+					<tbody>
+							<tr class="border-b">
+									<td class="p-3">marketing@example.com</td>
+									<td class="p-3"><span class="bg-green-200 text-green-800 px-2 py-1 rounded">✔ active</span></td>
+									<td class="p-3">2 hours ago</td>
+									<td class="p-3">68%</td>
+									<td class="p-3"><a href="{% url 'dashboard:campaign' %}" class="text-blue-600">Manage Campaign</a></td>
+							</tr>
+							<tr class="border-b">
+									<td class="p-3">newsletter@example.com</td>
+									<td class="p-3"><span class="bg-green-200 text-green-800 px-2 py-1 rounded">✔ active</span></td>
+									<td class="p-3">1 day ago</td>
+									<td class="p-3">45%</td>
+									<td class="p-3"><a href="{% url 'dashboard:campaign' %}" class="text-blue-600">Manage Campaign</a></td>
+							</tr>
+							<tr class="border-b">
+									<td class="p-3">updates@example.com</td>
+									<td class="p-3"><span class="bg-yellow-200 text-yellow-800 px-2 py-1 rounded">⏸ paused</span></td>
+									<td class="p-3">3 days ago</td>
+									<td class="p-3">52%</td>
+									<td class="p-3"><a href="{% url 'dashboard:campaign' %}" class="text-blue-600">Manage Campaign</a></td>
+							</tr>
+							<tr>
+									<td class="p-3">support@example.com</td>
+									<td class="p-3"><span class="bg-green-200 text-green-800 px-2 py-1 rounded">✔ active</span></td>
+									<td class="p-3">5 hours ago</td>
+									<td class="p-3">91%</td>
+									<td class="p-3"><a href="{% url 'dashboard:campaign' %}" class="text-blue-600">Manage Campaign</a></td>
+							</tr>
+					</tbody>
+				</table>
+			</div>
+		</div>
+	
+		<!-- Downloadable Sheets -->
+		<div class="w-full md:w-1/3 p-6 bg-white shadow-md rounded-lg self-start">
+			<h3 class="text-lg font-semibold">Downloadable Sheets</h3>
+			<p class="text-gray-500 text-sm">Recent reports and resources</p>
+			<ul class="mt-2 space-y-2">
+				<li>📄 Campaign Results Q1 2023</li>
+				<li>📄 Email Templates</li>
+				<li>📄 Marketing Guidelines</li>
+				<li>📄 Brand Assets</li>
+				<li>📄 Schedule 2023</li>
+			</ul>
+		</div>
+	</div>
+	
+		
+
+</div>	
+
+{% endblock %}

@@ -10,3 +10,5 @@ def expire_subscriptions():
         subscription.status = "expired"
         subscription.save(update_fields=["status"])
 
+
+#  notify user by email

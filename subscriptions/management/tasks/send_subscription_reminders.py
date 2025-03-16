@@ -24,3 +24,6 @@ The Dispatch Skool Team
             recipient_list=[subscription.user.email],
             fail_silently=False,
         )
+        
+
+#  use thread pool executor

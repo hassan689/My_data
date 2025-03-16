@@ -44,6 +44,7 @@ INSTALLED_APPS = [
 		'users.apps.UsersConfig',
 		'subscriptions.apps.SubscriptionsConfig',
 		'leads_data.apps.LeadsDataConfig',
+		'dashboard.apps.DashboardConfig',
 
 		'widget_tweaks',
 		'django_q',

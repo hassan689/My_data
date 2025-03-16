@@ -69,9 +69,16 @@ class EmailAccount(models.Model):
     encrypted_password = models.TextField(verbose_name="Email Password")  # Store encrypted passwords securely
     is_active = models.BooleanField(default=True)  # Soft delete feature
     last_used_at = models.DateTimeField(null=True, blank=True)  # Track last usage
-
-    # email_provider = models.CharField(max_length=100, verbose_name="Email Provider")  # Example: Gmail, Outlook, Yahoo
-    # port_number = models.IntegerField(verbose_name="Port Number")  # SMTP/IMAP Port Number
+    
+    total_campaigns = models.PositiveIntegerField(null=True, blank=True)
+    email_provider = models.CharField(max_length=100, verbose_name="Email Provider", null=True, blank=True)  # Example: Gmail, Outlook, Yahoo
+    port_number = models.IntegerField(verbose_name="Port Number", null=True, blank=True)  # SMTP/IMAP Port Number
+    server_type = models.CharField(
+        max_length=10,
+        choices=[("TLS", "TLS"), ("SSL", "SSL")],
+        verbose_name="SMTP Server Type",
+        null=True, blank=True
+    )
 
     def set_password(self, raw_password):
         """Encrypt and set the password securely."""
