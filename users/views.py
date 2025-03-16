@@ -19,7 +19,25 @@ def signup_view(request):
 
 
 class CustomPasswordResetView(auth_views.PasswordResetView):
-    """Custom Password Reset View to explicitly define success URL."""
+    """Custom Password Reset View to explicitly define success URL and pass request to template."""
+    
     success_url = reverse_lazy("users:password_reset_done")  # Explicitly set the success URL
+
+    def get_context_data(self, **kwargs):
+        """Ensure request is included in the email template context."""
+        context = super().get_context_data(**kwargs)
+        context["request"] = self.request  # Fix the missing request issue
+        return context
+
+class CustomPasswordResetConfirmView(auth_views.PasswordResetConfirmView):
+    """Custom Password Reset Confirm View to ensure correct success URL and pass request to template."""
+    
+    success_url = reverse_lazy("users:password_reset_complete")  # ✅ Use namespaced success URL
+
+    def get_context_data(self, **kwargs):
+        """Ensure request is included in the template context to avoid VariableDoesNotExist errors."""
+        context = super().get_context_data(**kwargs)
+        context["request"] = self.request  # ✅ Fix for missing request in email template
+        return context
 
 

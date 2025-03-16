@@ -146,11 +146,31 @@ USE_TZ = True
 
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.hostinger.com'
-EMAIL_USE_TLS = True  # Enable TLS
-EMAIL_USE_SSL = False  # Disable SSL
-EMAIL_PORT = 587  # TLS requires port 587
+EMAIL_USE_TLS = False  # Enable TLS
+EMAIL_USE_SSL = True  # Disable SSL
+EMAIL_PORT = 465  # TLS requires port 587
 EMAIL_HOST_USER = "jordan@truckingstory.com"
 EMAIL_HOST_PASSWORD = "Ahmad@2134"
+
+DEFAULT_FROM_EMAIL = "jordan@truckingstory.com"
+
+LOGGING = {
+    "version": 1,
+    "handlers": {
+        "file": {
+            "level": "DEBUG",
+            "class": "logging.FileHandler",
+            "filename": "django_email.log",
+        },
+    },
+    "loggers": {
+        "django": {
+            "handlers": ["file"],
+            "level": "DEBUG",
+            "propagate": True,
+        },
+    },
+}
 
 
 # Static files (CSS, JavaScript, Images)
@@ -160,7 +180,6 @@ STATIC_URL = 'static/'
 LOGIN_REDIRECT_URL = 'dashboard:index'
 LOGIN_URL = 'users:login'
 LOGOUT_REDIRECT_URL = 'main:index'
-PASSWORD_RESET_REDIRECT_URL = "users:password_reset_done"
 
 
 # Default primary key field type

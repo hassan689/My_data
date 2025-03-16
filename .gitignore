@@ -3,3 +3,4 @@ migrations/
 __pycache__/
 plan.txt
 data/
+django_email.log
