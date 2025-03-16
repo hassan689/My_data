@@ -37,7 +37,7 @@ class CustomUser(AbstractUser):
     mc_number = models.CharField(max_length=50, null=True, blank=True, verbose_name="MC Number")
 
     on_free_trial = models.BooleanField(default=True, verbose_name="On Free Trial")
-    lifetime_value = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    lifetime_value = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, null=True, blank=True) # Later remove this field on db change
     months_subscribed = models.IntegerField(default=0)
 
     groups = models.ManyToManyField("auth.Group", related_name="customuser_set", blank=True)
@@ -47,10 +47,11 @@ class CustomUser(AbstractUser):
         return self.subscriptions.filter(status="active").exists()
 
     def update_lifetime_value(self):
-        total_paid = self.subscriptions.aggregate(total=models.Sum("amount_paid"))["total"] or 0.00
-        self.lifetime_value = total_paid
-        self.months_subscribed = self.subscriptions.filter(status="active").count()
-        self.save(update_fields=["lifetime_value", "months_subscribed"])
+        if hasattr(self, "subscription"):  # Ensure the user has a subscription record
+            self.months_subscribed = self.subscription.renewal_count  # Track renewals instead of number of subscriptions
+            self.save(update_fields=["months_subscribed"])
+
+
         
     def is_free_trial_expired(self):
         """Check if 7 days have passed since user creation."""
