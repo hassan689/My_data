@@ -1,0 +1,68 @@
+{% extends "dshbrd_base.html" %}
+
+{% load static %}
+{% block 'title' %}Dispatch Skool - Add Email Account{% endblock %}
+
+{% load widget_tweaks %}
+
+{% block 'content' %}
+
+<div class="p-4 sm:ml-64">
+
+	<div class="flex items-center justify-center min-h-screen">
+		<div class="w-full max-w-2xl bg-white shadow-lg rounded-lg p-6">
+			
+			<div class="pb-5">
+				<h2 class="text-2xl md:text-3xl font-semibold mt-1 text-center mb-2">Email Account Details</h2>
+				<p class="text-gray-500 text-base md:text-xl mb-4 text-center">Please fill out the following details to register your email account</p>
+			</div>
+	
+			<form method="post" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+				{% csrf_token %}
+				
+				<!-- Row 1 -->
+				<div>
+						<label class="block font-medium text-gray-700 mb-3">Email Address</label>
+						{% render_field form.email_address class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none" placeholder="Enter your email" %}
+				</div>
+				<div>
+					<label class="block font-medium text-gray-700 mb-3">Password</label>
+					{% render_field form.encrypted_password class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none" placeholder="Enter password" %}
+				</div>
+		
+		
+				<!-- Row 3 -->
+				<div>
+						<label class="block font-medium text-gray-700 mb-3">Email Provider</label>
+						{% render_field form.email_provider class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none" placeholder="e.g. Goodle, Hostiger, Yahoo etc." %}
+				</div>
+				<div>
+						<label class="block font-medium text-gray-700 mb-3">Outgoing Port</label>
+						{% render_field form.port_number class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none" placeholder="Your SMTP Port Number" %}
+				</div>
+		
+				<!-- Row 4 -->
+				<div class="w-full">
+						<label class="block font-medium text-gray-700 mb-3">Encryption</label>
+						{% render_field form.server_type class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none" %}
+				</div>
+				<div class="w-full">
+						<label class="block font-medium text-gray-700 mb-3">Outgoing Servr Host</label>
+						{% render_field form.host class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none" placeholder="smtp.example.com" %}
+				</div>
+		
+				<!-- Submit Button -->
+				<div class="md:col-span-2">
+						<button type="submit" class="w-full bg-gray-900 hover:bg-gray-800 text-white font-medium py-2 rounded-lg">
+								Create Account
+						</button>
+				</div>
+		</form>
+	
+	
+		</div>
+	</div>
+
+</div>
+
+{% endblock %}

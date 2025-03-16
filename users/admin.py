@@ -76,7 +76,7 @@ class EmailAccountForm(forms.ModelForm):
 @admin.register(EmailAccount)
 class EmailAccountAdmin(admin.ModelAdmin):
     form = EmailAccountForm  # Use custom form with decryption
-    list_display = ("user", "email_address", "is_active", "last_used_at")
+    list_display = ("user", "email_address", "email_provider", "server_type", "is_active", "last_used_at")
     list_filter = ("is_active", "last_used_at")
     search_fields = ("email_address", "user__username")
 

@@ -79,6 +79,7 @@ class EmailAccount(models.Model):
         verbose_name="SMTP Server Type",
         null=True, blank=True
     )
+    host = models.CharField(max_length=100, verbose_name="Outgoing Servr Host", null=True, blank=True)
 
     def set_password(self, raw_password):
         """Encrypt and set the password securely."""

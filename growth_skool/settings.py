@@ -157,7 +157,8 @@ EMAIL_HOST_PASSWORD = "Ahmad@2134"
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
 
 STATIC_URL = 'static/'
-LOGIN_REDIRECT_URL = 'main:index'
+LOGIN_REDIRECT_URL = 'dashboard:index'
+LOGIN_URL = 'users:login'
 LOGOUT_REDIRECT_URL = 'main:index'
 PASSWORD_RESET_REDIRECT_URL = "users:password_reset_done"
 

@@ -6,7 +6,7 @@ app_name = 'dashboard'
 urlpatterns = [
     path('', views.index, name="index"),
 		path('campaign/', views.campaign, name='campaign'),
-		path('email_account/', views.email_account, name='email_account'),
+		path('email_account/', views.add_email_account, name='email_account'),
 ]
 
 
