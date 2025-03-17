@@ -13,10 +13,23 @@ class EmailAccountForm(forms.ModelForm):
     
 
 class CampaignForm(forms.Form):
-    email_subject = forms.CharField(max_length=255, required=True, widget=forms.TextInput())
-    email_body = forms.CharField(widget=forms.Textarea(), required=True)
-    file_upload = forms.FileField(required=False, widget=forms.ClearableFileInput())
-    mc_number = forms.CharField(max_length=10, required=False)
+    email_subject = forms.CharField(
+        max_length=255, 
+        required=True, 
+        widget=forms.TextInput(attrs={'placeholder': 'Enter Your Email Subject title'})
+    )
+    email_body = forms.CharField(
+        widget=forms.Textarea(attrs={'placeholder': 'Write your Email Body here...', 'class': 'h-28'})
+    )
+    file_upload = forms.FileField(
+        required=False, 
+        widget=forms.ClearableFileInput(attrs={'class': 'hidden'})
+    )
+    mc_number = forms.CharField(
+        max_length=10, 
+        required=False, 
+        widget=forms.TextInput(attrs={'placeholder': 'Enter Starting MC Number'})
+    )
 
     def __init__(self, *args, **kwargs):
         self.user = kwargs.pop('user', None)  # Get user instance
@@ -32,7 +45,7 @@ class CampaignForm(forms.Form):
 
         if self.user and self.user.on_free_trial:
             if not file_upload:
-                raise forms.ValidationError("Free trial users must upload an Excel file.")
+                self.add_error('file_upload', "Free trial users must upload an Excel file.")
         else:
             if not file_upload and not mc_number:
                 raise forms.ValidationError("Either upload an Excel file or provide an MC number.")

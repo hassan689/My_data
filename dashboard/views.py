@@ -12,6 +12,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from concurrent.futures import ThreadPoolExecutor
 from django.utils.timezone import now
+from django.contrib import messages
 
 
 ######################################## Campaign sending views
@@ -31,7 +32,8 @@ def send_emails(email_account, recipients, subject, body):
             server = smtplib.SMTP_SSL(email_account.host, email_account.port_number, context=context)
 
         # Login once
-        server.login(email_account.email_address, email_account.encrypted_password)
+        print(server.login(email_account.email_address, email_account.encrypted_password))
+        print("Server logged in")
 
         def send_single_email(recipient):
             """Function to send a single email."""
@@ -117,7 +119,9 @@ def get_leads_from_db(starting_mc_number):
 
 @login_required
 def campaign(request, email_account_id):
+    
     email_account = get_object_or_404(EmailAccount, id=email_account_id, user=request.user)
+    form = CampaignForm(user=request.user)
 
     if request.method == 'POST':
         form = CampaignForm(request.POST, request.FILES, user=request.user)
@@ -134,12 +138,16 @@ def campaign(request, email_account_id):
                 leads = get_leads_from_db(mc_number)
 
             if not leads:
-                return JsonResponse({'error': 'No valid leads found.'}, status=400)
+                messages.error(request, "No valid leads found.")
+                return redirect('dashboard:index')
+            else:
+                print(leads)
 
             # Call send_emails function which already uses threading
             send_emails(email_account, [lead['email'] for lead in leads], email_subject, email_body)
 
-            return JsonResponse({'success': 'Emails are being sent.'})
+            messages.success(request, f"Success! Emails are being sent for {email_account.email_address}. thank you for your patience")
+            return redirect('dashboard:index')
 
     else:
         form = CampaignForm(user=request.user)

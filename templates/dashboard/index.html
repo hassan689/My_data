@@ -9,10 +9,24 @@
 	<h2 class="text-3xl md:text-4xl font-bold">
 		Dashboard
 	</h2>
-	<p class="text-gray-500 text-lg md:text-xl mt-5">
+	<p class="text-gray-500 text-lg md:text-xl my-5">
 			Welcome back {{ request.user.first_name }}
 	</p>
+	{% if messages %}
+    {% for message in messages %}
+        <div class="p-5 my-3 rounded-xl border-2 border-solid 
+            {% if message.tags == 'success' %} bg-green-200 border-green-700 text-green-800 
+            {% elif message.tags == 'error' %} bg-red-200 border-red-700 text-red-700
+            {% endif %}">
+            <p class="text-sm">{{ message }}</p>
+        </div>
+    {% endfor %}
+	{% endif %}
+
 </div>
+
+
+
 
 <div class="p-4 sm:ml-64">
 
