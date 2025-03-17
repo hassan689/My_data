@@ -30,42 +30,40 @@
 					<thead>
 							<tr class="bg-gray-200">
 									<th class="text-left p-3">Email</th>
-									<th class="text-left p-3">Status</th>
-									<th class="text-left p-3">Last Sent</th>
-									<th class="text-left p-3">Open Rate</th>
+									<th class="text-left p-3">Provider</th>
 									<th class="text-left p-3">Actions</th>
 							</tr>
 					</thead>
 					<tbody>
-							<tr class="border-b">
-									<td class="p-3">marketing@example.com</td>
-									<td class="p-3"><span class="bg-green-200 text-green-800 px-2 py-1 rounded">✔ active</span></td>
-									<td class="p-3">2 hours ago</td>
-									<td class="p-3">68%</td>
-									<td class="p-3"><a href="{% url 'dashboard:campaign' %}" class="text-blue-600">Manage Campaign</a></td>
-							</tr>
-							<tr class="border-b">
-									<td class="p-3">newsletter@example.com</td>
-									<td class="p-3"><span class="bg-green-200 text-green-800 px-2 py-1 rounded">✔ active</span></td>
-									<td class="p-3">1 day ago</td>
-									<td class="p-3">45%</td>
-									<td class="p-3"><a href="{% url 'dashboard:campaign' %}" class="text-blue-600">Manage Campaign</a></td>
-							</tr>
-							<tr class="border-b">
-									<td class="p-3">updates@example.com</td>
-									<td class="p-3"><span class="bg-yellow-200 text-yellow-800 px-2 py-1 rounded">⏸ paused</span></td>
-									<td class="p-3">3 days ago</td>
-									<td class="p-3">52%</td>
-									<td class="p-3"><a href="{% url 'dashboard:campaign' %}" class="text-blue-600">Manage Campaign</a></td>
-							</tr>
-							<tr>
-									<td class="p-3">support@example.com</td>
-									<td class="p-3"><span class="bg-green-200 text-green-800 px-2 py-1 rounded">✔ active</span></td>
-									<td class="p-3">5 hours ago</td>
-									<td class="p-3">91%</td>
-									<td class="p-3"><a href="{% url 'dashboard:campaign' %}" class="text-blue-600">Manage Campaign</a></td>
-							</tr>
-					</tbody>
+						{% for account in email_accounts %}
+						<tr class="border-b hover:bg-gray-100">
+								<!-- Email -->
+								<td class="p-3">{{ account.email_address }}</td>
+				
+								<!-- Provider -->
+								<td class="p-3">{{ account.email_provider }}</td>
+				
+								<!-- Update Button -->
+								<td class="p-3 space-x-5">
+										<a href="{% url 'dashboard:email_account_update' account.id %}" 
+											class="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600">
+												Update
+										</a>
+										{% if not request.user.on_free_trial %}
+										<a href="{% url 'dashboard:email_account_delete' account.id %}" 
+											class="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600">
+												Delete
+										</a>
+										{% endif %}
+										<a href="{% url 'dashboard:campaign' %}" 
+											class="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600">
+												Manage Campaign
+										</a>
+								</td>
+						</tr>
+						{% endfor %}
+				</tbody>
+				
 				</table>
 			</div>
 		</div>

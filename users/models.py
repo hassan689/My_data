@@ -50,8 +50,6 @@ class CustomUser(AbstractUser):
         if hasattr(self, "subscription"):  # Ensure the user has a subscription record
             self.months_subscribed = self.subscription.renewal_count  # Track renewals instead of number of subscriptions
             self.save(update_fields=["months_subscribed"])
-
-
         
     def is_free_trial_expired(self):
         """Check if 7 days have passed since user creation."""
