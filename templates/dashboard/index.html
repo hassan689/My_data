@@ -55,7 +55,7 @@
 												Delete
 										</a>
 										{% endif %}
-										<a href="{% url 'dashboard:campaign' %}" 
+										<a href="{% url 'dashboard:campaign' email_account_id=account.id %}" 
 											class="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600">
 												Manage Campaign
 										</a>

@@ -1,0 +1,193 @@
+{% extends "dshbrd_base.html" %}
+
+{% load static %}
+{% block 'title' %}Dispatch Skool - Campaign Creator{% endblock %}
+
+{% block 'content' %}
+
+<div class="p-4 sm:ml-64">
+
+
+	<div class="text-center max-w-4xl mx-auto px-4 pt-16 pb-5">
+		<h2 class="text-3xl md:text-4xl font-bold">
+			Campaign Creator for <span class="text-blue-500">{{ email_account.email_address }}</span>
+		</h2>
+		<p class="text-gray-500 text-lg md:text-xl mt-5">
+			Reach your ideal customers in <strong>less than 5 minutes</strong> — our powerful tool <strong>delivers your campaign instantly</strong>,
+			maximizing impact while you focus on growing your business.
+		</p>
+	</div>
+
+	<section class="flex flex-col items-center text-center px-4 md:px-4 lg:px-5 py-6 my-5">
+		<span class="text-md font-medium text-gray-700 bg-slate-200 px-4 py-1 rounded-full">
+			Step 1
+		</span>
+		<h2 class="text-2xl md:text-3xl font-semibold mt-3">
+			Select Lead Source
+		</h2>
+		<p class="text-gray-500 text-base mt-2">
+			Choose <strong>One of the two methods,</strong> how you want to source leads for your campaign
+		</p>
+	</section>
+
+
+	<div class="flex flex-col md:flex-row gap-6 w-full max-w-6xl mx-auto">
+    <!-- Upload File Box -->
+    <div class="w-full md:w-1/2 p-6 bg-white border border-gray-300 rounded-lg shadow-md focus-within:ring-2 focus-within:ring-blue-500">
+        <!-- Top Icon -->
+        <div class="flex justify-center">
+            <div class="w-12 h-12 flex items-center justify-center rounded-full bg-blue-100 text-blue-500">
+                <i class="fa-solid fa-arrow-up-from-bracket"></i>
+            </div>
+        </div>
+
+        <!-- Title & Description -->
+        <div class="mt-4 text-center">
+            <h2 class="text-lg font-medium text-gray-700">Upload File</h2>
+            <p class="text-sm text-gray-500">Import leads from an Excel file</p>
+        </div>
+
+        <!-- Upload Box -->
+        <label class="mt-4 flex flex-col items-center justify-center w-full border-2 border-dashed border-gray-300 rounded-lg py-6 cursor-pointer hover:border-gray-400 focus-within:ring-2 focus-within:ring-blue-500">
+            <input type="file" class="hidden" />
+            <div class="flex flex-col items-center space-y-2">
+								<div class="flex justify-center">
+										<div class="w-12 h-12 flex items-center justify-center rounded-full bg-blue-100 text-blue-500">
+												<i class="fa-solid fa-arrow-up-from-bracket"></i>
+										</div>
+								</div>
+                <p class="text-sm font-medium text-gray-600">Click to upload or drag and drop</p>
+                <p class="text-xs text-gray-400">XLSX (max 10MB)</p>
+            </div>
+        </label>
+    </div>
+
+    <!-- Use Database Box -->
+    <div class="w-full md:w-1/2 p-6 bg-white border border-gray-300 rounded-lg shadow-md focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500">
+        <!-- Centered Icon -->
+        <div class="flex justify-center">
+            <div class="w-12 h-12 flex items-center justify-center rounded-full bg-blue-100 text-blue-500">
+                <i class="fa-solid fa-database"></i>
+            </div>
+        </div>
+
+        <!-- Centered Title & Description -->
+        <div class="text-center mt-3">
+            <h2 class="text-lg font-medium text-gray-700">Use Database</h2>
+            <p class="text-sm text-gray-500">Use our existing database of verified leads.</p>
+						<p class="text-sm text-gray-500 mt-5">Simply select the starting MC Number to filter your target carriers. Our system will automatically gather the neighboring <strong>300</strong> MC Numbers and their data, ensuring precise and efficient campaign delivery.</p>
+        </div>
+
+        <!-- Input Fields -->
+        <div class="mt-6 space-y-4">
+            <div>
+							{% comment "When setting permissions" %}
+								{% if not request.user.on_free_trial %}
+									<label class="block text-sm font-medium text-gray-700">MC Number</label>
+									<input type="number" placeholder="Enter Starting MC Number"
+											class="mt-1 block w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none">
+								{% else %}
+									<p class="text-sm text-gray-500">Exclusive to <strong>active subscribers</strong> — unlock this powerful feature and stay ahead, while free trial users remain limited</p>
+								{% endif %}
+							{% endcomment %}
+							<label class="block text-sm font-medium text-gray-700">MC Number</label>
+							<input type="number" placeholder="Enter Starting MC Number"
+									class="mt-1 block w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none">
+            </div>
+        </div>
+    </div>
+	</div>
+
+
+	<section class="flex flex-col items-center text-center px-4 md:px-4 lg:px-5 py-6 my-5 mt-5">
+		<span class="text-md font-medium text-gray-700 bg-slate-200 px-4 py-1 rounded-full">
+			Step 2
+		</span>
+		<h2 class="text-2xl md:text-3xl font-semibold mt-3">
+			Create Your Campaign
+		</h2>
+		<p class="text-gray-500 text-base mt-2">
+			Customize the message that will be sent to your leads
+		</p>
+	</section>
+
+
+	<div class="container mx-auto px-4 py-8 max-w-6xl">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        
+        <!-- Campaign Message Box -->
+        <div class="p-6 bg-white border border-gray-300 rounded-lg shadow-md">
+            <h2 class="text-xl font-semibold text-gray-800">Campaign Message</h2>
+            <p class="text-gray-500">Create a compelling message for your campaign</p>
+
+            <div class="mt-4">
+                <label class="block text-sm font-medium text-gray-700">Email Subject</label>
+                <input type="text" placeholder="Enter Your Email Subject title"
+                    class="mt-1 w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none">
+            </div>
+
+            <div class="mt-4">
+                <label class="block text-sm font-medium text-gray-700">Email Body</label>
+                <textarea placeholder="Write your Email Body here..."
+                    class="mt-1 w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none h-28"></textarea>
+            </div>
+        </div>
+
+        <!-- Guidelines & Tips Box -->
+        <div class="p-6 bg-white border border-gray-300 rounded-lg shadow-md">
+            <h2 class="text-xl font-semibold text-gray-800">Guidelines & Tips</h2>
+            <p class="text-gray-500">Best practices for effective campaigns</p>
+
+            <div class="mt-4 p-4 bg-gray-100 rounded-lg">
+                <h3 class="text-sm font-semibold text-gray-700">General Instructions</h3>
+                <ul class="mt-2 text-sm text-gray-600 space-y-1">
+                    <li>• Keep your message clear and concise</li>
+                    <li>• Personalize whenever possible</li>
+                    <li>• Include a clear call-to-action</li>
+                    <li>• Avoid spam-triggering words and phrases</li>
+                    <li>• Test your campaign with a small sample first</li>
+                </ul>
+            </div>
+
+            <div class="mt-4 p-4 bg-gray-100 rounded-lg">
+                <h3 class="text-sm font-semibold text-gray-700">Available Variables</h3>
+                <p class="mt-2 text-sm text-gray-600">Use these variables to personalize your message:</p>
+                <div class="mt-2 flex flex-wrap gap-2 text-xs font-medium">
+                    <span class="px-2 py-1 bg-white border border-gray-300 rounded-md">[name]</span>
+                    <span class="px-2 py-1 bg-white border border-gray-300 rounded-md">[company]</span>
+                    <span class="px-2 py-1 bg-white border border-gray-300 rounded-md">[title]</span>
+                    <span class="px-2 py-1 bg-white border border-gray-300 rounded-md">[email]</span>
+                    <span class="px-2 py-1 bg-white border border-gray-300 rounded-md">[phone]</span>
+                </div>
+            </div>
+        </div>
+
+    </div>
+	</div>
+
+	<div class="container mx-auto px-4 py-8 text-center">
+    <!-- Divider with Text -->
+    <div class="flex items-center justify-center">
+        <div class="w-full h-px bg-gray-300"></div>
+        <span class="px-4 text-gray-500 text-sm w-full">Ready to Launch</span>
+        <div class="w-full h-px bg-gray-300"></div>
+    </div>
+
+    <!-- Launch Button -->
+    <div class="mt-6">
+        <button class="bg-gray-900 hover:bg-gray-800 text-white font-semibold py-3 px-6 rounded-full shadow-lg text-lg">
+            Launch Campaign
+        </button>
+    </div>
+
+    <!-- Terms Text -->
+    <p class="mt-4 text-gray-500 text-sm">
+        By clicking above, you agree to our <a href="#" class="text-blue-600 hover:underline">Terms of Service</a> and <a href="#" class="text-blue-600 hover:underline">Privacy Policy</a>
+    </p>
+	</div>
+
+
+
+</div>
+
+{% endblock %}

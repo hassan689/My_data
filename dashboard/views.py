@@ -90,6 +90,7 @@ def process_excel_file(file):
     except Exception as e:
         return []
 
+
 def get_leads_from_db(starting_mc_number):
     try:
         formatted_mc_number = f"MC {starting_mc_number}"
@@ -143,7 +144,7 @@ def campaign(request, email_account_id):
     else:
         form = CampaignForm(user=request.user)
 
-    return render(request, 'dashboard/campaign.html', {'form': form})
+    return render(request, 'dashboard/campaign.html', {'form': form, 'email_account': email_account})
 
 
 
