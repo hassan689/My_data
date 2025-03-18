@@ -65,13 +65,13 @@ class EmailAccountForm(forms.ModelForm):
         """Ensure password gets encrypted properly if changed."""
         email_account = super().save(commit=False)
 
-        # Only update password if the decrypted field is changed
-        if self.cleaned_data.get("decrypted_password"):
+        if self.cleaned_data.get("decrypted_password"):  # Ensure password is not empty
             email_account.set_password(self.cleaned_data["decrypted_password"])
 
         if commit:
             email_account.save()
         return email_account
+
 
 
 @admin.register(EmailAccount)

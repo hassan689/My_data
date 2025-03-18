@@ -81,11 +81,16 @@ class EmailAccount(models.Model):
 
     def set_password(self, raw_password):
         """Encrypt and set the password securely."""
-        self.encrypted_password = encrypt_password(raw_password)
+        if raw_password:
+            self.encrypted_password = encrypt_password(raw_password)
+
 
     def get_password(self):
-        """Decrypt and return the original password."""
-        return decrypt_password(self.encrypted_password)
+        """Decrypt and return the original password, or return an error message."""
+        try:
+            return decrypt_password(self.encrypted_password)
+        except Exception:
+            return None  # Return None instead of raising an error
 
     def check_password(self, raw_password):
         """Verify if the provided password matches the stored encrypted password."""

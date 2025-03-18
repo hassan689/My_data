@@ -2,15 +2,47 @@ from django import forms
 from users.models import EmailAccount
 
 class EmailAccountForm(forms.ModelForm):
+    decrypted_password = forms.CharField(
+        widget=forms.PasswordInput(render_value=True),
+        label="Email Password",
+        required=False
+    )
+
     class Meta:
         model = EmailAccount
-        fields = ["email_address", "encrypted_password", "email_provider", "port_number", "server_type", "host"]
+        fields = ["email_address", "decrypted_password", "email_provider", "port_number", "server_type", "host"]
 
-    encrypted_password = forms.CharField(
-        widget=forms.PasswordInput(),
-        label="Email Password"
-    )
-    
+    def __init__(self, *args, **kwargs):
+        """Auto-fill decrypted password when editing an email account."""
+        super().__init__(*args, **kwargs)
+        if self.instance.id:  # If editing an existing account, pre-fill decrypted password
+            try:
+                self.fields["decrypted_password"].initial = self.instance.get_password()
+            except Exception:
+                self.fields["decrypted_password"].initial = ""
+
+    def clean_decrypted_password(self):
+        """Ensure decrypted password is required when creating a new entry."""
+        password = self.cleaned_data.get("decrypted_password")
+
+        if not self.instance.id and not password:  # New entry requires password
+            raise forms.ValidationError("Password is required for new email accounts.")
+
+        return password
+
+    def save(self, commit=True):
+        """Encrypt and save password securely."""
+        email_account = super().save(commit=False)
+
+        # Encrypt the password only if a new one was provided
+        if self.cleaned_data.get("decrypted_password"):
+            email_account.set_password(self.cleaned_data["decrypted_password"])
+
+        if commit:
+            email_account.save()
+        return email_account
+
+
 
 class CampaignForm(forms.Form):
     email_subject = forms.CharField(

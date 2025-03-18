@@ -2,67 +2,71 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
 from users.models import EmailAccount
 from .forms import EmailAccountForm, CampaignForm
-from django.http import JsonResponse
 from leads_data.models import Lead
-from concurrent.futures import ThreadPoolExecutor
 import pandas as pd
-import smtplib
-import ssl
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from concurrent.futures import ThreadPoolExecutor
 from django.utils.timezone import now
 from django.contrib import messages
+from django.core.mail import get_connection, send_mass_mail
+from concurrent.futures import ThreadPoolExecutor
 
 
 ######################################## Campaign sending views
 
 
 def send_emails(email_account, recipients, subject, body):
-    """Logs in once and sends multiple emails efficiently."""
-    try:
-        # Prepare email connection
-        context = ssl.create_default_context()
-        server = None
+    """Sends multiple emails efficiently using Django's `send_mass_mail` with custom SMTP authentication in a separate thread."""
+    
+    def _send():
+        try:
+            # Decrypt the stored password before using it
+            decrypted_password = email_account.get_password()
 
-        if email_account.server_type == "TLS":
-            server = smtplib.SMTP(email_account.host, email_account.port_number)
-            server.starttls(context=context)
-        elif email_account.server_type == "SSL":
-            server = smtplib.SMTP_SSL(email_account.host, email_account.port_number, context=context)
+            # Determine the SMTP security type
+            use_tls = email_account.server_type == "TLS"
+            use_ssl = email_account.server_type == "SSL"
 
-        # Login once
-        print(server.login(email_account.email_address, email_account.encrypted_password))
-        print("Server logged in")
+            if use_tls and use_ssl:
+                print("Invalid configuration: Cannot enable both TLS and SSL.")
+                return
 
-        def send_single_email(recipient):
-            """Function to send a single email."""
-            try:
-                msg = MIMEMultipart()
-                msg["From"] = email_account.email_address
-                msg["To"] = recipient
-                msg["Subject"] = subject
-                msg.attach(MIMEText(body, "plain"))
+            # Create a custom SMTP connection using Django's EmailBackend
+            connection = get_connection(
+                backend="django.core.mail.backends.smtp.EmailBackend",
+                host=email_account.host,
+                port=email_account.port_number,
+                username=email_account.email_address,
+                password=decrypted_password,
+                use_tls=use_tls,
+                use_ssl=use_ssl,
+            )
 
-                server.sendmail(email_account.email_address, recipient, msg.as_string())
-                print(f"Email sent successfully to {recipient}")
-            except Exception as e:
-                print(f"Failed to send email to {recipient}: {e}")
+            # Open the SMTP connection
+            connection.open()
 
-        # Use ThreadPoolExecutor to send multiple emails in parallel
-        with ThreadPoolExecutor(max_workers=5) as executor:
-            executor.map(send_single_email, recipients)
+            # Prepare email messages for bulk sending
+            email_messages = [
+                (subject, body, email_account.email_address, [recipient])
+                for recipient in recipients
+            ]
 
-        # Close the server connection after sending all emails
-        server.quit()
+            # Send emails in bulk using Django's send_mass_mail
+            sent_count = send_mass_mail(email_messages, connection=connection, fail_silently=False)
 
-        # Update last used timestamp
-        email_account.last_used_at = now()
-        email_account.save(update_fields=["last_used_at"])
+            print(f"{sent_count} emails sent successfully.")
 
-    except Exception as e:
-        print(f"Error in sending emails: {e}")
+            # Close the SMTP connection after sending
+            connection.close()
 
+            # Update last used timestamp
+            email_account.last_used_at = now()
+            email_account.save(update_fields=["last_used_at"])
+
+        except Exception as e:
+            print(f"Error in sending emails: {e}")
+
+    # Execute the email sending process in a separate thread
+    executor = ThreadPoolExecutor(max_workers=5)
+    executor.submit(_send)
 
 def process_excel_file(file):
     if not file.name.endswith('.xlsx'):

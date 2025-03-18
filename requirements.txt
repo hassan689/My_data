@@ -9,3 +9,4 @@ tqdm==4.67.1
 selenium==4.29.0
 webdriver-manager==4.0.2
 croniter==6.0.0
+pip install django-ckeditor-5==0.2.17
