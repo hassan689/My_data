@@ -11,8 +11,8 @@
     <a href="{% url 'main:index' %}" class="flex items-center space-x-3 rtl:space-x-reverse p-5">
       <span class="self-center text-2xl font-bold whitespace-nowrap text-gray-900 italic">Dispatch Skool</span>
     </a>
-    <ul class="space-y-2 font-medium">
-        <li>
+    <ul class="space-y-2 font-medium border-t border-gray-200 mt-3">
+        <li class="mt-5">
           <a href="{% url 'dashboard:index' %}" class="flex items-center p-2 text-gray-900 rounded-lg hover:bg-gray-100 group">
               <svg class="w-5 h-5 text-gray-500 transition duration-75 group-hover:text-gray-900" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 22 21">
                 <path d="M16.975 11H10V4.025a1 1 0 0 0-1.066-.998 8.5 8.5 0 1 0 9.039 9.039.999.999 0 0 0-1-1.066h.002Z"/>
@@ -21,13 +21,44 @@
               <span class="ms-3">Dashboard</span>
           </a>
         </li>
-				
 				<li>
 					<a href="{% url 'dashboard:email_account' %}" class="flex items-center p-2 text-gray-900 rounded-lg hover:bg-gray-100 group">
 						<svg class="shrink-0 w-5 h-5 text-gray-500 transition duration-75 group-hover:text-gray-900" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 20 20">
 								<path d="m17.418 3.623-.018-.008a6.713 6.713 0 0 0-2.4-.569V2h1a1 1 0 1 0 0-2h-2a1 1 0 0 0-1 1v2H9.89A6.977 6.977 0 0 1 12 8v5h-2V8A5 5 0 1 0 0 8v6a1 1 0 0 0 1 1h8v4a1 1 0 0 0 1 1h2a1 1 0 0 0 1-1v-4h6a1 1 0 0 0 1-1V8a5 5 0 0 0-2.582-4.377ZM6 12H4a1 1 0 0 1 0-2h2a1 1 0 0 1 0 2Z"/>
 						</svg>
 						<span class="flex-1 ms-3 whitespace-nowrap">Add Email Account</span>
+					</a>
+				</li>
+				<li>
+					<a href="{% url 'dashboard:coming_soon' %}" class="flex items-center p-2 text-gray-900 rounded-lg hover:bg-gray-100 group">
+						<svg class="shrink-0 w-5 h-5 text-gray-500 transition duration-75 group-hover:text-gray-900" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 20 18">
+							<path d="M14 2a3.963 3.963 0 0 0-1.4.267 6.439 6.439 0 0 1-1.331 6.638A4 4 0 1 0 14 2Zm1 9h-1.264A6.957 6.957 0 0 1 15 15v2a2.97 2.97 0 0 1-.184 1H19a1 1 0 0 0 1-1v-1a5.006 5.006 0 0 0-5-5ZM6.5 9a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9ZM8 10H5a5.006 5.006 0 0 0-5 5v2a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1v-2a5.006 5.006 0 0 0-5-5Z"/>
+						</svg>
+						<span class="flex-1 ms-3 whitespace-nowrap">Carrier Onboarding</span>
+					</a>
+				</li>
+				<li>
+					<a href="{% url 'dashboard:coming_soon' %}" class="flex items-center p-2 text-gray-900 rounded-lg hover:bg-gray-100 group">
+						<i class="fa-solid fa-magnet shrink-0 w-5 h-5 text-gray-500 transition duration-75 group-hover:text-gray-900"></i>
+						<span class="flex-1 ms-3 whitespace-nowrap">Sales Techniques</span>
+					</a>
+				</li>
+				<li>
+					<a href="{% url 'dashboard:coming_soon' %}" class="flex items-center p-2 text-gray-900 rounded-lg hover:bg-gray-100 group">
+						<i class="fa-solid fa-people-arrows shrink-0 w-5 h-5 text-gray-500 transition duration-75 group-hover:text-gray-900"></i>
+						<span class="flex-1 ms-3 whitespace-nowrap">Sales Conversion</span>
+					</a>
+				</li>
+				<li>
+					<a href="{% url 'dashboard:coming_soon' %}" class="flex items-center p-2 text-gray-900 rounded-lg hover:bg-gray-100 group">
+						<i class="fa-solid fa-file-invoice-dollar shrink-0 w-5 h-5 text-gray-500 transition duration-75 group-hover:text-gray-900"></i>
+						<span class="flex-1 ms-3 whitespace-nowrap">Invoice Creation</span>
+					</a>
+				</li>
+				<li>
+					<a href="{% url 'dashboard:coming_soon' %}" class="flex items-center p-2 text-gray-900 rounded-lg hover:bg-gray-100 group">
+						<i class="fa-solid fa-file shrink-0 w-5 h-5 text-gray-500 transition duration-75 group-hover:text-gray-900"></i>
+						<span class="flex-1 ms-3 whitespace-nowrap">Cold Email Templates</span>
 					</a>
 				</li>
 				<li>

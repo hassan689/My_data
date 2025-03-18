@@ -5,6 +5,8 @@ app_name = 'dashboard'
 
 urlpatterns = [
     path('', views.index, name="index"),
+		path('coming-soon/', views.coming_soon, name='coming_soon'),
+
 		path('campaign/<int:email_account_id>/', views.campaign, name='campaign'),
 		path('add-email-account/', views.add_email_account, name='email_account'),
 		path('email-account/update/<int:id>/', views.email_account_update, name='email_account_update'),

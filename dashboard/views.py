@@ -166,8 +166,6 @@ def campaign(request, email_account_id):
     return render(request, 'dashboard/campaign.html', {'form': form, 'email_account': email_account})
 
 
-
-
 ######################################## Email accounts creation and dashboard views
 
 @login_required
@@ -221,4 +219,10 @@ def email_account_delete(request, id):
     email_account = get_object_or_404(EmailAccount, id=id, user=request.user)
     email_account.delete()
     return redirect("dashboard:index")
+
+
+
+@login_required
+def coming_soon(request):
+    return render(request, 'dashboard/coming_soon.html')
 
