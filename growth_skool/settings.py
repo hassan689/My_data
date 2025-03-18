@@ -48,6 +48,7 @@ INSTALLED_APPS = [
 
 		'widget_tweaks',
 		'django_q',
+		'django_ckeditor_5',
 ]
 
 Q_CLUSTER = {
@@ -64,6 +65,45 @@ Q_CLUSTER = {
     'daemonize_workers': False,
     'orm': 'default',
 }
+
+
+customColorPalette = [
+        {
+            'color': 'hsl(207, 90%, 54%)',
+            'label': 'Blue'
+        },
+    ]
+
+CKEDITOR_5_UPLOAD_PATH = "media/uploads/"  # Where images/files are stored
+CKEDITOR_5_CONFIGS = {
+    "default": {
+        "toolbar": {
+            "items": [
+                "heading", "|", "bold", "italic", "underline", "strikethrough",
+                "highlight", "|", "link",
+                "bulletedList", "numberedList", "todoList", "outdent", "indent","|",
+                "fontSize", "fontFamily", "fontColor", "fontBackgroundColor",
+                "removeFormat", "insertTable",
+            ],
+            "shouldNotGroupWhenFull": True,
+        },
+        "table": {
+            "contentToolbar": [
+                "tableColumn", "tableRow", "mergeTableCells",
+                "tableProperties", "tableCellProperties"
+            ],
+        },
+        "heading": {
+            "options": [
+                {"model": "paragraph", "title": "Paragraph", "class": "ck-heading_paragraph"},
+                {"model": "heading1", "view": "h1", "title": "Heading 1", "class": "ck-heading_heading1"},
+                {"model": "heading2", "view": "h2", "title": "Heading 2", "class": "ck-heading_heading2"},
+                {"model": "heading3", "view": "h3", "title": "Heading 3", "class": "ck-heading_heading3"},
+            ]
+        },
+    }
+}
+
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -177,6 +217,14 @@ LOGGING = {
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+STATICFILES_DIRS = [
+    os.path.join(BASE_DIR, 'static'),
+]
+
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
 LOGIN_REDIRECT_URL = 'dashboard:index'
 LOGIN_URL = 'users:login'
 LOGOUT_REDIRECT_URL = 'main:index'

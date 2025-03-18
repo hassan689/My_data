@@ -6,16 +6,16 @@ from leads_data.models import Lead
 import pandas as pd
 from django.utils.timezone import now
 from django.contrib import messages
-from django.core.mail import get_connection, send_mass_mail
+from django.core.mail import get_connection, EmailMultiAlternatives
 from concurrent.futures import ThreadPoolExecutor
 
 
 ######################################## Campaign sending views
 
 
-def send_emails(email_account, recipients, subject, body):
-    """Sends multiple emails efficiently using Django's `send_mass_mail` with custom SMTP authentication in a separate thread."""
-    
+def send_emails(email_account, leads, subject, body):
+    """Sends multiple personalized emails using Django's `EmailMultiAlternatives` in a separate thread."""
+
     def _send():
         try:
             # Decrypt the stored password before using it
@@ -43,16 +43,22 @@ def send_emails(email_account, recipients, subject, body):
             # Open the SMTP connection
             connection.open()
 
-            # Prepare email messages for bulk sending
-            email_messages = [
-                (subject, body, email_account.email_address, [recipient])
-                for recipient in recipients
-            ]
+            # Send personalized emails
+            for lead in leads:
+                personalized_subject = subject.replace("[name]", lead['name']).replace("[mc_number]", lead['mc_number'])
+                personalized_body = body.replace("[name]", lead['name']).replace("[mc_number]", lead['mc_number'])
 
-            # Send emails in bulk using Django's send_mass_mail
-            sent_count = send_mass_mail(email_messages, connection=connection, fail_silently=False)
+                msg = EmailMultiAlternatives(
+                    subject=personalized_subject,
+                    body=personalized_body,
+                    from_email=email_account.email_address,
+                    to=[lead['email']],
+                    connection=connection
+                )
+                msg.attach_alternative(personalized_body, "text/html")  # Attach the HTML version
+                msg.send()
 
-            print(f"{sent_count} emails sent successfully.")
+            print(f"Emails sent successfully to {len(leads)} recipients.")
 
             # Close the SMTP connection after sending
             connection.close()
@@ -67,6 +73,7 @@ def send_emails(email_account, recipients, subject, body):
     # Execute the email sending process in a separate thread
     executor = ThreadPoolExecutor(max_workers=5)
     executor.submit(_send)
+
 
 def process_excel_file(file):
     if not file.name.endswith('.xlsx'):
@@ -148,7 +155,7 @@ def campaign(request, email_account_id):
                 print(leads)
 
             # Call send_emails function which already uses threading
-            send_emails(email_account, [lead['email'] for lead in leads], email_subject, email_body)
+            send_emails(email_account, leads, email_subject, email_body)
 
             messages.success(request, f"Success! Emails are being sent for {email_account.email_address}. thank you for your patience")
             return redirect('dashboard:index')
