@@ -65,7 +65,7 @@ class EmailAccount(models.Model):
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name="email_accounts")
     email_address = models.EmailField(unique=True)  # Unique globally
     encrypted_password = models.TextField(verbose_name="Email Password")  # Store encrypted passwords securely
-    is_active = models.BooleanField(default=True)  # Soft delete feature
+    is_active = models.BooleanField(default=True)  # Need to remove it
     last_used_at = models.DateTimeField(null=True, blank=True)  # Track last usage
     
     total_campaigns = models.PositiveIntegerField(null=True, blank=True)

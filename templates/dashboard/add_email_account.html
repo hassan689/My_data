@@ -9,6 +9,8 @@
 
 <div class="p-4 sm:ml-64">
 
+	{% if request.user.on_free_trial or request.user.subscription.status == "active" %}
+
 	<div class="max-w-2xl mx-auto mt-5">
     <div id="accordion-collapse" data-accordion="collapse">
 				<h2 id="accordion-collapse-heading-1">
@@ -192,7 +194,6 @@
     </div>
 	</div>
 
-
 	<!-- Form -->
 	<div class="flex items-center justify-center my-10">
 		<div class="w-full max-w-2xl bg-white shadow-lg rounded-lg p-6">
@@ -248,6 +249,45 @@
 		</div>
 	</div>
 
-</div>
+	{% else %}
+
+	<section class="flex flex-col items-center text-center px-4 md:px-4 lg:px-5 py-6">
+		<span class="text-md font-medium text-gray-700 bg-slate-200 px-4 py-1 rounded-full">
+				Action Required
+		</span>
+		<h1 class="text-2xl md:text-4xl font-bold text-gray-900 leading-tight mt-4 py-2">
+			Your Subscription Has Expired
+		</h1>
+		<p class="text-gray-500 text-xl sm:text-2xl md:text-2xl max-w-2xl mt-4">
+			Please renew your subscription to continue enjoying our premium features and services.
+		</p>
+	</section>
+
+	<div class="flex flex-col md:flex-row justify-center gap-8 p-8">
+
+		<!-- Pro Plan -->
+		<div class="w-full md:w-1/2 lg:w-1/3 bg-white shadow-lg rounded-2xl py-5 px-2 md:px-0 border text-center">
+				<h2 class="text-2xl font-extrabold">All Features Included</h2>
+				<p class="text-4xl md:text-5xl font-extrabold mt-3">$99/month</p>
+				<p class="text-gray-500 text-lg mt-2">Everything you need to scale</p>
+				<ul class="text-left mt-6 space-y-3 text-lg sm:px-16">
+						<li>✔ Automated Carrier Outreach</li>
+						<li>✔ Full carrier database access</li>
+						<li>✔ Onboarding Automation</li>
+						<li>✔ Daily MC Sheet Updates</li>
+						<li>✔ Priority Support</li>
+						<li>✔ Custom templates</li>
+				</ul>
+				<button class="mt-8 bg-gray-900 hover:bg-gray-800 text-white text-lg font-semibold py-3 px-10 md:px-24 rounded-xl">
+						Get Started
+				</button>
+		</div>
+
+	</div>
+
+	{% endif %}
+
+	</div>
 
 {% endblock %}
+

@@ -49,7 +49,7 @@ class CampaignForm(forms.Form):
     email_subject = forms.CharField(
         max_length=255, 
         required=True, 
-        widget=forms.TextInput(attrs={'placeholder': 'Enter Your Email Subject title'})
+        widget=forms.TextInput(attrs={'placeholder': 'Some Big Offer - Hello [name] - [mc_number]'})
     )
     email_body = forms.CharField(
         widget=CKEditor5Widget(config_name='default'),  # Integrate CKEditor 5

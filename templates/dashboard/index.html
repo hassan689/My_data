@@ -17,6 +17,7 @@
         <div class="p-5 my-3 rounded-xl border-2 border-solid 
             {% if message.tags == 'success' %} bg-green-200 border-green-700 text-green-800 
             {% elif message.tags == 'error' %} bg-red-200 border-red-700 text-red-700
+						{% elif message.tags == 'warning' %} bg-yellow-200 border-yellow-700 text-red-700
             {% endif %}">
             <p class="text-sm">{{ message }}</p>
         </div>
@@ -24,8 +25,6 @@
 	{% endif %}
 
 </div>
-
-
 
 
 <div class="p-4 sm:ml-64">
@@ -63,7 +62,7 @@
 											class="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600">
 												Update
 										</a>
-										{% if not request.user.on_free_trial %}
+										{% if not request.user.on_free_trial and request.user.subscription.status == "active" %}
 										<a href="{% url 'dashboard:email_account_delete' account.id %}" 
 											class="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600">
 												Delete
@@ -71,7 +70,7 @@
 										{% endif %}
 										<a href="{% url 'dashboard:campaign' email_account_id=account.id %}" 
 											class="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600">
-												Manage Campaign
+												Launch Campaign
 										</a>
 								</td>
 						</tr>

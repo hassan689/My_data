@@ -15,6 +15,7 @@ class CustomUserAdmin(UserAdmin):
     )
     search_fields = ("username", "email", "first_name", "last_name", "mc_number", "phone_number")
     list_filter = ("on_free_trial",)
+    list_editable = ("on_free_trial",)
     ordering = ("-date_joined",)
 
     fieldsets = (
@@ -77,9 +78,15 @@ class EmailAccountForm(forms.ModelForm):
 @admin.register(EmailAccount)
 class EmailAccountAdmin(admin.ModelAdmin):
     form = EmailAccountForm  # Use custom form with decryption
-    list_display = ("user", "email_address", "email_provider", "server_type", "is_active", "last_used_at")
-    list_filter = ("is_active", "last_used_at")
+    list_display = ("user", "company_name", "email_address", "email_provider", "server_type", "last_used_at")
+    list_filter = ("last_used_at", "email_provider")
     search_fields = ("email_address", "user__username")
+    
+    def company_name(self, obj):
+        return obj.user.company_name  # Accessing company_name from related CustomUser model
+
+    company_name.admin_order_field = "user__company_name"  # Allows sorting by company_name
+    company_name.short_description = "Company Name"  # Sets a readable column name in the admin panel
 
     def get_form(self, request, obj=None, **kwargs):
         """Ensure correct form is used when editing an existing entry."""
