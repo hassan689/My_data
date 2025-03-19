@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+
+{% load static %}
+{% block 'title' %}Dispatch Skool - 404{% endblock %}
+
+{% block 'content' %}
+
+	<section class="min-h-screen flex flex-col justify-center items-center text-center px-4 md:px-4 lg:px-5">
+    <span class="text-md font-medium text-gray-700 bg-slate-200 px-4 py-1 rounded-full">
+			Oops — Page Doesn't Exist!
+    </span>
+    <h1 class="text-6xl md:text-8xl font-bold text-blue-500 lg:py-2">
+        404
+    </h1>
+    <p class="text-gray-500 text-xl sm:text-2xl md:text-2xl max-w-2xl mt-4">
+			Don't worry, even the best explorers get lost sometimes! Let's get you back on track — <span><a class="text-blue-500 underline" href="{% url 'main:index' %}">Dispatch Skool</a></span>
+    </p>
+	</section>
+
+
+{% endblock %}

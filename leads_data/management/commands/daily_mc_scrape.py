@@ -87,7 +87,7 @@ class Command(BaseCommand):
         # Compare dates
         if table_date != today_date:
             print(f"Date mismatch! Found {table_date}, but expected {today_date}. Exiting script.")
-            sys.exit(1)  # Exit the script
+            return
         else:
             print(f"Date matches: {table_date}")
 
