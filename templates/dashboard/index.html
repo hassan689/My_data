@@ -10,7 +10,7 @@
 		Dashboard
 	</h2>
 	<p class="text-gray-500 text-lg md:text-xl my-5">
-			Welcome back {{ request.user.first_name }}
+			Welcome {{ request.user.first_name }} {{ request.user.last_name }}
 	</p>
 	{% if messages %}
     {% for message in messages %}
@@ -39,11 +39,19 @@
 				</a>			 
 			</div>
 			<div class="overflow-auto max-w-full">
+				{% if not email_accounts %}
+				<div class="text-center max-w-4xl p-5">
+					<p class="text-gray-500 text-lg mt-6">
+						Welcome! It looks like you haven't registered any accounts yet. Get started by adding your first account to unlock all features!
+					</p>
+				</div>
+				{% endif %}
 				<table class="w-full min-w-[600px] border-collapse overflow-x-auto">
 					<thead>
 							<tr class="bg-gray-200">
 									<th class="text-left p-3">Email</th>
 									<th class="text-left p-3">Provider</th>
+									<th class="text-left p-3">Last Used At</th>
 									<th class="text-left p-3">Actions</th>
 							</tr>
 					</thead>
@@ -52,9 +60,12 @@
 						<tr class="border-b hover:bg-gray-100">
 								<!-- Email -->
 								<td class="p-3">{{ account.email_address }}</td>
-				
+
 								<!-- Provider -->
 								<td class="p-3">{{ account.email_provider }}</td>
+				
+								<!-- Last Used at -->
+								<td class="p-3">{{ account.last_used_at }}</td>
 				
 								<!-- Update Button -->
 								<td class="p-3 space-x-5">
@@ -75,12 +86,14 @@
 								</td>
 						</tr>
 						{% endfor %}
-				</tbody>
+					</tbody>
 				
 				</table>
+				
 			</div>
 		</div>
 	
+		{% comment %}
 		<!-- Downloadable Sheets -->
 		<div class="w-full md:w-1/3 p-6 bg-white shadow-md rounded-lg self-start">
 			<h3 class="text-lg font-semibold">Downloadable Sheets</h3>
@@ -93,7 +106,10 @@
 				<li>📄 Schedule 2023</li>
 			</ul>
 		</div>
+		{% endcomment %}
+
 	</div>
+	
 	
 		
 

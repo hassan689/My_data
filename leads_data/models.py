@@ -33,3 +33,15 @@ class Lead(models.Model):
     class Meta:
         verbose_name = "Carrier Data"
         verbose_name_plural = "Carrier Leads"
+        
+
+
+class DailySheet(models.Model):
+    file = models.FileField(upload_to="daily_sheets/")  # Saves files in 'media/daily_sheets/'
+    uploaded_at = models.DateTimeField(auto_now_add=True)  # Stores the timestamp when the file was uploaded
+
+    def __str__(self):
+        return f"Daily Sheet - {self.uploaded_at.strftime('%Y-%m-%d %H:%M:%S')}"
+
+
+

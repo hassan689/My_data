@@ -18,6 +18,9 @@ from users.models import CustomUser
 from django.conf import settings
 from django.db.models import Q
 from django.core.management import call_command
+import shutil
+from leads_data.models import DailySheet
+import sys
 
 class Command(BaseCommand):
     help = "Runs the daily MC scrape, processes data, and sends reports"
@@ -64,6 +67,29 @@ class Command(BaseCommand):
         table = WebDriverWait(driver, 10).until(
             EC.presence_of_element_located((By.CSS_SELECTOR, "table[summary='Table used for formatting purpose only']"))
         )
+
+        # compare today's date with the date written, if it's not today's date stop the code then and there
+        # Get the first date from the table
+        first_date_element = table.find_element(By.XPATH, ".//tr[2]/th")
+        first_date_text = first_date_element.text.strip()
+        print("Extracted date text:", first_date_text)
+
+        # Validate that we got a real date, not a header like 'Date'
+        if first_date_text.lower() == "date" or not first_date_text:
+            raise ValueError("Failed to extract a valid date from the table!")
+
+        # Convert to datetime object
+        table_date = datetime.strptime(first_date_text, "%m/%d/%Y").date()
+
+        # Get today's date
+        today_date = datetime.today().date()
+
+        # Compare dates
+        if table_date != today_date:
+            print(f"Date mismatch! Found {table_date}, but expected {today_date}. Exiting script.")
+            sys.exit(1)  # Exit the script
+        else:
+            print(f"Date matches: {table_date}")
 
         # Find the first form inside the table (HTML Detail button)
         first_html_detail_button = table.find_element(By.XPATH, ".//form/input[@type='submit']")
@@ -443,7 +469,8 @@ class Command(BaseCommand):
         merged_df = pd.concat(dataframes, ignore_index=True)
 
         # Define output file path
-        output_file = os.path.join(folder_path, datetime.today().strftime('%Y-%m-%d') + '.xlsx')
+        filename = datetime.today().strftime('%Y-%m-%d') + '.xlsx'
+        output_file = os.path.join(folder_path, filename)
 
         # Write the combined dataframe to a new Excel file
         merged_df.to_excel(output_file, index=False)
@@ -484,9 +511,23 @@ class Command(BaseCommand):
         else:
             print("⚠️ No active subscribers found to send emails.")
 
+        # Move the file to Django's MEDIA_ROOT/daily_sheets/
+        destination_folder = os.path.join(settings.MEDIA_ROOT, "daily_sheets")
+        os.makedirs(destination_folder, exist_ok=True)  # Ensure the destination exists
+        destination_file = os.path.join(destination_folder, filename)
+
+        # Move the file
+        shutil.move(output_file, destination_file)
+
+        # Save to the model
+        daily_sheet = DailySheet(file=f"daily_sheets/{filename}")
+        daily_sheet.save()
+
+        # Delete the original file from `data/new_mc_sheets/`
+        if os.path.exists(output_file):
+            os.remove(output_file)
+            print(f"Deleted: {output_file}")
+
+        print(f"File saved in model: {daily_sheet.file.url}")  # Debugging confirmation
 
 
-
-# update recipient list to send it to the free trial users or active subs
-# save the new list to the leads database
-#Maybe done
