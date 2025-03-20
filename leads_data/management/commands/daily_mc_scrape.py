@@ -463,9 +463,6 @@ class Command(BaseCommand):
                 except Exception as e:
                     print(f"❌ Error reading {filename}: {e}")
 
-        # Proceed only if dataframes exist
-        # if dataframes:
-            # Concatenate all dataframes into one
         merged_df = pd.concat(dataframes, ignore_index=True)
 
         # Define output file path
@@ -475,18 +472,10 @@ class Command(BaseCommand):
         # Write the combined dataframe to a new Excel file
         merged_df.to_excel(output_file, index=False)
         print(f"📄 Merged Excel file saved as {output_file}")
-        
-        # Call your management command to import data into the Lead model
+
         print("🚀 Importing data into the Lead model...")
         call_command("import_leads", str(output_file))
         print("✅ Data import completed!")
-
-        # Delete the original files
-        for filename in os.listdir(folder_path):
-            if filename.startswith('mc_data_') and filename.endswith('.xlsx'):
-                file_path = os.path.join(folder_path, filename)
-                os.remove(file_path)
-                print(f"🗑️ Deleted: {file_path}")
 
         # Function to send email
         def send_email(recipient_email):
@@ -511,23 +500,22 @@ class Command(BaseCommand):
         else:
             print("⚠️ No active subscribers found to send emails.")
 
-        # Move the file to Django's MEDIA_ROOT/daily_sheets/
-        destination_folder = os.path.join(settings.MEDIA_ROOT, "daily_sheets")
-        os.makedirs(destination_folder, exist_ok=True)  # Ensure the destination exists
-        destination_file = os.path.join(destination_folder, filename)
 
-        # Move the file
+        destination_folder = os.path.join(settings.MEDIA_ROOT, "daily_sheets")
+        os.makedirs(destination_folder, exist_ok=True)  # Ensure destination exists
+        destination_file = os.path.join(destination_folder, filename)
         shutil.move(output_file, destination_file)
 
-        # Save to the model
-        daily_sheet = DailySheet(file=f"daily_sheets/{filename}")
+        # Step 3: Save to the model with the correct path
+        daily_sheet = DailySheet(file=f"daily_sheets/{filename}")  # Only relative path
         daily_sheet.save()
+        print(f"✅ File saved in model: {daily_sheet.file.url}")
 
-        # Delete the original file from `data/new_mc_sheets/`
-        if os.path.exists(output_file):
-            os.remove(output_file)
-            print(f"Deleted: {output_file}")
 
-        print(f"File saved in model: {daily_sheet.file.url}")  # Debugging confirmation
-
+        # Delete the original files
+        for filename in os.listdir(folder_path):
+            if filename.startswith('mc_data_') and filename.endswith('.xlsx'):
+                file_path = os.path.join(folder_path, filename)
+                os.remove(file_path)
+                print(f"🗑️ Deleted: {file_path}")
 
