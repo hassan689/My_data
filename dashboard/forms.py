@@ -6,7 +6,7 @@ class EmailAccountForm(forms.ModelForm):
     decrypted_password = forms.CharField(
         widget=forms.PasswordInput(render_value=True),
         label="Email Password",
-        required=False
+        required=True
     )
 
     class Meta:

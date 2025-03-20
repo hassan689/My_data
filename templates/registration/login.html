@@ -28,6 +28,19 @@
 			<h2 class="text-2xl md:text-3xl font-semibold mt-1 text-center mb-2">Login Details</h2>
 		</div>
 
+		{% if form.errors %}
+    <div class="p-4 mb-4 rounded-md bg-red-200 border border-red-600 text-red-800">
+        <p><strong>Error:</strong> Please fix the following issue(s):</p>
+        <ul class="mt-2 list-disc list-inside">
+            {% for field, errors in form.errors.items %}
+                {% for error in errors %}
+                    <li>{{ error }}</li>
+                {% endfor %}
+            {% endfor %}
+        </ul>
+    </div>
+		{% endif %}
+
     <form method="post" class="grid grid-cols-1 md:grid-cols-2 gap-4">
 			{% csrf_token %}
 			

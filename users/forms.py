@@ -3,7 +3,7 @@ from django.contrib.auth.forms import UserCreationForm
 from .models import CustomUser
 
 class CustomUserSignupForm(UserCreationForm):
-    phone_number = forms.CharField(required=False)
+    phone_number = forms.CharField()
     company_name = forms.CharField()
     website_link = forms.URLField(required=False)
     mc_number = forms.CharField(required=False)

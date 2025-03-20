@@ -74,7 +74,7 @@ customColorPalette = [
         },
     ]
 
-CKEDITOR_5_UPLOAD_PATH = "media/uploads/"  # Where images/files are stored
+
 CKEDITOR_5_CONFIGS = {
     "default": {
         "toolbar": {
@@ -144,7 +144,7 @@ WSGI_APPLICATION = 'growth_skool.wsgi.application'
 DATABASES = {
    'default': {
        'ENGINE': 'django.db.backends.postgresql_psycopg2',
-       'NAME': 'growth_skool_2',
+       'NAME': 'growth_skool_3',
        'USER': 'postgres',
        'PASSWORD': '1234',
        'HOST': 'localhost',

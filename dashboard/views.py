@@ -232,10 +232,12 @@ def send_email_async(email_account, request):
     executor = ThreadPoolExecutor(max_workers=1)
     executor.submit(_send_email)
 
+
+
 @login_required
 def add_email_account(request):
-    
     form = EmailAccountForm()
+
     if request.method == "POST":
         form = EmailAccountForm(request.POST)
         if form.is_valid():
@@ -254,10 +256,14 @@ def add_email_account(request):
                 "For any issues, feel free to contact The Dispatch Skool Support."
             )
             messages.warning(request, warning_message)
-            
+
             return redirect("dashboard:index")
-    else:
-        form = EmailAccountForm()
+        else:
+            # Capture form errors and show them as error messages
+            for field, errors in form.errors.items():
+                for error in errors:
+                    messages.error(request, f"{field.capitalize()}: {error}")
+
     context = {
         "form": form
     }
@@ -289,6 +295,7 @@ def email_account_delete(request, id):
     return redirect("dashboard:index")
 
 
+@login_required
 def daily_sheets_view(request):
     """Displays all uploaded daily sheets."""
     sheets = DailySheet.objects.all().order_by('-uploaded_at')[:30]  # Order by latest uploads

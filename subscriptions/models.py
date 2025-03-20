@@ -37,7 +37,6 @@ class Subscription(models.Model):
         self.end_date = self.start_date + timedelta(days=additional_days)
         self.renewal_count += 1  # Increment renewal count
         self.save(update_fields=["start_date", "end_date", "renewal_count"])
-        self.user.update_lifetime_value()  # Update user metrics after renewal
 
 
     def __str__(self):

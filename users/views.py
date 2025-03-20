@@ -3,6 +3,8 @@ from django.contrib.auth import login
 from .forms import CustomUserSignupForm
 from django.contrib.auth import views as auth_views
 from django.urls import reverse_lazy
+from django.contrib import messages
+
 
 
 def signup_view(request):
@@ -11,10 +13,17 @@ def signup_view(request):
         if form.is_valid():
             user = form.save()
             login(request, user)  # Auto-login after signup
-            return redirect("main:index")  # Redirect to dashboard or any other page
+            messages.success(request, "Signup successful! Welcome aboard.")  # ✅ Success message
+            return redirect("main:index")
+        else:
+            # Loop through form errors and add them as messages
+            for field, errors in form.errors.items():
+                for error in errors:
+                    messages.error(request, f"{field.capitalize()}: {error}")
+
     else:
         form = CustomUserSignupForm()
-    
+
     return render(request, "registration/signup.html", {"form": form})
 
 
