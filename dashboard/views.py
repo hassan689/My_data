@@ -2,7 +2,7 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
 from users.models import EmailAccount
 from .forms import EmailAccountForm, CampaignForm
-from leads_data.models import Lead
+from leads_data.models import Lead, DailySheet
 import pandas as pd
 from django.utils.timezone import now
 from django.contrib import messages
@@ -288,6 +288,11 @@ def email_account_delete(request, id):
     email_account.delete()
     return redirect("dashboard:index")
 
+
+def daily_sheets_view(request):
+    """Displays all uploaded daily sheets."""
+    sheets = DailySheet.objects.all().order_by('-uploaded_at')[:30]  # Order by latest uploads
+    return render(request, 'dashboard/daily_sheets.html', {'sheets': sheets})
 
 
 @login_required

@@ -4,3 +4,4 @@ __pycache__/
 plan.txt
 data/
 django_email.log
+media/
