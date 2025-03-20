@@ -9,6 +9,18 @@
 
 <div class="bg-white pt-20">
 	<section class="flex flex-col items-center text-center px-4 md:px-4 lg:px-5 py-6">
+		{% if messages %}
+    {% for message in messages %}
+        <div class="p-5 my-3 rounded-xl border-2 border-solid 
+            {% if message.tags == 'success' %} bg-green-200 border-green-700 text-green-800 
+            {% elif message.tags == 'error' %} bg-red-200 border-red-700 text-red-700
+						{% elif message.tags == 'warning' %} bg-yellow-200 border-yellow-700 text-red-700
+            {% endif %}">
+            <p class="text-sm">{{ message }}</p>
+        </div>
+    {% endfor %}
+		{% endif %}
+
 		<span class="text-md font-medium text-gray-700 bg-slate-200 px-4 py-1 rounded-full">
 				No Cold Calls, No Sales Agents
 		</span>
@@ -253,7 +265,7 @@
 					<h2 class="text-2xl font-extrabold">All Features Included</h2>
 					<p class="text-4xl md:text-5xl font-extrabold mt-3">$99/month</p>
 					<p class="text-gray-500 text-lg mt-2">Everything you need to scale</p>
-					<ul class="text-left mt-6 space-y-3 text-lg sm:px-16">
+					<ul class="text-left my-6 space-y-3 text-lg sm:px-16">
 							<li>✔ Automated Carrier Outreach</li>
 							<li>✔ Full carrier database access</li>
 							<li>✔ Onboarding Automation</li>
@@ -261,9 +273,9 @@
 							<li>✔ Priority Support</li>
 							<li>✔ Custom templates</li>
 					</ul>
-					<button class="mt-8 bg-gray-900 hover:bg-gray-800 text-white text-lg font-semibold py-3 px-6 rounded-xl w-full">
+					<a href="{% url 'main:price_page' %}" class="mt-16 bg-gray-900 hover:bg-gray-800 text-white text-lg font-semibold py-3 px-10 md:px-24 rounded-xl">
 							Get Started
-					</button>
+					</a>
 			</div>
 		</div>
 	
