@@ -53,8 +53,18 @@
 					<label class="block font-medium text-gray-700">Email *</label>
 					{% render_field form.email class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none" placeholder="Enter your email" %}
 			</div>
-	
+
 			<!-- Row 2 -->
+			<div>
+					<label class="block font-medium text-gray-700">First Name *</label>
+					{% render_field form.first_name class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none" placeholder="Enter your first name" %}
+			</div>
+			<div>
+					<label class="block font-medium text-gray-700">Last Name *</label>
+					{% render_field form.last_name class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none" placeholder="Enter your last name" %}
+			</div>
+	
+			<!-- Row 3 -->
 			<div>
 					<label class="block font-medium text-gray-700">Password *</label>
 					{% render_field form.password1 class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none" placeholder="Enter password" %}
@@ -64,7 +74,7 @@
 					{% render_field form.password2 class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none" placeholder="Confirm password" %}
 			</div>
 	
-			<!-- Row 3 -->
+			<!-- Row 4 -->
 			<div>
 					<label class="block font-medium text-gray-700">Company Name *</label>
 					{% render_field form.company_name class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none" placeholder="Your company name" %}
@@ -74,7 +84,7 @@
 					{% render_field form.phone_number class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none" placeholder="Your phone number" %}
 			</div>
 	
-			<!-- Row 4 -->
+			<!-- Row 5 -->
 			<div>
 					<label class="block font-medium text-gray-700">Website Link</label>
 					{% render_field form.website_link class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none" placeholder="Company website link" %}

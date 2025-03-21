@@ -64,6 +64,10 @@ class CampaignForm(forms.Form):
         required=False, 
         widget=forms.TextInput(attrs={'placeholder': 'Enter Starting MC Number'})
     )
+    targets_count = forms.IntegerField(
+        required=False,
+        widget=forms.NumberInput(attrs={'placeholder': 'Number of targets you want to select'})
+		)
 
     def __init__(self, *args, **kwargs):
         self.user = kwargs.pop('user', None)  # Get user instance

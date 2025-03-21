@@ -52,7 +52,7 @@ def send_emails(request, email_account, leads, subject, body):
                     subject=personalized_subject,
                     body=personalized_body,
                     from_email=email_account.email_address,
-                    to=[lead['email'], request.user.email],
+                    to=[lead['email']],
                     connection=connection
                 )
                 msg.attach_alternative(personalized_body, "text/html")  # Attach the HTML version
@@ -104,7 +104,7 @@ def process_excel_file(file):
         return []
 
 
-def get_leads_from_db(starting_mc_number):
+def get_leads_from_db(starting_mc_number, targets_count):
     try:
         formatted_mc_number = f"MC {starting_mc_number}"
         starting_lead = Lead.objects.filter(mc_number__gte=formatted_mc_number).order_by('mc_number').first()
@@ -116,8 +116,8 @@ def get_leads_from_db(starting_mc_number):
             return []
 
         starting_mc = starting_lead.mc_number
-        leads_after = list(Lead.objects.filter(mc_number__gte=starting_mc).order_by('mc_number')[:300])
-        remaining = 300 - len(leads_after)
+        leads_after = list(Lead.objects.filter(mc_number__gte=starting_mc).order_by('mc_number')[:targets_count])
+        remaining = targets_count - len(leads_after)
         
         if remaining > 0:
             leads_before = list(Lead.objects.filter(mc_number__lt=starting_mc).order_by('-mc_number')[:remaining])
@@ -141,12 +141,13 @@ def campaign(request, email_account_id):
             email_body = form.cleaned_data['email_body']
             file_upload = form.cleaned_data['file_upload']
             mc_number = form.cleaned_data['mc_number']
+            targets_count = form.cleaned_data['targets_count']
 
             leads = []
             if file_upload:
                 leads = process_excel_file(file_upload)
             elif mc_number and not request.user.on_free_trial:
-                leads = get_leads_from_db(mc_number)
+                leads = get_leads_from_db(mc_number, targets_count)
 
             if not leads:
                 messages.error(request, "No valid leads found.")
@@ -170,7 +171,7 @@ def campaign(request, email_account_id):
 
 @login_required
 def index(request):
-	email_accounts = EmailAccount.objects.filter(user=request.user, is_active=True)
+	email_accounts = EmailAccount.objects.filter(user=request.user)
 	context = {
 		"email_accounts": email_accounts
 	}

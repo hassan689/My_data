@@ -109,7 +109,7 @@
 							<div class="text-center mt-3">
 									<h2 class="text-lg font-medium text-gray-700">Use Database</h2>
 									<p class="text-sm text-gray-500">Use our existing database of verified leads.</p>
-									<p class="text-sm text-gray-500 mt-5">Simply select the starting MC Number to filter your target carriers. Our system will automatically gather the neighboring <strong>300</strong> MC Numbers and their data, ensuring precise and efficient campaign delivery.</p>
+									<p class="text-sm text-gray-500 mt-5">Simply select the starting MC Number to filter your target carriers. Our system will automatically gather the neighboring leads required, as per you entered into the targets count. Ensuring precise and efficient campaign delivery.</p>
 							</div>
 
 							<!-- Input Fields -->
@@ -118,6 +118,9 @@
 										{% if not request.user.on_free_trial %}
 											<label class="block text-sm font-medium text-gray-700">MC Number</label>
 											{{ form.mc_number|add_class:"mt-1 block w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none" }}
+
+											<label class="block text-sm font-medium text-gray-700 mt-5">Targets Count</label>
+											{{ form.targets_count|add_class:"mt-1 block w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none" }}
 											{% if form.mc_number.errors %}
 													<div class="bg-red-200 p-5 my-3 rounded-xl border-2 border-solid border-red-700"><p class="text-red-700 text-sm">{{ form.mc_number.errors.0 }}</p></div>
 											{% endif %}

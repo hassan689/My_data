@@ -87,9 +87,14 @@ class EmailAccount(models.Model):
         return self.get_password() == raw_password  # Direct string comparison
 
     def save(self, *args, **kwargs):
-        """Prevent more than 20 email accounts per user."""
-        if self.user.email_accounts.count() >= 20:
-            raise ValidationError("Cannot add more than 20 email accounts.")
+        """Prevent more than 20 email accounts per active subsc. user. And only 3 for free trial user"""
+
+        if self.user.on_free_trial:
+            if self.user.email_accounts.count() > 3:
+                raise ValidationError("Cannot add more than 3 email accounts.")
+        else:
+            if self.user.email_accounts.count() > 20:
+                raise ValidationError("Cannot add more than 20 email accounts.")
         super().save(*args, **kwargs)
 
     def __str__(self):

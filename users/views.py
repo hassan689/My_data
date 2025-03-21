@@ -14,7 +14,7 @@ def signup_view(request):
             user = form.save()
             login(request, user)  # Auto-login after signup
             messages.success(request, "Signup successful! Welcome aboard.")  # ✅ Success message
-            return redirect("main:index")
+            return redirect("dashboard:index")
         else:
             # Loop through form errors and add them as messages
             for field, errors in form.errors.items():

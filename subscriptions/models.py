@@ -16,9 +16,12 @@ class Subscription(models.Model):
     )
 
     def save(self, *args, **kwargs):
-        # If it's a new subscription, set end_date if not already set
-        if not self.id and not self.end_date:
-            self.end_date = self.start_date + timedelta(days=30)  # Default to 30 days
+        # First, save the model to ensure start_date is populated
+        if not self.id:  
+            super().save(*args, **kwargs)  # Save the instance first to get auto_now_add value
+            self.end_date = self.start_date + timedelta(days=30)  # Now start_date is not None
+
+        super().save(*args, **kwargs)
 
         # Fetch old status before saving
         old_subscription = None
