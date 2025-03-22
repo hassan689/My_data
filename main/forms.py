@@ -21,4 +21,11 @@ class PaymentVerificationForm(forms.Form):
     payment_amount = forms.DecimalField(required=True, max_digits=10, decimal_places=2, widget=forms.NumberInput(attrs={'placeholder': 'Amount paid'}))
     payment_reference = forms.CharField(required=True, max_length=255, widget=forms.TextInput(attrs={'placeholder': 'Transaction ID or reference'}))
     file_upload = forms.FileField(required=True)
+    
+
+
+class RequestReceipt(forms.Form):
+    name = forms.CharField(required=True, max_length=255, widget=forms.TextInput(attrs={'placeholder': 'Your full name'}))
+    email = forms.EmailField(required=True, widget=forms.EmailInput(attrs={'placeholder': 'your@email.com'}))
+    company_name = forms.CharField(required=True, max_length=255, widget=forms.TextInput(attrs={'placeholder': "Your company's name"}))
 

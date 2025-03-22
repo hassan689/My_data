@@ -8,6 +8,62 @@
 {% block 'content' %}
 
 
+<div class="flex items-center justify-center my-10 pt-20">
+  <div class="w-full max-w-2xl bg-white shadow-lg rounded-lg p-6">
+    
+		<div class="pb-5">
+			<h2 class="text-2xl md:text-3xl font-semibold mt-1 text-center mb-2">Generate Receipt</h2>
+			<p class="text-gray-500 text-xl sm:text-2xl md:text-2xl max-w-2xl mt-4">
+				Enter your email to receive the invoice. Once the payment is made, please submit a screenshot as proof of payment.
+			</p>
+		</div>
+
+		{% if form.errors %}
+    <div class="p-4 mb-4 rounded-md bg-red-200 border border-red-600 text-red-800">
+        <p><strong>Error:</strong> Please fix the following issue(s):</p>
+        <ul class="mt-2 list-disc list-inside">
+            {% for field, errors in form.errors.items %}
+                {% for error in errors %}
+                    <li>{{ error }}</li>
+                {% endfor %}
+            {% endfor %}
+        </ul>
+    </div>
+		{% endif %}
+
+    <form method="post">
+			{% csrf_token %}
+			
+			<div>
+					<label class="block font-medium text-gray-700">Name *</label>
+					{% render_field form.name class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none" placeholder="Enter your username" %}
+			</div>
+
+			<div>
+				<label class="block font-medium text-gray-700">Company Name *</label>
+				{% render_field form.company_name class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none" placeholder="Enter your username" %}
+			</div>
+	
+			<div>
+					<label class="block font-medium text-gray-700">Email Address *</label>
+					{% render_field form.email class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none" placeholder="Enter password" %}
+			</div>
+
+			<!-- Submit Button -->
+			<div class="md:col-span-2 my-5">
+					<button type="submit" class="w-full bg-gray-900 hover:bg-gray-800 text-white font-medium py-2 rounded-lg">
+							Request Receipt →
+					</button>
+			</div>
+	</form>
+
+
+  </div>
+</div>
+
+
+{% comment %}
+
 <div class="container mx-auto p-5 md:p-16 max-w-7xl mt-16">
 	<div class="flex flex-col md:flex-row gap-6">
 			<!-- Payment Accounts Box -->
@@ -114,6 +170,6 @@
 	</div>
 </div>
 
-
+{% endcomment %}
 
 {% endblock %}
