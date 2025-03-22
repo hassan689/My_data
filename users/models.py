@@ -85,17 +85,23 @@ class EmailAccount(models.Model):
     def check_password(self, raw_password):
         """Verify if the provided password matches the stored encrypted password."""
         return self.get_password() == raw_password  # Direct string comparison
+    
 
     def save(self, *args, **kwargs):
-        """Prevent more than 20 email accounts per active subsc. user. And only 3 for free trial user"""
+        # Ensure user is assigned before validation
+        if not self.user:
+            raise ValidationError("User must be assigned before saving.")
 
-        if self.user.on_free_trial:
-            if self.user.email_accounts.count() >= 3:
-                raise ValidationError("Cannot add more than 3 email accounts.")
-        else:
-            if self.user.email_accounts.count() >= 20:
-                raise ValidationError("Cannot add more than 20 email accounts.")
+        # Validation logic
+        if self.user.on_free_trial and self.user.email_accounts.count() >= 3:
+            raise ValidationError("Cannot add more than 3 email accounts on free trial.")
+        elif not self.user.on_free_trial and self.user.email_accounts.count() >= 20:
+            raise ValidationError("Cannot add more than 20 email accounts.")
+
+        # Proceed with saving
         super().save(*args, **kwargs)
+
+
 
     def __str__(self):
         return f"{self.user.username} - {self.email_address}"

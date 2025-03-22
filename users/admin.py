@@ -1,9 +1,9 @@
-from django.contrib import admin
+from django.contrib import admin, messages
 from django.contrib.auth.admin import UserAdmin
 from .models import CustomUser, EmailAccount
 from django.forms import PasswordInput
-from django.db import models
 from django import forms
+from django.core.exceptions import ValidationError
 
 # ✅ Customizing CustomUser Admin
 @admin.register(CustomUser)
@@ -55,7 +55,7 @@ class EmailAccountForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         """Auto-fill decrypted password when editing an email account."""
         super().__init__(*args, **kwargs)
-        if self.instance.pk:  # Only try decrypting if an instance exists
+        if self.instance.id:  # Only try decrypting if an instance exists
             try:
                 self.fields["decrypted_password"].initial = self.instance.get_password()
             except Exception as e:
@@ -72,7 +72,6 @@ class EmailAccountForm(forms.ModelForm):
         if commit:
             email_account.save()
         return email_account
-
 
 
 @admin.register(EmailAccount)
@@ -92,4 +91,11 @@ class EmailAccountAdmin(admin.ModelAdmin):
         """Ensure correct form is used when editing an existing entry."""
         kwargs["form"] = EmailAccountForm
         return super().get_form(request, obj, **kwargs)
+				
+    def save_model(self, request, obj, form, change):
+        try:
+            obj.clean()  # Explicitly call clean() before saving
+            obj.save()
+        except ValidationError as e:
+            self.message_user(request, e.messages[0], level=messages.ERROR)
 

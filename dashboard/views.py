@@ -8,6 +8,7 @@ from django.utils.timezone import now
 from django.contrib import messages
 from django.core.mail import get_connection, EmailMultiAlternatives, EmailMessage
 from concurrent.futures import ThreadPoolExecutor
+from django.core.exceptions import ValidationError
 
 
 ######################################## Campaign sending views
@@ -241,34 +242,40 @@ def add_email_account(request):
 
     if request.method == "POST":
         form = EmailAccountForm(request.POST)
-        if form.is_valid():
-            email_account = form.save(commit=False)
-            email_account.user = request.user  # Assign authenticated user
-            email_account.save()
-            
-            send_email_async(email_account, request)
-            
-            warning_message = (
-                "Form Submission Complete!\n\n"
-                "If your email credentials were entered correctly and registration was successful, "
-                "you should receive a confirmation email, under a couple of minutes, in your inbox from the account you just registered.\n\n"
-                "- If you receive the email—great! Your registration was successful.\n"
-                "- If not, please review the registration guidelines at the top of the add account page and try again.\n\n"
-                "For any issues, feel free to contact The Dispatch Skool Support."
-            )
-            messages.warning(request, warning_message)
 
-            return redirect("dashboard:index")
+        if form.is_valid():
+            email_account = form.save(commit=False)  # Prevent immediate DB save
+            email_account.user = request.user  # Assign user before validation
+
+            try:
+                email_account.full_clean()  # Run model-level validation after assigning user
+                email_account.save()  # Save only if validation passes
+
+                send_email_async(email_account, request)  # Send confirmation email
+
+                messages.warning(
+                    request,
+                    "Form Submission Complete!\n\n"
+                    "If your email credentials were entered correctly and registration was successful, "
+                    "you should receive a confirmation email in a couple of minutes.\n\n"
+                    "- If you receive the email—great! Your registration was successful.\n"
+                    "- If not, please review the registration guidelines and try again.\n\n"
+                    "For any issues, contact The Dispatch Skool Support."
+                )
+                return redirect("dashboard:index")
+
+            except ValidationError as e:
+                messages.error(request, str(e))  # Show validation error message
+
         else:
-            # Capture form errors and show them as error messages
+            # Display form validation errors
             for field, errors in form.errors.items():
                 for error in errors:
                     messages.error(request, f"{field.capitalize()}: {error}")
 
-    context = {
-        "form": form
-    }
-    return render(request, 'dashboard/add_email_account.html', context)
+    return render(request, "dashboard/add_email_account.html", {"form": form})
+
+
 
 
 # Update Email Account
