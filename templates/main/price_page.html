@@ -14,7 +14,7 @@
 		<div class="pb-5">
 			<h2 class="text-2xl md:text-3xl font-semibold mt-1 text-center mb-2">Generate Receipt</h2>
 			<p class="text-gray-500 text-xl sm:text-2xl md:text-2xl max-w-2xl mt-4">
-				Enter your email to receive the invoice. Once the payment is made, please submit a screenshot as proof of payment.
+				Enter your email to receive the invoice. Once the payment is made, please reply to the email with a screenshot of your paid receipt.
 			</p>
 		</div>
 
@@ -35,17 +35,17 @@
 			{% csrf_token %}
 			
 			<div>
-					<label class="block font-medium text-gray-700">Name *</label>
+					<label class="block font-medium text-gray-700 mt-2">Name *</label>
 					{% render_field form.name class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none" placeholder="Enter your username" %}
 			</div>
 
 			<div>
-				<label class="block font-medium text-gray-700">Company Name *</label>
+				<label class="block font-medium text-gray-700 mt-2">Company Name *</label>
 				{% render_field form.company_name class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none" placeholder="Enter your username" %}
 			</div>
 	
 			<div>
-					<label class="block font-medium text-gray-700">Email Address *</label>
+					<label class="block font-medium text-gray-700 mt-2">Email Address *</label>
 					{% render_field form.email class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none" placeholder="Enter password" %}
 			</div>
 
