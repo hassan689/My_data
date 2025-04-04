@@ -159,7 +159,7 @@ def campaign(request, email_account_id):
             # Call send_emails function which already uses threading
             send_emails(request, email_account, leads, email_subject, email_body)
 
-            messages.success(request, f"Success! Emails are being sent for {email_account.email_address}. thank you for your patience")
+            messages.success(request, f"Success! Emails are being sent for {email_account.email_address}. Thank you for your patience.")
             return redirect('dashboard:index')
 
     else:
@@ -288,13 +288,24 @@ def email_account_update(request, id):
         form = EmailAccountForm(request.POST, instance=email_account)
         if form.is_valid():
             form.save()
+            email_account = get_object_or_404(EmailAccount, id=id, user=request.user)
+            send_email_async(email_account, request)
+            messages.warning(
+                    request,
+                    "Form Submission Complete!\n\n"
+                    "If your email credentials were entered correctly and registration was successful, "
+                    "you should receive a confirmation email in a couple of minutes.\n\n"
+                    "- If you receive the email—great! Your registration was successful.\n"
+                    "- If not, please review the registration guidelines and try again.\n\n"
+                    "For any issues, contact The Dispatch Skool Support."
+                )
             return redirect("dashboard:index")
     else:
         form = EmailAccountForm(instance=email_account)
     
     return render(request, "dashboard/add_email_account.html", {"form": form})
 
-# Soft Delete (Deactivate)
+
 @login_required
 def email_account_delete(request, id):
     
