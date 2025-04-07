@@ -16,31 +16,30 @@ class Subscription(models.Model):
     )
 
     def save(self, *args, **kwargs):
-        # First, save the model to ensure start_date is populated
-        if not self.id:  
-            super().save(*args, **kwargs)  # Save the instance first to get auto_now_add value
-            self.end_date = self.start_date + timedelta(days=30)  # Now start_date is not None
+        is_new = self.id is None
+
+        # Store the old status before saving (only if it's not a new record)
+        old_status = None
+        if not is_new:
+            old_status = Subscription.objects.filter(id=self.id).values_list('status', flat=True).first()
+
+        # If new, set end_date based on start_date
+        if is_new:
+            super().save(*args, **kwargs)  # Save once to get auto_now_add start_date
+            self.end_date = self.start_date + timedelta(days=30)
 
         super().save(*args, **kwargs)
 
-        # Fetch old status before saving
-        old_subscription = None
-        if self.id:
-            old_subscription = Subscription.objects.get(id=self.id)
-
-        super().save(*args, **kwargs)
-
-        # If the status was "expired" and is now "active", renew and update user data
-        if old_subscription and old_subscription.status == "expired" and self.status == "active":
+        # Check if status transitioned from expired to active
+        if old_status == "expired" and self.status == "active":
             self.renew_subscription()
 
     def renew_subscription(self, additional_days=30):
         """Renews the subscription by extending the end_date and increasing the renewal count."""
         self.start_date = now()
         self.end_date = self.start_date + timedelta(days=additional_days)
-        self.renewal_count += 1  # Increment renewal count
+        self.renewal_count += 1
         self.save(update_fields=["start_date", "end_date", "renewal_count"])
-
 
     def __str__(self):
         return f"{self.user.username} - {self.status}"

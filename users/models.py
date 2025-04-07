@@ -92,11 +92,14 @@ class EmailAccount(models.Model):
         if not self.user:
             raise ValidationError("User must be assigned before saving.")
 
-        # Validation logic
-        if self.user.on_free_trial and self.user.email_accounts.count() >= 3:
-            raise ValidationError("Cannot add more than 3 email accounts on free trial.")
-        elif not self.user.on_free_trial and self.user.email_accounts.count() >= 20:
-            raise ValidationError("Cannot add more than 20 email accounts.")
+        is_new = self.id is None  # This tells us if it's a new object
+        if is_new:
+            email_account_count = self.user.email_accounts.count()
+
+            if self.user.on_free_trial and email_account_count >= 3:
+                raise ValidationError("Cannot add more than 3 email accounts on free trial.")
+            elif not self.user.on_free_trial and email_account_count >= 20:
+                raise ValidationError("Cannot add more than 20 email accounts.")
 
         # Proceed with saving
         super().save(*args, **kwargs)
