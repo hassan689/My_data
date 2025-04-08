@@ -68,6 +68,22 @@ class CampaignForm(forms.Form):
         required=False,
         widget=forms.NumberInput(attrs={'placeholder': 'Number of targets you want to select'})
 		)
+    delay = forms.IntegerField(
+        required=False,
+        min_value=0,
+        widget=forms.NumberInput(attrs={'placeholder': '30 or 60 or xyz seconds / minutes'}),
+        help_text='Enter a positive number for delay'
+    )
+    TIME_UNITS = [
+        ('seconds', 'Seconds'),
+        ('minutes', 'Minutes'),
+    ]
+    delay_unit = forms.ChoiceField(
+        choices=TIME_UNITS,
+        initial='seconds',
+        widget=forms.Select(),
+        help_text='Choose the time unit for delay'
+    )
 
     def __init__(self, *args, **kwargs):
         self.user = kwargs.pop('user', None)  # Get user instance
@@ -80,6 +96,8 @@ class CampaignForm(forms.Form):
         cleaned_data = super().clean()
         file_upload = cleaned_data.get('file_upload')
         mc_number = cleaned_data.get('mc_number')
+        targets_count = cleaned_data.get('targets_count')
+        delay = cleaned_data.get('delay')
 
         if self.user and self.user.on_free_trial:
             if not file_upload:
@@ -87,6 +105,12 @@ class CampaignForm(forms.Form):
         else:
             if not file_upload and not mc_number:
                 raise forms.ValidationError("Either upload an Excel file or provide an MC number.")
+
+        if targets_count is not None and targets_count < 1:
+            self.add_error('targets_count', "Targets count cannot be less than 1.")
+
+        if delay is not None and delay < 0:
+            self.add_error('delay', "Delay must be 0 or a number greater than 0.")
 
         return cleaned_data
 

@@ -9,12 +9,12 @@ from django.contrib import messages
 from django.core.mail import get_connection, EmailMultiAlternatives, EmailMessage
 from concurrent.futures import ThreadPoolExecutor
 from django.core.exceptions import ValidationError
-
+import time
 
 ######################################## Campaign sending views
 
 
-def send_emails(request, email_account, leads, subject, body):
+def send_emails(request, email_account, leads, subject, body, delay):
     """Sends multiple personalized emails using Django's `EmailMultiAlternatives` in a separate thread."""
 
     def _send():
@@ -42,7 +42,10 @@ def send_emails(request, email_account, leads, subject, body):
             )
 
             # Open the SMTP connection
-            connection.open()
+            try:
+              connection.open()
+            except Exception as e:
+              print(f"exception while opening connection: {e}")
 
             # Send personalized emails
             for lead in leads:
@@ -59,7 +62,10 @@ def send_emails(request, email_account, leads, subject, body):
                 msg.attach_alternative(personalized_body, "text/html")  # Attach the HTML version
                 msg.send()
 
-            print(f"Emails sent successfully to {len(leads)+1} recipients.")
+                # Add the delay here before sending the next email
+                time.sleep(delay)  # delay in seconds, whether from minutes or directly in seconds
+
+            # print(f"Emails sent successfully to {len(leads)+1} recipients.")
 
             # Close the SMTP connection after sending
             connection.close()
@@ -84,7 +90,7 @@ def process_excel_file(file):
         df = pd.read_excel(file)
         
         column_mapping = {}
-        expected_columns = {'mc_number': ['mc', 'mc number', 'MC Number', 'MCNumber'], 'name': ['name', 'legal name', 'legalname'], 'email': ['email', 'email address', 'emailaddress']}
+        expected_columns = {'mc_number': ['mc', 'mc number', 'MC Number', 'MCNumber', 'number', 'Number'], 'name': ['name', 'legal name', 'legalname'], 'email': ['email', 'email address', 'emailaddress']}
         
         for col in df.columns:
             col_lower = col.lower()
@@ -143,6 +149,12 @@ def campaign(request, email_account_id):
             file_upload = form.cleaned_data['file_upload']
             mc_number = form.cleaned_data['mc_number']
             targets_count = form.cleaned_data['targets_count']
+            delay = form.cleaned_data.get('delay') or 0  # default to 0 if not provided
+            delay_unit = form.cleaned_data.get('delay_unit')
+
+            # Convert delay to seconds if unit is in minutes
+            if delay_unit == 'minutes':
+                delay *= 60
 
             leads = []
             if file_upload:
@@ -157,7 +169,7 @@ def campaign(request, email_account_id):
                 print(leads)
 
             # Call send_emails function which already uses threading
-            send_emails(request, email_account, leads, email_subject, email_body)
+            send_emails(request, email_account, leads, email_subject, email_body, delay)
 
             messages.success(request, f"Success! Emails are being sent for {email_account.email_address}. Thank you for your patience.")
             return redirect('dashboard:index')
