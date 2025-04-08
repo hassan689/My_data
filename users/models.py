@@ -98,8 +98,10 @@ class EmailAccount(models.Model):
 
             if self.user.on_free_trial and email_account_count >= 3:
                 raise ValidationError("Cannot add more than 3 email accounts on free trial.")
-            elif not self.user.on_free_trial and email_account_count >= 20:
-                raise ValidationError("Cannot add more than 20 email accounts.")
+            
+            # Allowing unlimited versions
+            # elif not self.user.on_free_trial and email_account_count >= 20:
+            #     raise ValidationError("Cannot add more than 20 email accounts.")
 
         # Proceed with saving
         super().save(*args, **kwargs)
