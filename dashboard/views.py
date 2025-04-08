@@ -49,8 +49,8 @@ def send_emails(request, email_account, leads, subject, body, delay):
 
             # Send personalized emails
             for lead in leads:
-                personalized_subject = subject.replace("[name]", lead['name']).replace("[mc_number]", lead['mc_number'])
-                personalized_body = body.replace("[name]", lead['name']).replace("[mc_number]", lead['mc_number'])
+                personalized_subject = subject.replace("[name]", str(lead['name'])).replace("[mc_number]", str(lead['mc_number']))
+                personalized_body = body.replace("[name]", str(lead['name'])).replace("[mc_number]", str(lead['mc_number']))
 
                 msg = EmailMultiAlternatives(
                     subject=personalized_subject,
@@ -65,7 +65,7 @@ def send_emails(request, email_account, leads, subject, body, delay):
                 # Add the delay here before sending the next email
                 time.sleep(delay)  # delay in seconds, whether from minutes or directly in seconds
 
-            # print(f"Emails sent successfully to {len(leads)+1} recipients.")
+            print(f"Emails sent successfully to {len(leads)} recipients.")
 
             # Close the SMTP connection after sending
             connection.close()
@@ -89,25 +89,50 @@ def process_excel_file(file):
     try:
         df = pd.read_excel(file)
         
+        normalized_columns = {col: col.strip().lower().replace(" ", "") for col in df.columns}
         column_mapping = {}
-        expected_columns = {'mc_number': ['mc', 'mc number', 'MC Number', 'MCNumber', 'number', 'Number'], 'name': ['name', 'legal name', 'legalname'], 'email': ['email', 'email address', 'emailaddress']}
+        expected_columns = {
+            'mc_number': ['mc', 'mcnumber', 'mc_number', 'number'],
+            'name': ['name', 'legalname'],
+            'email': ['email', 'emailaddress']
+        }
         
-        for col in df.columns:
-            col_lower = col.lower()
-            for key, aliases in expected_columns.items():
-                if any(alias in col_lower for alias in aliases):
+        for key, aliases in expected_columns.items():
+            for col, norm_col in normalized_columns.items():
+                if norm_col in aliases:
                     column_mapping[key] = col
-        
-        if 'email' not in column_mapping:
+                    break 
+
+        if 'email' not in column_mapping or 'mc_number' not in column_mapping:
             return []
+
+        # ✅ NEW: Helper to clean values (e.g., remove .0 from float or strip spaces)
+        def clean_value(val):
+            if pd.isnull(val):
+                return ''
+            if isinstance(val, float) and val.is_integer():
+                return str(int(val))  # ✅ CHANGED: Prevents float to string issues
+            return str(val).strip()
+
+        def normalize_mc_number(val):
+            val = clean_value(val)
+            if not val.lower().startswith('mc'):
+                return f"MC {val}"
+            return val
         
         leads = [
-            {'mc_number': row[column_mapping['mc_number']], 'name': row.get(column_mapping.get('name', ''), ''), 'email': row[column_mapping['email']]}
+            {
+                'mc_number': normalize_mc_number(row[column_mapping['mc_number']]),
+                'name': clean_value(row.get(column_mapping.get('name', ''), '')),
+                'email': clean_value(row[column_mapping['email']])
+            }
             for _, row in df.iterrows()
             if pd.notnull(row[column_mapping['email']])
         ]
+
         return leads
     except Exception as e:
+        print(f"Error in process_excel_file: {e}")
         return []
 
 
