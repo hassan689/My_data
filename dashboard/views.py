@@ -10,6 +10,7 @@ from django.core.mail import get_connection, EmailMultiAlternatives, EmailMessag
 from concurrent.futures import ThreadPoolExecutor
 from django.core.exceptions import ValidationError
 import time
+from django.conf import settings
 
 ######################################## Campaign sending views
 
@@ -52,18 +53,21 @@ def send_emails(request, email_account, leads, subject, body, delay):
                 personalized_subject = subject.replace("[name]", str(lead['name'])).replace("[mc_number]", str(lead['mc_number']))
                 personalized_body = body.replace("[name]", str(lead['name'])).replace("[mc_number]", str(lead['mc_number']))
 
-                msg = EmailMultiAlternatives(
-                    subject=personalized_subject,
-                    body=personalized_body,
-                    from_email=email_account.email_address,
-                    to=[lead['email']],
-                    connection=connection
-                )
-                msg.attach_alternative(personalized_body, "text/html")  # Attach the HTML version
-                msg.send()
+                try:
+                    msg = EmailMultiAlternatives(
+                        subject=personalized_subject,
+                        body=personalized_body,
+                        from_email=email_account.email_address,
+                        to=[lead['email']],
+                        connection=connection
+                    )
+                    msg.attach_alternative(personalized_body, "text/html")  # Attach the HTML version
+                    msg.send()
 
-                # Add the delay here before sending the next email
-                time.sleep(delay)  # delay in seconds, whether from minutes or directly in seconds
+                    # Add the delay here before sending the next email
+                    time.sleep(delay)  # delay in seconds, whether from minutes or directly in seconds
+                except:
+                    continue
 
             print(f"Emails sent successfully to {len(leads)} recipients.")
 
@@ -209,7 +213,7 @@ def campaign(request, email_account_id):
 
 @login_required
 def index(request):
-	email_accounts = EmailAccount.objects.filter(user=request.user)
+	email_accounts = EmailAccount.objects.filter(user=request.user).order_by('-last_used_at')
 	context = {
 		"email_accounts": email_accounts
 	}
@@ -232,35 +236,58 @@ def send_email_async(email_account, request):
                 print("Invalid configuration: Cannot enable both TLS and SSL.")
                 return
 
-            # Create SMTP connection
-            connection = get_connection(
-                backend="django.core.mail.backends.smtp.EmailBackend",
-                host=email_account.host,
-                port=email_account.port_number,
-                username=email_account.email_address,
-                password=decrypted_password,
-                use_tls=use_tls,
-                use_ssl=use_ssl,
-            )
-            connection.open()
+            # Correct credentials entered
+            try:
+                # Create SMTP connection
+                connection = get_connection(
+                    backend="django.core.mail.backends.smtp.EmailBackend",
+                    host=email_account.host,
+                    port=email_account.port_number,
+                    username=email_account.email_address,
+                    password=decrypted_password,
+                    use_tls=use_tls,
+                    use_ssl=use_ssl,
+                )
+                connection.open()
 
-            # Email content
-            subject = "Email account configured successfully"
-            body = (
-                f"Hello {request.user.first_name},\n\n"
-                f"This is to notify you that your email account {email_account.email_address} "
-                "has been successfully configured with Dispatch Skool and is now ready to launch campaigns.\n\n"
-                "Best Regards,\nThe Dispatch Skool Team."
-            )
-            from_email = email_account.email_address
-            recipient_list = [request.user.email]
+                # Email content
+                subject = "Email account configured successfully"
+                body = (
+                    f"Hello {request.user.first_name},\n\n"
+                    f"This is to notify you that your email account {email_account.email_address} "
+                    "has been successfully configured with Dispatch Skool and is now ready to launch campaigns.\n\n"
+                    "Best Regards,\nThe Dispatch Skool Team."
+                )
+                from_email = email_account.email_address
+                recipient_list = [request.user.email]
 
-            # Create and send email
-            email_message = EmailMessage(
-                subject, body, from_email, recipient_list, connection=connection
-            )
-            email_message.send()
-            connection.close()
+                # Create and send email
+                email_message = EmailMessage(
+                    subject, body, from_email, recipient_list, connection=connection
+                )
+                email_message.send()
+                connection.close()
+
+            # Incorrect credentials entered
+            except:
+                subject = "Email account configuration failure"
+                body = (
+                    f"Hello {request.user.first_name},\n\n"
+                    f"This is to notify you that your email account {email_account.email_address} "
+                    "could not be configured with Dispatch Skool. This is likely due to incorrect credentials entered. Please refer to the provided instructions on the add account page and try 'updating' the account you were trying to attach.\n\n"
+                    "In case of any problems, feel free to reach out.\n\n"
+                    "Best Regards,\nThe Dispatch Skool Team."
+                )
+                from_email = settings.EMAIL_HOST_USER
+                recipient_list = [request.user.email]
+
+                email_message = EmailMessage(
+                    subject,
+                    body,
+                    from_email,
+                    recipient_list,
+                )
+                email_message.send()
 
             print(f"Notification email sent to {request.user.email}")
 
@@ -293,10 +320,8 @@ def add_email_account(request):
                 messages.warning(
                     request,
                     "Form Submission Complete!\n\n"
-                    "If your email credentials were entered correctly and registration was successful, "
-                    "you should receive a confirmation email in a couple of minutes.\n\n"
-                    "- If you receive the email—great! Your registration was successful.\n"
-                    "- If not, please review the registration guidelines and try again.\n\n"
+                    "You should receive a confirmation email in a couple of minutes.\n\n"
+                    "The email will tell you if the configuration was a success or a failure.\n\n"
                     "For any issues, contact The Dispatch Skool Support."
                 )
                 return redirect("dashboard:index")
@@ -330,10 +355,8 @@ def email_account_update(request, id):
             messages.warning(
                     request,
                     "Form Submission Complete!\n\n"
-                    "If your email credentials were entered correctly and registration was successful, "
-                    "you should receive a confirmation email in a couple of minutes.\n\n"
-                    "- If you receive the email—great! Your registration was successful.\n"
-                    "- If not, please review the registration guidelines and try again.\n\n"
+                    "You should receive a confirmation email in a couple of minutes.\n\n"
+                    "The email will tell you if the configuration was a success  or a failure.\n\n"
                     "For any issues, contact The Dispatch Skool Support."
                 )
             return redirect("dashboard:index")
