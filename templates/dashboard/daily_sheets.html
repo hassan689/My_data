@@ -12,62 +12,67 @@
 
 	{% if request.user.on_free_trial or request.user.subscription.status == "active" %}
 
-	<div class="text-center max-w-4xl mx-auto px-4 pt-16 pb-5">
-		<h2 class="text-3xl md:text-4xl font-bold">
-			Daily MC Sheets
-		</h2>
-		<p class="text-gray-500 text-lg md:text-xl mt-5">
-			You'll receive the latest MC Sheets in your email daily, but for your convenience,
-			this page stores records of the <strong>up to the past 30 days</strong>. Feel free to access and review any previous sheets whenever you need!
-		</p>
-		<p class="text-yellow-700 text-lg md:text-xl mt-5">
-			If you don't see the email in your inbox, it might be in your <strong>spam folder</strong> — be sure to mark it as <strong> 'Not Spam' and 'Important'</strong> for future deliveries.
-			Alternatively, the new sheet may not have been uploaded yet on FMCSA.
-		</p>
-	</div>
+    <div class="text-center max-w-4xl mx-auto px-4 pt-16 pb-5">
+      <h2 class="text-3xl md:text-4xl font-bold">
+        Daily MC Sheets
+      </h2>
+      <p class="text-gray-500 text-lg md:text-xl mt-5">
+        You can download the latest FMCSA MC Sheets daily.
+        This page stores records of the <strong>up to the past 30 days</strong>. Feel free to access and review any previous sheets whenever you need!
+      </p>
+    </div>
 
-	<div class="overflow-auto mx-auto p-5 bg-white max-w-6xl">
-
-    {% if not sheets %}
-        <div class="text-center max-w-4xl p-5">
-            <p class="text-gray-500 text-lg mt-6">
-                No daily sheets uploaded yet. Upload a file to get started!
+    <div class="overflow-auto mx-auto p-5 bg-white max-w-6xl mt-5">
+      {% if not sheets %}
+          <div class="text-center max-w-4xl p-5">
+              <p class="text-gray-500 text-lg mt-6">
+                  No daily sheets uploaded yet. Upload a file to get started!
+              </p>
+          </div>
+      {% else %}
+          {% if request.user.on_free_trial %}
+            <p class="text-gray-500 text-lg md:text-xl">
+              Thanks for exploring our platform!
             </p>
-        </div>
-    {% else %}
-        <table class="w-full min-w-[600px] border-collapse overflow-x-auto">
-            <thead>
-                <tr class="bg-gray-200">
-                    <th class="text-left p-3">Uploaded At</th>
-                    <th class="text-left p-3">File Name</th>
-                    <th class="text-left p-3">Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for sheet in sheets %}
-                    <tr class="border-b hover:bg-gray-100">
-                        <!-- Uploaded Date -->
-                        <td class="p-3">{{ sheet.uploaded_at|date:"F j, Y, g:i a" }}</td>
-
-                        <!-- File Name -->
-                        <td class="p-3">{{ sheet.file.name|cut:"daily_sheets/" }}</td>
-
-                        <!-- Actions -->
-                        <td class="p-3 space-x-4">
-											
-													<!-- Download Button -->
-													<a href="{{ sheet.file.url }}" download 
-															class="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600">
-															Download
-													</a>
-												</td>
-											
+            <p class="text-gray-500 text-lg md:text-xl mt-5">
+              Just a quick note — the MC sheets are part of our <strong>premium content</strong> and are exclusively available to our <strong> paying subscribers.</strong> 
+              While they're not accessible during the free trial, we hope you're enjoying the other features. Upgrading unlocks full access to all our premium resources!
+            </p>
+          {% elif request.user.subscription.status == "active" %}
+            <table class="w-full min-w-[600px] border-collapse overflow-x-auto">
+                <thead>
+                    <tr class="bg-gray-200">
+                        <th class="text-left p-3">Uploaded At</th>
+                        <th class="text-left p-3">File Name</th>
+                        <th class="text-left p-3">Actions</th>
                     </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    {% endif %}
-	</div>
+                </thead>
+                <tbody>
+                    {% for sheet in sheets %}
+                        <tr class="border-b hover:bg-gray-100">
+                            <!-- Uploaded Date -->
+                            <td class="p-3">{{ sheet.uploaded_at|date:"F j, Y, g:i a" }}</td>
+
+                            <!-- File Name -->
+                            <td class="p-3">{{ sheet.file.name|cut:"daily_sheets/" }}</td>
+
+                            <!-- Actions -->
+                            <td class="p-3 space-x-4">
+                          
+                              <!-- Download Button -->
+                              <a href="{{ sheet.file.url }}" download 
+                                  class="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600">
+                                  Download
+                              </a>
+                            </td>
+                          
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+          {% endif %}
+      {% endif %}
+    </div>
 
 	{% else %}
 
