@@ -42,19 +42,20 @@
             <table class="w-full min-w-[600px] border-collapse overflow-x-auto">
                 <thead>
                     <tr class="bg-gray-200">
-                        <th class="text-left p-3">Uploaded At</th>
                         <th class="text-left p-3">File Name</th>
+                        <th class="text-left p-3">Number of Rows</th>
                         <th class="text-left p-3">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for sheet in sheets %}
                         <tr class="border-b hover:bg-gray-100">
-                            <!-- Uploaded Date -->
-                            <td class="p-3">{{ sheet.uploaded_at|date:"F j, Y, g:i a" }}</td>
 
                             <!-- File Name -->
                             <td class="p-3">{{ sheet.file.name|cut:"daily_sheets/" }}</td>
+
+                            <!-- Uploaded Date -->
+                            <td class="p-3">{{ sheet.row_count }}</td>
 
                             <!-- Actions -->
                             <td class="p-3 space-x-4">

@@ -1,10 +1,11 @@
 from django.db import models
-from django.core.mail import EmailMessage
-from django.conf import settings
-from users.models import CustomUser
-from django.db.models import Q
-from concurrent.futures import ThreadPoolExecutor
-from datetime import date
+import pandas as pd
+# from django.core.mail import EmailMessage
+# from django.conf import settings
+# from users.models import CustomUser
+# from django.db.models import Q
+# from concurrent.futures import ThreadPoolExecutor
+# from datetime import date
 
 
 # Should also have a date set to auto, cause we need to have the record of on what date was this mc number's data was added
@@ -45,9 +46,24 @@ class Lead(models.Model):
 class DailySheet(models.Model):
     file = models.FileField(upload_to="daily_sheets/")  # Saves files in 'media/daily_sheets/'
     uploaded_at = models.DateTimeField(auto_now_add=True)  # Stores the timestamp when the file was uploaded
+    row_count = models.PositiveIntegerField(default=0, editable=False)
 
     def __str__(self):
         return f"Daily Sheet - {self.uploaded_at.strftime('%Y-%m-%d %H:%M:%S')}"
+
+    def save(self, *args, **kwargs):
+        # Only calculate row count for new uploads or changed files
+        if self.file:
+            try:
+                # Load the Excel file into a DataFrame
+                df = pd.read_excel(self.file)
+                self.row_count = len(df)
+            except Exception as e:
+                self.row_count = 0  # fallback if the file is not readable
+
+        super().save(*args, **kwargs)
+
+
     
     # def save(self, *args, **kwargs):
     #     # Save first to ensure file is accessible

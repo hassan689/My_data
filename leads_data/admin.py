@@ -12,6 +12,6 @@ class LeadAdmin(admin.ModelAdmin):
 
 @admin.register(DailySheet)
 class DailySheetAdmin(admin.ModelAdmin):
-    list_display = ("file", "uploaded_at")
+    list_display = ("id", "file", "row_count", "uploaded_at")
     ordering = ("-uploaded_at",)
 
