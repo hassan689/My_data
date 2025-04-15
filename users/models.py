@@ -53,7 +53,6 @@ class CustomUser(AbstractUser):
 
 
 
-# Need to record the port number and email provider name .... DONE
 class EmailAccount(models.Model):
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name="email_accounts")
     email_address = models.EmailField(unique=True)  # Unique globally

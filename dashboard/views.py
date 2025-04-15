@@ -11,11 +11,13 @@ from concurrent.futures import ThreadPoolExecutor
 from django.core.exceptions import ValidationError
 import time
 from django.conf import settings
+import math
+from threading import Thread
 
 ######################################## Campaign sending views
 
 
-def send_emails(request, email_account, leads, subject, body, delay):
+def send_emails(email_account, leads, subject, body, delay):
     """Sends multiple personalized emails using Django's `EmailMultiAlternatives` in a separate thread."""
 
     def _send():
@@ -198,7 +200,7 @@ def campaign(request, email_account_id):
                 print(leads)
 
             # Call send_emails function which already uses threading
-            send_emails(request, email_account, leads, email_subject, email_body, delay)
+            send_emails(email_account, leads, email_subject, email_body, delay)
 
             messages.success(request, f"Success! Emails are being sent for {email_account.email_address}. Thank you for your patience.")
             return redirect('dashboard:index')
@@ -207,6 +209,129 @@ def campaign(request, email_account_id):
         form = CampaignForm(user=request.user)
 
     return render(request, 'dashboard/campaign.html', {'form': form, 'email_account': email_account})
+
+
+@login_required
+def bulk_campaign(request):
+    email_accounts = EmailAccount.objects.filter(user=request.user)
+    email_accounts_count = request.user.email_accounts.count()
+
+    form = CampaignForm(user=request.user)
+
+    if request.method == 'POST':
+        form = CampaignForm(request.POST, request.FILES, user=request.user)
+        if form.is_valid():
+            email_subject = form.cleaned_data['email_subject']
+            email_body = form.cleaned_data['email_body']
+            file_upload = form.cleaned_data['file_upload']
+            mc_number = form.cleaned_data['mc_number']
+            targets_count = form.cleaned_data['targets_count']
+            delay = form.cleaned_data.get('delay') or 0  # default to 0 if not provided
+            delay_unit = form.cleaned_data.get('delay_unit')
+
+            # Convert delay to seconds if unit is in minutes
+            if delay_unit == 'minutes':
+                delay *= 60
+
+            leads = []
+            if file_upload:
+                leads = process_excel_file(file_upload)
+            elif mc_number and not request.user.on_free_trial:
+                leads = get_leads_from_db(mc_number, targets_count)
+
+            if not leads:
+                messages.error(request, "No valid leads found.")
+                return redirect('dashboard:index')
+
+            # ✅ Divide leads among email accounts
+            total_accounts = len(email_accounts)
+            if total_accounts == 0:
+                messages.error(request, "No email accounts found.")
+                return redirect('dashboard:index')
+
+            def start_campaign():
+                total_accounts = len(email_accounts)
+                chunk_size = math.ceil(len(leads) / total_accounts)
+
+                with ThreadPoolExecutor(max_workers=min(5, total_accounts)) as executor:
+                    for idx, account in enumerate(email_accounts):
+                        assigned_leads = leads[idx * chunk_size : (idx + 1) * chunk_size]
+                        if assigned_leads:
+                            executor.submit(
+                                send_bulk_emails,
+                                account,
+                                assigned_leads,
+                                email_subject,
+                                email_body,
+                                delay
+                            )
+
+            # ✅ Launch the campaign in a background thread
+            Thread(target=start_campaign).start()
+
+            messages.success(request, "Campaign has started across all email accounts!")
+            return redirect('dashboard:index')
+
+    return render(request, 'dashboard/bulk_campaign.html', {'form': form, 'email_accounts': email_accounts, 'email_accounts_count': email_accounts_count})
+
+
+def send_bulk_emails(email_account, leads, subject, body, delay):
+    """Sends personalized emails using the given email account."""
+
+    try:
+        decrypted_password = email_account.get_password()
+
+        use_tls = email_account.server_type == "TLS"
+        use_ssl = email_account.server_type == "SSL"
+
+        if use_tls and use_ssl:
+            print("Invalid configuration: Cannot enable both TLS and SSL.")
+            return
+
+        connection = get_connection(
+            backend="django.core.mail.backends.smtp.EmailBackend",
+            host=email_account.host,
+            port=email_account.port_number,
+            username=email_account.email_address,
+            password=decrypted_password,
+            use_tls=use_tls,
+            use_ssl=use_ssl,
+        )
+
+        try:
+            connection.open()
+        except Exception as e:
+            print(f"Exception while opening connection: {e}")
+            return
+
+        for lead in leads:
+            personalized_subject = subject.replace("[name]", str(lead['name'])).replace("[mc_number]", str(lead['mc_number']))
+            personalized_body = body.replace("[name]", str(lead['name'])).replace("[mc_number]", str(lead['mc_number']))
+
+            try:
+                msg = EmailMultiAlternatives(
+                    subject=personalized_subject,
+                    body=personalized_body,
+                    from_email=email_account.email_address,
+                    to=[lead['email']],
+                    connection=connection
+                )
+                msg.attach_alternative(personalized_body, "text/html")
+                msg.send()
+                time.sleep(delay)
+            except Exception as e:
+                print(f"Error sending email to {lead['email']}: {e}")
+                continue
+
+        connection.close()
+        email_account.last_used_at = now()
+        email_account.save(update_fields=["last_used_at"])
+
+        print(f"✅ Emails sent using {email_account.email_address}")
+
+    except Exception as e:
+        print(f"❌ Error in sending emails: {e}")
+
 
 
 ######################################## Email accounts creation and dashboard views

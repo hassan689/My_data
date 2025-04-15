@@ -42,17 +42,22 @@
 </div>
 
 
-<div class="p-4 sm:ml-64">
+<div class="p-4 sm:ml-72">
 
 	<div class="flex flex-col md:flex-row gap-6">
 		<!-- Email Campaigns Table -->
 		<div class="flex-1 p-6 bg-white shadow-md rounded-lg">
-			<div class="flex justify-between items-center mb-5">
-				<h2 class="text-xl font-semibold">Email Accounts</h2>
-				<a href="{% url 'dashboard:email_account' %}" class="bg-gray-900 hover:bg-gray-800 text-white px-4 py-2 rounded-lg flex items-center">
-					📩 New Account
-				</a>			 
-			</div>
+			<div class="flex flex-col md:flex-row md:justify-between md:items-center gap-3 mb-5 text-center">
+        <h2 class="text-3xl font-semibold">Email Accounts</h2>
+        <div class="flex flex-col md:flex-row gap-3 font-semibold text-lg md:text-base">
+          <a href="{% url 'dashboard:email_account' %}" class="bg-gray-800 hover:bg-gray-900 text-white px-4 py-2 rounded-lg flex items-center justify-center">
+            📩 New Account
+          </a>
+          <a href="{% url 'dashboard:bulk_campaign' %}" class="bg-violet-600 text-white hover:bg-violet-700 px-4 py-2 rounded-lg flex items-center justify-center">
+            🚀 One Click Launch Bulk Campaigns
+          </a>
+        </div>
+      </div>
 			<div class="overflow-auto max-w-full">
 				{% if not email_accounts %}
 				<div class="text-center max-w-4xl p-5">
@@ -83,22 +88,25 @@
 								<td class="p-3">{{ account.last_used_at }}</td>
 				
 								<!-- Update Button -->
-								<td class="p-3 space-x-5">
-										<a href="{% url 'dashboard:email_account_update' account.id %}" 
-											class="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600">
-												Update
-										</a>
-										{% if not request.user.on_free_trial and request.user.subscription.status == "active" %}
-										<a href="{% url 'dashboard:email_account_delete' account.id %}" 
-											class="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600">
-												Delete
-										</a>
-										{% endif %}
-										<a href="{% url 'dashboard:campaign' email_account_id=account.id %}" 
-											class="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600">
-												Launch Campaign
-										</a>
-								</td>
+								<td class="p-3">
+                  <div class="flex flex-col md:flex-row md:space-x-5 space-y-2 md:space-y-0">
+                    <a href="{% url 'dashboard:email_account_update' account.id %}" 
+                      class="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 text-center">
+                      Update
+                    </a>
+                    {% if not request.user.on_free_trial and request.user.subscription.status == "active" %}
+                    <a href="{% url 'dashboard:email_account_delete' account.id %}" 
+                      class="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 text-center">
+                      Delete
+                    </a>
+                    {% endif %}
+                    <a href="{% url 'dashboard:campaign' email_account_id=account.id %}" 
+                      class="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600 text-center">
+                      Launch Campaign
+                    </a>
+                  </div>
+                </td>
+                
 						</tr>
 						{% endfor %}
 					</tbody>
@@ -130,9 +138,6 @@
 		{% endcomment %}
 
 	</div>
-	
-	
-		
 
 </div>	
 

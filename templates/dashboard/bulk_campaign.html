@@ -1,7 +1,7 @@
 {% extends "dshbrd_base.html" %}
 
 {% load static %}
-{% block 'title' %}Dispatch Skool - Campaign Creator{% endblock %}
+{% block 'title' %}Dispatch Skool - Bulk Campaign{% endblock %}
 
 {% block 'head' %}{{ form.media }}{% endblock %}
 
@@ -11,12 +11,40 @@
 
 <div class="p-4 sm:ml-72">
 
-	
-	{% if request.user.on_free_trial or request.user.subscription.status == "active" %}
+	{% if request.user.subscription.status == "active" and email_accounts_count < 2 %}
+
+    <div class="text-center max-w-4xl mx-auto px-4 pt-16 pb-5">
+      <h2 class="text-3xl md:text-4xl font-bold">
+        Create <span class="text-blue-500">One Click Launch Bulk Campaigns</span> seemlessly and deploy all your email accounts at once!
+      </h2>
+      <p class="text-gray-500 text-lg md:text-xl mt-5">
+        Reach your ideal customers in <strong>less than 5 minutes</strong> — our powerful tool <strong>delivers your campaign instantly</strong>,
+        maximizing impact while you focus on growing your business.
+      </p>
+    </div>
+
+    <div class="overflow-auto mx-auto p-5 bg-white max-w-6xl mt-5">
+      <p class="text-gray-500 text-lg md:text-xl">
+          You don't have enough accounts - Don't worry
+      </p>
+      <p class="text-gray-500 text-lg md:text-xl mt-5">
+          The <strong>bulk sender</strong> feature requires <strong>at least two email accounts</strong> to get started. 
+          If you have fewer than two accounts, 
+          {% if email_accounts_count == 0 %}
+            <a class="text-blue-500 underline" href="{% url 'dashboard:email_account' %}">you can simply create an account</a>
+          {% elif email_accounts_count == 1 %}
+            you can still use the <strong>regular Launch Campaign</strong> method from 
+            the <a class="text-blue-500 underline" href="{% url 'dashboard:index' %}">dashboard</a> 
+            or you can <a class="text-blue-500 underline" href="{% url 'dashboard:email_account' %}">create more accounts</a> to use the bulk sender.
+          {% endif %}
+      </p>
+    </div>
+
+	{% elif  request.user.subscription.status == "active" and email_accounts_count >= 2 %}
 
 		<div class="text-center max-w-4xl mx-auto px-4 pt-16 pb-5">
 			<h2 class="text-3xl md:text-4xl font-bold">
-				Campaign Creator for <span class="text-blue-500">{{ email_account.email_address }}</span>
+				Create <span class="text-blue-500">One Click Launch Bulk Campaigns</span> seemlessly and deploy all your email accounts at once!
 			</h2>
 			<p class="text-gray-500 text-lg md:text-xl mt-5">
 				Reach your ideal customers in <strong>less than 5 minutes</strong> — our powerful tool <strong>delivers your campaign instantly</strong>,
@@ -24,22 +52,20 @@
 			</p>
 
 			<div class="p-6 bg-white border border-gray-300 rounded-lg shadow-md my-6 text-left">
-				<h2 class="text-xl font-semibold text-gray-800">Recommendation</h2>
-				<p class="text-gray-500">
-						Before sending your campaign to your actual targets, we recommend following these steps to familiarize yourself with Dispatch Skool's Campaign Sender:
-				</p>
+				<h2 class="text-xl font-semibold text-gray-800">How it Works</h2>
 		
 				<div class="mt-4 p-4 bg-gray-100 rounded-lg">
-						<ul class="mt-2 text-sm text-gray-600 space-y-1">
-								<li>• Create a test XLSX file.</li>
-								<li>• Add email addresses you have access to as recipients.</li>
-								<li>• Launch the campaign.</li>
-								<li>• Review the campaign as your targets would see it—risk-free.</li>
-						</ul>
+          <ul class="list-disc pl-5">
+            <li>Upload your Excel sheet with all the leads.</li>
+            <li>The system checks how many email accounts you've connected.</li>
+            <li>Your leads are automatically divided equally among those email accounts.</li>
+            <li>Each email account starts sending its share of emails at the same time.</li>
+            <li>This speeds up the process and makes your bulk campaign run efficiently.</li>
+            <li><strong>Tip:</strong> Make sure your lead sheet is big enough — the more leads you upload, the more you'll notice the magic of parallel sending in action!</li>
+          </ul>                    
 				</div>
 			</div>
 		
-
 		</div>
 
 		<section class="flex flex-col items-center text-center px-4 md:px-4 lg:px-5 py-6 my-5">
@@ -165,8 +191,10 @@
                 {% render_field form.delay_unit class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none" %}
               </div>
             </div>
+        
           </div>
         </div>
+        
 
 				<section class="flex flex-col items-center text-center px-4 md:px-4 lg:px-5 py-6 mt-10">
 					<span class="text-md font-medium text-gray-700 bg-slate-200 px-4 py-1 rounded-full">
@@ -250,7 +278,7 @@
 					<!-- Launch Button -->
 					<div class="mt-6">
 							<button type="submit" class="bg-gray-900 hover:bg-gray-800 text-white font-semibold py-3 px-6 rounded-full shadow-lg text-lg">
-									Launch Campaign
+									Launch Bulk Campaign 🚀
 							</button>
 					</div>
 				</div>
@@ -264,7 +292,29 @@
 			}
 		</script>
 
-	{% else %}
+  {% elif request.user.on_free_trial %}
+
+    <div class="text-center max-w-4xl mx-auto px-4 pt-16 pb-5">
+      <h2 class="text-3xl md:text-4xl font-bold">
+        Create <span class="text-blue-500">One Click Launch Bulk Campaigns</span> seemlessly and deploy all your email accounts at once!
+      </h2>
+      <p class="text-gray-500 text-lg md:text-xl mt-5">
+        Reach your ideal customers in <strong>less than 5 minutes</strong> — our powerful tool <strong>delivers your campaign instantly</strong>,
+        maximizing impact while you focus on growing your business.
+      </p>
+    </div>
+
+    <div class="overflow-auto mx-auto p-5 bg-white max-w-6xl mt-5">
+      <p class="text-gray-500 text-lg md:text-xl">
+        We're glad you're here!
+      </p>
+      <p class="text-gray-500 text-lg md:text-xl mt-5">
+        Just a heads-up — the <strong>bulk sender</strong> feature is part of our <strong>premium toolkit</strong> and is available exclusively to our <strong>paying subscribers</strong>.
+        It's not included during the free trial, but there's still plenty to explore! Upgrade anytime to unlock the full power of automated campaigns and more.
+      </p>      
+    </div>
+    
+  {% else %}    
 
 		<section class="flex flex-col items-center text-center px-4 md:px-4 lg:px-5 py-6">
 			<span class="text-md font-medium text-gray-700 bg-slate-200 px-4 py-1 rounded-full">
