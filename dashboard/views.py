@@ -1,7 +1,7 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
 from users.models import EmailAccount
-from .forms import EmailAccountForm, CampaignForm
+from .forms import EmailAccountForm, CampaignForm, BulkCampaignForm
 from leads_data.models import Lead, DailySheet
 import pandas as pd
 from django.utils.timezone import now
@@ -211,25 +211,26 @@ def campaign(request, email_account_id):
     return render(request, 'dashboard/campaign.html', {'form': form, 'email_account': email_account})
 
 
+
 @login_required
 def bulk_campaign(request):
     email_accounts = EmailAccount.objects.filter(user=request.user)
-    email_accounts_count = request.user.email_accounts.count()
+    email_accounts_count = email_accounts.count()
 
-    form = CampaignForm(user=request.user)
+    form = BulkCampaignForm(user=request.user)
 
     if request.method == 'POST':
-        form = CampaignForm(request.POST, request.FILES, user=request.user)
+        form = BulkCampaignForm(request.POST, request.FILES, user=request.user)
+
         if form.is_valid():
             email_subject = form.cleaned_data['email_subject']
             email_body = form.cleaned_data['email_body']
             file_upload = form.cleaned_data['file_upload']
             mc_number = form.cleaned_data['mc_number']
             targets_count = form.cleaned_data['targets_count']
-            delay = form.cleaned_data.get('delay') or 0  # default to 0 if not provided
+            delay = form.cleaned_data.get('delay') or 0
             delay_unit = form.cleaned_data.get('delay_unit')
 
-            # Convert delay to seconds if unit is in minutes
             if delay_unit == 'minutes':
                 delay *= 60
 
@@ -243,19 +244,34 @@ def bulk_campaign(request):
                 messages.error(request, "No valid leads found.")
                 return redirect('dashboard:index')
 
-            # ✅ Divide leads among email accounts
-            total_accounts = len(email_accounts)
-            if total_accounts == 0:
-                messages.error(request, "No email accounts found.")
-                return redirect('dashboard:index')
+            selected_account_ids = request.POST.getlist('selected_accounts')
+            account_lead_map = {}
+            total_requested_leads = 0
+
+            for account_id in selected_account_ids:
+                try:
+                    num_leads = int(request.POST.get(f'emails_for_account_{account_id}', '0'))
+                    if num_leads < 1:
+                        continue
+                    account = EmailAccount.objects.get(id=account_id, user=request.user)
+                    account_lead_map[account] = num_leads
+                    total_requested_leads += num_leads
+                except (ValueError, EmailAccount.DoesNotExist):
+                    continue
+
+            if total_requested_leads > len(leads):
+                messages.error(
+                    request,
+                    f"You requested {total_requested_leads} leads, but only {len(leads)} available."
+                )
+                return redirect(request.path)
 
             def start_campaign():
-                total_accounts = len(email_accounts)
-                chunk_size = math.ceil(len(leads) / total_accounts)
-
-                with ThreadPoolExecutor(max_workers=min(5, total_accounts)) as executor:
-                    for idx, account in enumerate(email_accounts):
-                        assigned_leads = leads[idx * chunk_size : (idx + 1) * chunk_size]
+                lead_index = 0
+                with ThreadPoolExecutor(max_workers=min(5, len(account_lead_map))) as executor:
+                    for account, lead_count in account_lead_map.items():
+                        assigned_leads = leads[lead_index:lead_index + lead_count]
+                        lead_index += lead_count
                         if assigned_leads:
                             executor.submit(
                                 send_bulk_emails,
@@ -266,13 +282,19 @@ def bulk_campaign(request):
                                 delay
                             )
 
-            # ✅ Launch the campaign in a background thread
             Thread(target=start_campaign).start()
 
-            messages.success(request, "Campaign has started across all email accounts!")
+            messages.success(request, "Campaign has started across selected email accounts!")
             return redirect('dashboard:index')
+        else:
+            print(form.errors)
+            return redirect(request.path)
 
-    return render(request, 'dashboard/bulk_campaign.html', {'form': form, 'email_accounts': email_accounts, 'email_accounts_count': email_accounts_count})
+    return render(request, 'dashboard/bulk_campaign.html', {
+        'form': form,
+        'email_accounts': email_accounts,
+        'email_accounts_count': email_accounts_count
+    })
 
 
 def send_bulk_emails(email_account, leads, subject, body, delay):

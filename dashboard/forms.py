@@ -44,7 +44,6 @@ class EmailAccountForm(forms.ModelForm):
         return email_account
 
 
-
 class CampaignForm(forms.Form):
     email_subject = forms.CharField(
         max_length=255, 
@@ -111,6 +110,34 @@ class CampaignForm(forms.Form):
 
         if delay is not None and delay < 0:
             self.add_error('delay', "Delay must be 0 or a number greater than 0.")
+
+        return cleaned_data
+
+
+class BulkCampaignForm(CampaignForm):
+    def __init__(self, *args, **kwargs):
+        self.user = kwargs.pop('user', None)
+        super().__init__(*args, user=self.user, **kwargs)
+
+    def clean(self):
+        cleaned_data = super().clean()
+        selected_ids = self.data.getlist('selected_accounts')  # Directly from POST data
+
+        if not selected_ids:
+            raise forms.ValidationError("Please select at least one email account.")
+
+        for account_id in selected_ids:
+            field_name = f'emails_for_account_{account_id}'
+            value = self.data.get(field_name)
+            if not value:
+                self.add_error(None, f"Missing email count for account ID {account_id}.")
+            else:
+                try:
+                    int_val = int(value)
+                    if int_val < 1:
+                        self.add_error(None, f"Email count must be at least 1 for account ID {account_id}.")
+                except ValueError:
+                    self.add_error(None, f"Invalid number format for account ID {account_id}.")
 
         return cleaned_data
 

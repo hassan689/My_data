@@ -163,9 +163,82 @@
 					</div>
 				</div>
 
+        <!-- Email Accounts Select -->
         <section class="flex flex-col items-center text-center px-4 md:px-4 lg:px-5 py-6 mt-20">
 					<span class="text-md font-medium text-gray-700 bg-slate-200 px-4 py-1 rounded-full">
 						Step 2
+					</span>
+					<h2 class="text-2xl md:text-3xl font-semibold mt-3">
+						Select Your Email Accounts
+					</h2>
+					<p class="text-gray-500 text-base mt-2">
+						Select the email accounts you want to use for this bulk action and the number of leads you want that specific account to target.
+					</p>
+				</section>
+
+        <div class="container mx-auto px-4 max-w-6xl mb-20">
+          <div class="bg-white border border-gray-300 rounded-lg shadow-md">
+            <div class="p-6">
+              <h2 class="text-xl font-semibold mb-4">Select Email Accounts and Assign Lead Counts</h2>
+        
+              <div class="overflow-x-auto">
+                <table class="w-full table-auto">
+                  
+                  <thead class="bg-gray-100 text-gray-700 text-sm">
+                    <tr>
+                      <th class="border px-4 py-2 text-left">Email Accounts</th>
+                      <th class="border px-4 py-2 text-left">Leads to Send</th>
+                    </tr>
+                  </thead>
+                  <tbody class="text-sm text-gray-900">
+                    {% for account in email_accounts %}
+                      <tr>
+                        <td class="px-4 py-2">
+                          <label class="flex items-center space-x-2">
+                            <input
+                              type="checkbox"
+                              name="selected_accounts"
+                              value="{{ account.id }}"
+                              class="mr-2 border-gray-300 bg-gray-300 rounded-md"
+                              id="checkbox_{{ account.id }}"
+                              onclick="toggleLeadInput({{ account.id }})"
+                            >
+                            <span>{{ account.email_address }}</span>
+                          </label>
+                        </td>
+                        <td class="px-4 py-2">
+                          <input
+                            type="number"
+                            name="emails_for_account_{{ account.id }}"
+                            class="w-full border border-gray-300 rounded-lg px-3 py-2 hidden"
+                            placeholder="Number of leads to assign"
+                            min="1"
+                            id="lead_input_{{ account.id }}"
+                          >
+                        </td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                  
+                </table>
+              </div>
+        
+              {% if form.non_field_errors %}
+                <div class="bg-red-100 text-red-700 border border-red-300 rounded p-3 my-4 text-sm">
+                  {% for error in form.non_field_errors %}
+                    <p>{{ error }}</p>
+                  {% endfor %}
+                </div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        
+
+        <!-- Set Delay -->
+        <section class="flex flex-col items-center text-center px-4 md:px-4 lg:px-5 py-6 mt-20">
+					<span class="text-md font-medium text-gray-700 bg-slate-200 px-4 py-1 rounded-full">
+						Step 3
 					</span>
 					<h2 class="text-2xl md:text-3xl font-semibold mt-3">
 						Set Delay
@@ -175,7 +248,7 @@
 					</p>
 				</section>
 
-        <div class="container mx-auto px-4 max-w-2xl mb-20">
+        <div class="container mx-auto px-4 max-w-3xl mb-20">
           <div class="bg-white border border-gray-300 rounded-lg shadow-md">
         
             <div class="grid grid-cols-1 gap-4 p-6">  <!-- Removed md:grid-cols-2 -->
@@ -195,10 +268,10 @@
           </div>
         </div>
         
-
+        <!-- Enter email subject and body -->
 				<section class="flex flex-col items-center text-center px-4 md:px-4 lg:px-5 py-6 mt-10">
 					<span class="text-md font-medium text-gray-700 bg-slate-200 px-4 py-1 rounded-full">
-						Step 3
+						Step 4
 					</span>
 					<h2 class="text-2xl md:text-3xl font-semibold mt-3">
 						Craft your Email
@@ -207,8 +280,7 @@
 						Customize the message that will be sent to your leads
 					</p>
 				</section>
-
-				<!-- Enter email subject and body -->
+				
 				<div class="container mx-auto px-4 pt-8 pb-4 max-w-6xl">
 
 					<!-- Guidelines & Tips Box -->
@@ -264,16 +336,16 @@
 
 				</div>
 
+        <!-- Launch Button -->
 				<section class="flex flex-col items-center text-center px-4 md:px-4 lg:px-5 py-6 my-5">
 					<span class="text-md font-medium text-gray-700 bg-slate-200 px-4 py-1 rounded-full">
-						Step 4
+						Step 5
 					</span>
 					<h2 class="text-2xl md:text-3xl font-semibold mt-3">
 						Ready to Launch
 					</h2>
 				</section>
 
-				<!-- Submit -->
 				<div class="container mx-auto px-4 mb-10 text-center">
 					<!-- Launch Button -->
 					<div class="mt-6">
@@ -354,5 +426,19 @@
 
 	
 </div>
+
+<script>
+  function toggleLeadInput(accountId) {
+    var checkbox = document.getElementById('checkbox_' + accountId);
+    var leadInput = document.getElementById('lead_input_' + accountId);
+
+    // Toggle visibility of the lead input based on the checkbox
+    if (checkbox.checked) {
+      leadInput.classList.remove('hidden');
+    } else {
+      leadInput.classList.add('hidden');
+    }
+  }
+</script>
 
 {% endblock %}
