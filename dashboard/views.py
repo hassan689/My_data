@@ -156,11 +156,11 @@ def get_leads_from_db(starting_mc_number, targets_count):
             return []
 
         starting_mc = starting_lead.mc_number
-        leads_after = list(Lead.objects.filter(mc_number__gte=starting_mc).order_by('mc_number')[:targets_count])
+        leads_after = list(Lead.objects.filter(mc_number__gte=starting_mc, email__isnull=False).exclude(email='').order_by('mc_number')[:targets_count])
         remaining = targets_count - len(leads_after)
         
         if remaining > 0:
-            leads_before = list(Lead.objects.filter(mc_number__lt=starting_mc).order_by('-mc_number')[:remaining])
+            leads_before = list(Lead.objects.filter(mc_number__lt=starting_mc, email__isnull=False).exclude(email='').order_by('-mc_number')[:remaining])
             leads_after.extend(leads_before)
 
         return [{'mc_number': lead.mc_number, 'name': lead.legal_name, 'email': lead.email} for lead in leads_after if lead.email]
@@ -301,7 +301,6 @@ def campaign(request, email_account_id):
 def bulk_campaign(request):
     email_accounts = EmailAccount.objects.filter(user=request.user)
     email_accounts_count = email_accounts.count()
-
     # Unique cache key per user (you can make it tighter using session ID if needed)
     cache_key = f"bulk_leads_{request.user.id}"
 
@@ -320,8 +319,6 @@ def bulk_campaign(request):
             mc_number = form.cleaned_data['mc_number']
             targets_count = form.cleaned_data['targets_count']
 
-            print(mc_number, targets_count)
-
             leads = []
             if file_upload:
                 leads = process_excel_file(file_upload)
@@ -334,12 +331,16 @@ def bulk_campaign(request):
                 messages.error(request, "No valid leads found.")
                 return redirect('dashboard:bulk_campaign')
             
-            cache.set(cache_key, {'leads': leads, 'leads_available': len(leads)}, timeout=1800)
+            # Before setting the cache, delete the old one
+            cache.delete(cache_key)
+            cache.set(cache_key, {'leads': leads, 'leads_available': len(leads)}, timeout=300)
+
 
             if request.headers.get('x-requested-with') == 'XMLHttpRequest':
                 return JsonResponse({
                     'status': 'success',
-                    'message': f'{len(leads)} leads submitted successfully.'
+                    'message': f'{len(leads)} leads submitted successfully.',
+                    'leads': leads  # Include leads data here
                 })
 
             messages.success(request, f"{len(leads)} leads submitted successfully.")
@@ -357,7 +358,8 @@ def bulk_campaign(request):
     elif request.method == 'POST' and 'submit_allocation' in request.POST:
 
         cached_data = cache.get(cache_key)
-        form = BulkCampaignForm(request.POST, request.FILES, user=request.user)
+        total_leads = cached_data['leads_available'] if cached_data and 'leads_available' in cached_data else 0
+        form = BulkCampaignForm(request.POST, request.FILES, user=request.user, total_leads=total_leads)
         if not cached_data:
             return redirect('dashboard:bulk_campaign')
         
@@ -387,11 +389,16 @@ def bulk_campaign(request):
                     continue
 
             if total_requested_leads != len(leads):
-                messages.error(
-                    request,
-                    f"Total assigned leads ({total_requested_leads}) must match total available ({len(leads)})."
-                )
-                return redirect('dashboard:bulk_campaign')
+                form.add_error(None, f"Total assigned leads ({total_requested_leads}) must match total available ({len(leads)}).")
+
+                return render(request, 'dashboard/bulk_campaign.html', {
+                    'form': form,
+                    'email_accounts': email_accounts,
+                    'email_accounts_count': email_accounts_count,
+                    'leads_ready': bool(cached_data),
+                    'total_leads': len(leads),
+                })
+
 
             def start_campaign():
                 lead_index = 0
@@ -421,7 +428,9 @@ def bulk_campaign(request):
           print("Form errors:", form.errors)
 
     # GET Request or Initial Page Load
-    form = BulkCampaignForm(user=request.user)
+    if request.method == 'GET':
+        form = BulkCampaignForm(user=request.user)
+
     cached_data = cache.get(cache_key)
     leads_available = len(cached_data['leads']) if cached_data else 0
 
@@ -430,7 +439,7 @@ def bulk_campaign(request):
         'email_accounts': email_accounts,
         'email_accounts_count': email_accounts_count,
         'leads_ready': bool(cached_data),
-        'total_leads': leads_available
+        'total_leads': leads_available,
     })
 
 

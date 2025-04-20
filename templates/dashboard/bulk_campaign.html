@@ -65,8 +65,19 @@
           </ul>                             
 				</div>
 			</div>
+
+      
+    {% if form.non_field_errors %}
+    <div class="bg-red-100 text-red-700 border border-red-300 rounded p-4 my-6 text-lg text-center font-medium">
+      {% for error in form.non_field_errors %}
+        <p>{{ error }}</p>
+      {% endfor %}
+    </div>
+    {% endif %}
 		
 		</div>
+
+
 
 		<section class="flex flex-col items-center text-center px-4 md:px-4 lg:px-5 py-6 my-5">
 			<span class="text-md font-medium text-gray-700 bg-slate-200 px-4 py-1 rounded-full">
@@ -81,14 +92,8 @@
 		</section>
 
     <!-- Step 1 - Leads Input -->
-		<form id="campaign-form" method="post" enctype="multipart/form-data">
+		<form id="campaign-form" method="post" action="{% url 'dashboard:bulk_campaign' %}" enctype="multipart/form-data">
 			{% csrf_token %}
-
-			{% if form.non_field_errors %}
-			<div class="text-red-500 text-sm mb-2">
-					{{ form.non_field_errors }}
-			</div>
-			{% endif %}
 				
 				<!-- Choose leads section -->
 				<div class="flex flex-col md:flex-row gap-6 w-full max-w-6xl mx-auto">
@@ -203,7 +208,13 @@
         <div class="container mx-auto px-4 max-w-6xl mb-20">
           <div class="bg-white border border-gray-300 rounded-lg shadow-md">
             <div class="p-6">
-              <h2 class="text-xl font-semibold mb-4">Select Email Accounts and Assign Lead Counts</h2>
+              <h2 class="text-xl font-semibold mb-4 flex items-center justify-between">
+                <span>Select Email Accounts and Assign Lead Counts</span>
+                <span id="lead-summary" class="text-red-600 text-sm font-medium ml-4 whitespace-nowrap">
+                  Please make sure that the number of leads you assign here are equal to the leads you submitted earlier! 
+                </span>
+              </h2>
+              
         
               <div class="overflow-x-auto">
                 <table class="w-full table-auto">
@@ -247,13 +258,6 @@
                 </table>
               </div>
         
-              {% if form.non_field_errors %}
-                <div class="bg-red-100 text-red-700 border border-red-300 rounded p-3 my-4 text-sm">
-                  {% for error in form.non_field_errors %}
-                    <p>{{ error }}</p>
-                  {% endfor %}
-                </div>
-              {% endif %}
             </div>
           </div>
         </div>
@@ -373,10 +377,16 @@
 
         <div class="container mx-auto px-4 mb-10 text-center">
           <!-- Launch Button -->
-          <div class="mt-6">
+          <!-- Error message container above the submit button -->
+          <div id="error-message" class="text-red-600 mt-4 hidden text-sm"></div>
+
+          <!-- Submit button -->
+          <div id="step-2-submit" class="container mx-auto px-4 mb-10 text-center">
+            <div class="mt-6">
               <button type="submit" class="bg-gray-900 hover:bg-gray-800 text-white font-semibold py-3 px-6 rounded-full shadow-lg text-lg">
-                  Launch Bulk Campaign 🚀
+                Launch Bulk Campaign 🚀
               </button>
+            </div>
           </div>
         </div>
 
@@ -468,7 +478,7 @@
   }
 </script>
 
-
+<!-- Forms transition -->
 <script>
   document.getElementById('campaign-form').addEventListener('submit', async function (e) {
     e.preventDefault(); // Prevent form reload for Step 1 only
@@ -499,8 +509,6 @@
         document.getElementById('step-2-wrapper').classList.remove('hidden');
         document.getElementById('step-2-wrapper').scrollIntoView({ behavior: 'smooth' });
 
-        // Optional: hide Step 1
-        // document.getElementById('step-1').classList.add('hidden');
       } else {
         // Show errors
         if (data.errors) {
@@ -518,6 +526,5 @@
   });
 </script>
 
-  
 
 {% endblock %}

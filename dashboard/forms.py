@@ -1,5 +1,6 @@
 from django import forms
 from users.models import EmailAccount
+from django.core.cache import cache
 from django_ckeditor_5.widgets import CKEditor5Widget
 
 class EmailAccountForm(forms.ModelForm):
@@ -116,6 +117,7 @@ class CampaignForm(forms.Form):
 class BulkCampaignForm(CampaignForm):
     def __init__(self, *args, **kwargs):
         self.user = kwargs.pop('user', None)
+        self.total_leads = kwargs.pop('total_leads', 0)  # Total leads passed from view
         super().__init__(*args, user=self.user, **kwargs)
 
         # Set all fields as not required for Step 2
@@ -137,6 +139,7 @@ class BulkCampaignForm(CampaignForm):
             if not selected_ids:
                 raise forms.ValidationError("Please select at least one email account.")
 
+            assigned_leads = 0
             for account_id in selected_ids:
                 field_name = f'emails_for_account_{account_id}'
                 value = self.data.get(field_name)
@@ -147,7 +150,13 @@ class BulkCampaignForm(CampaignForm):
                         int_val = int(value)
                         if int_val < 1:
                             self.add_error(None, f"Email count must be at least 1 for account ID {account_id}.")
+                        assigned_leads += int_val
                     except ValueError:
                         self.add_error(None, f"Invalid number format for account ID {account_id}.")
 
+            # Validate that assigned leads match total leads
+            if assigned_leads != self.total_leads:
+                self.add_error(None, f"ERROR! You assigned {assigned_leads} leads to email accounts, but {self.total_leads} leads are available from the selected lead source. Please resubmit the leads and make sure the numbers match this time.")
+
         return cleaned_data
+
