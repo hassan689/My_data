@@ -46,8 +46,8 @@ class EmailAccountForm(forms.ModelForm):
 
 class CampaignForm(forms.Form):
     email_subject = forms.CharField(
-        max_length=255, 
-        required=True, 
+        max_length=255,
+        required=True,
         widget=forms.TextInput(attrs={'placeholder': 'Some Big Offer - Hello [name] - [mc_number]'})
     )
     email_body = forms.CharField(
@@ -113,31 +113,41 @@ class CampaignForm(forms.Form):
 
         return cleaned_data
 
-
 class BulkCampaignForm(CampaignForm):
     def __init__(self, *args, **kwargs):
         self.user = kwargs.pop('user', None)
         super().__init__(*args, user=self.user, **kwargs)
 
+        # Set all fields as not required for Step 2
+        for field_name in ['file_upload', 'mc_number', 'targets_count', 'email_subject', 'email_body', 'delay', 'delay_unit']:
+            if field_name in self.fields:
+                self.fields[field_name].required = False
+
     def clean(self):
-        cleaned_data = super().clean()
-        selected_ids = self.data.getlist('selected_accounts')  # Directly from POST data
+        cleaned_data = self.cleaned_data  # get initial cleaned_data without triggering parent clean
 
-        if not selected_ids:
-            raise forms.ValidationError("Please select at least one email account.")
+        # Manual validation for delay field
+        delay = cleaned_data.get('delay')
+        if delay is not None and delay < 0:
+            self.add_error('delay', "Delay must be 0 or a number greater than 0.")
 
-        for account_id in selected_ids:
-            field_name = f'emails_for_account_{account_id}'
-            value = self.data.get(field_name)
-            if not value:
-                self.add_error(None, f"Missing email count for account ID {account_id}.")
-            else:
-                try:
-                    int_val = int(value)
-                    if int_val < 1:
-                        self.add_error(None, f"Email count must be at least 1 for account ID {account_id}.")
-                except ValueError:
-                    self.add_error(None, f"Invalid number format for account ID {account_id}.")
+        # Only validate account allocation if 'submit_allocation' is present in the data
+        if 'submit_allocation' in self.data:
+            selected_ids = self.data.getlist('selected_accounts')
+            if not selected_ids:
+                raise forms.ValidationError("Please select at least one email account.")
+
+            for account_id in selected_ids:
+                field_name = f'emails_for_account_{account_id}'
+                value = self.data.get(field_name)
+                if not value:
+                    self.add_error(None, f"Missing email count for account ID {account_id}.")
+                else:
+                    try:
+                        int_val = int(value)
+                        if int_val < 1:
+                            self.add_error(None, f"Email count must be at least 1 for account ID {account_id}.")
+                    except ValueError:
+                        self.add_error(None, f"Invalid number format for account ID {account_id}.")
 
         return cleaned_data
-

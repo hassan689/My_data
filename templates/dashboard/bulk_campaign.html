@@ -56,13 +56,13 @@
 		
 				<div class="mt-4 p-4 bg-gray-100 rounded-lg">
           <ul class="list-disc pl-5">
-            <li>Upload your Excel sheet with all the leads.</li>
-            <li>The system checks how many email accounts you've connected.</li>
-            <li>Your leads are automatically divided equally among those email accounts.</li>
-            <li>Each email account starts sending its share of emails at the same time.</li>
-            <li>This speeds up the process and makes your bulk campaign run efficiently.</li>
-            <li><strong>Tip:</strong> Make sure your lead sheet is big enough — the more leads you upload, the more you'll notice the magic of parallel sending in action!</li>
-          </ul>                    
+            <li>Start by uploading your Excel file that contains all your leads or select from the database.</li>
+            <li>The system will show you a list of your connected email accounts.</li>
+            <li>You choose which email accounts you want to use for the campaign.</li>
+            <li>Manually assign how many leads each selected account should handle.</li>
+            <li>Once you launch the campaign, all selected accounts will start sending their assigned emails in parallel.</li>
+            <li><strong>Pro Tip:</strong> Try to spread leads across multiple accounts to send emails faster and boost your outreach efficiency.</li>
+          </ul>                             
 				</div>
 			</div>
 		
@@ -76,10 +76,11 @@
 				Select Lead Source
 			</h2>
 			<p class="text-gray-500 text-base mt-2">
-				Choose <strong>One of the two methods,</strong> how you want to source leads for your campaign
+				Choose <strong>One of the two methods,</strong> how you want to source leads for your campaign. Once done, you can proceed to the next step.
 			</p>
 		</section>
 
+    <!-- Step 1 - Leads Input -->
 		<form id="campaign-form" method="post" enctype="multipart/form-data">
 			{% csrf_token %}
 
@@ -163,18 +164,41 @@
 					</div>
 				</div>
 
+        <div class="container mx-auto px-4 mb-10 text-center">
+          <!-- Launch Button -->
+          <div class="mt-6">
+              <button type="submit" class="bg-gray-900 hover:bg-gray-800 text-white font-semibold py-3 px-6 rounded-full shadow-lg text-lg">
+                  Submit Leads
+              </button>
+          </div>
+        </div>
+
+		</form>
+
+    <!-- Step 2 - Rest of the inputs -->
+    <div id="step-2-wrapper" class="hidden">
+
+      <form enctype="multipart/form-data" method="post" id="campaign-step2-form">
+        {% csrf_token %}
+
+        {% if form.non_field_errors %}
+        <div class="text-red-500 text-sm mb-2">
+            {{ form.non_field_errors }}
+        </div>
+        {% endif %}
+
         <!-- Email Accounts Select -->
         <section class="flex flex-col items-center text-center px-4 md:px-4 lg:px-5 py-6 mt-20">
-					<span class="text-md font-medium text-gray-700 bg-slate-200 px-4 py-1 rounded-full">
-						Step 2
-					</span>
-					<h2 class="text-2xl md:text-3xl font-semibold mt-3">
-						Select Your Email Accounts
-					</h2>
-					<p class="text-gray-500 text-base mt-2">
-						Select the email accounts you want to use for this bulk action and the number of leads you want that specific account to target.
-					</p>
-				</section>
+          <span class="text-md font-medium text-gray-700 bg-slate-200 px-4 py-1 rounded-full">
+            Step 2
+          </span>
+          <h2 class="text-2xl md:text-3xl font-semibold mt-3">
+            Select Your Email Accounts
+          </h2>
+          <p class="text-gray-500 text-base mt-2">
+            Select the email accounts you want to use for this bulk action and the number of leads you want that specific account to target.
+          </p>
+        </section>
 
         <div class="container mx-auto px-4 max-w-6xl mb-20">
           <div class="bg-white border border-gray-300 rounded-lg shadow-md">
@@ -211,7 +235,7 @@
                             type="number"
                             name="emails_for_account_{{ account.id }}"
                             class="w-full border border-gray-300 rounded-lg px-3 py-2 hidden"
-                            placeholder="Number of leads to assign"
+                            placeholder="Number of leads to assign to {{ account.email_address }}"
                             min="1"
                             id="lead_input_{{ account.id }}"
                           >
@@ -234,19 +258,18 @@
           </div>
         </div>
         
-
         <!-- Set Delay -->
         <section class="flex flex-col items-center text-center px-4 md:px-4 lg:px-5 py-6 mt-20">
-					<span class="text-md font-medium text-gray-700 bg-slate-200 px-4 py-1 rounded-full">
-						Step 3
-					</span>
-					<h2 class="text-2xl md:text-3xl font-semibold mt-3">
-						Set Delay
-					</h2>
-					<p class="text-gray-500 text-base mt-2">
-						Number of seconds or minutes you would want to gap/delay between each email send
-					</p>
-				</section>
+          <span class="text-md font-medium text-gray-700 bg-slate-200 px-4 py-1 rounded-full">
+            Step 3
+          </span>
+          <h2 class="text-2xl md:text-3xl font-semibold mt-3">
+            Set Delay
+          </h2>
+          <p class="text-gray-500 text-base mt-2">
+            Number of seconds or minutes you would want to gap/delay between each email send
+          </p>
+        </section>
 
         <div class="container mx-auto px-4 max-w-3xl mb-20">
           <div class="bg-white border border-gray-300 rounded-lg shadow-md">
@@ -269,93 +292,97 @@
         </div>
         
         <!-- Enter email subject and body -->
-				<section class="flex flex-col items-center text-center px-4 md:px-4 lg:px-5 py-6 mt-10">
-					<span class="text-md font-medium text-gray-700 bg-slate-200 px-4 py-1 rounded-full">
-						Step 4
-					</span>
-					<h2 class="text-2xl md:text-3xl font-semibold mt-3">
-						Craft your Email
-					</h2>
-					<p class="text-gray-500 text-base mt-2">
-						Customize the message that will be sent to your leads
-					</p>
-				</section>
-				
-				<div class="container mx-auto px-4 pt-8 pb-4 max-w-6xl">
+        <section class="flex flex-col items-center text-center px-4 md:px-4 lg:px-5 py-6 mt-10">
+          <span class="text-md font-medium text-gray-700 bg-slate-200 px-4 py-1 rounded-full">
+            Step 4
+          </span>
+          <h2 class="text-2xl md:text-3xl font-semibold mt-3">
+            Craft your Email
+          </h2>
+          <p class="text-gray-500 text-base mt-2">
+            Customize the message that will be sent to your leads
+          </p>
+        </section>
+        
+        <div class="container mx-auto px-4 pt-8 pb-4 max-w-6xl">
 
-					<!-- Guidelines & Tips Box -->
-					<div class="p-6 bg-white border border-gray-300 rounded-lg shadow-md my-6">
-						<h2 class="text-xl font-semibold text-gray-800">Guidelines & Tips</h2>
-						<p class="text-gray-500">Best practices for effective campaigns</p>
+          <!-- Guidelines & Tips Box -->
+          <div class="p-6 bg-white border border-gray-300 rounded-lg shadow-md my-6">
+            <h2 class="text-xl font-semibold text-gray-800">Guidelines & Tips</h2>
+            <p class="text-gray-500">Best practices for effective campaigns</p>
 
-						<div class="mt-4 p-4 bg-gray-100 rounded-lg">
-								<h3 class="text-sm font-semibold text-gray-700">General Instructions</h3>
-								<ul class="mt-2 text-sm text-gray-600 space-y-1">
-										<li>• Keep your message clear and concise</li>
-										<li>• Personalize whenever possible</li>
-										<li>• Include a clear call-to-action</li>
-										<li>• Avoid spam-triggering words and phrases</li>
-										<li>• Test your campaign with a small sample first</li>
-								</ul>
-						</div>
-					</div>
-							
-					<!-- Campaign Message Box -->
-					<div class="p-6 bg-white border border-gray-300 rounded-lg shadow-md">
-							<h2 class="text-xl font-semibold text-gray-800">Campaign Message</h2>
-							<p class="text-gray-500">Create a compelling message for your campaign</p>
+            <div class="mt-4 p-4 bg-gray-100 rounded-lg">
+                <h3 class="text-sm font-semibold text-gray-700">General Instructions</h3>
+                <ul class="mt-2 text-sm text-gray-600 space-y-1">
+                    <li>• Keep your message clear and concise</li>
+                    <li>• Personalize whenever possible</li>
+                    <li>• Include a clear call-to-action</li>
+                    <li>• Avoid spam-triggering words and phrases</li>
+                    <li>• Test your campaign with a small sample first</li>
+                </ul>
+            </div>
+          </div>
+              
+          <!-- Campaign Message Box -->
+          <div class="p-6 bg-white border border-gray-300 rounded-lg shadow-md">
+              <h2 class="text-xl font-semibold text-gray-800">Campaign Message</h2>
+              <p class="text-gray-500">Create a compelling message for your campaign</p>
 
-							
-							<div class="my-4 p-4 bg-gray-100 rounded-lg">
-								<h3 class="text-sm font-semibold text-gray-700">Available Variables</h3>
-								<p class="mt-2 text-sm text-gray-600">Use these variables to personalize your message:</p>
-								<div class="mt-2 flex flex-wrap gap-2 text-xs font-medium">
-										<span class="px-2 py-1 bg-white border border-gray-300 rounded-md">[name]</span>
-										<span class="px-2 py-1 bg-white border border-gray-300 rounded-md">[mc_number]</span>
-								</div>
-							</div>
+              
+              <div class="my-4 p-4 bg-gray-100 rounded-lg">
+                <h3 class="text-sm font-semibold text-gray-700">Available Variables</h3>
+                <p class="mt-2 text-sm text-gray-600">Use these variables to personalize your message:</p>
+                <div class="mt-2 flex flex-wrap gap-2 text-xs font-medium">
+                    <span class="px-2 py-1 bg-white border border-gray-300 rounded-md">[name]</span>
+                    <span class="px-2 py-1 bg-white border border-gray-300 rounded-md">[mc_number]</span>
+                </div>
+              </div>
 
-							<div class="mt-4">
-								<label class="block text-sm font-medium text-gray-700">Email Subject</label>
-								{{ form.email_subject|add_class:"mt-1 w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none" }}
-								{% if form.email_subject.errors %}
-										<div class="bg-red-200 p-5 my-3 rounded-xl border-2 border-solid border-red-700"><p class="text-red-700 text-sm">{{ form.email_subject.errors.0 }}</p></div>
-								{% endif %}
-							</div>
+              <div class="mt-4">
+                <label class="block text-sm font-medium text-gray-700">Email Subject</label>
+                {{ form.email_subject|add_class:"mt-1 w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none" }}
+                {% if form.email_subject.errors %}
+                    <div class="bg-red-200 p-5 my-3 rounded-xl border-2 border-solid border-red-700"><p class="text-red-700 text-sm">{{ form.email_subject.errors.0 }}</p></div>
+                {% endif %}
+              </div>
 
-							<div class="mt-4">
-								<label class="block text-sm font-medium text-gray-700">Email Body</label>
-								<div class="mt-1 w-full border border-gray-300 rounded-lg focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500">
-										{{ form.email_body }}
-								</div>
-								{% if form.email_body.errors %}
-										<div class="bg-red-200 p-5 my-3 rounded-xl border-2 border-solid border-red-700"><p class="text-red-700 text-sm">{{ form.email_body.errors.0 }}</p></div>
-								{% endif %}
-							</div>
-					</div>
+              <div class="mt-4">
+                <label class="block text-sm font-medium text-gray-700">Email Body</label>
+                <div class="mt-1 w-full border border-gray-300 rounded-lg focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500">
+                    {{ form.email_body }}
+                </div>
+                {% if form.email_body.errors %}
+                    <div class="bg-red-200 p-5 my-3 rounded-xl border-2 border-solid border-red-700"><p class="text-red-700 text-sm">{{ form.email_body.errors.0 }}</p></div>
+                {% endif %}
+              </div>
+          </div>
 
-				</div>
+        </div>
 
         <!-- Launch Button -->
-				<section class="flex flex-col items-center text-center px-4 md:px-4 lg:px-5 py-6 my-5">
-					<span class="text-md font-medium text-gray-700 bg-slate-200 px-4 py-1 rounded-full">
-						Step 5
-					</span>
-					<h2 class="text-2xl md:text-3xl font-semibold mt-3">
-						Ready to Launch
-					</h2>
-				</section>
+        <section class="flex flex-col items-center text-center px-4 md:px-4 lg:px-5 py-6 my-5">
+          <span class="text-md font-medium text-gray-700 bg-slate-200 px-4 py-1 rounded-full">
+            Step 5
+          </span>
+          <h2 class="text-2xl md:text-3xl font-semibold mt-3">
+            Ready to Launch
+          </h2>
+        </section>
 
-				<div class="container mx-auto px-4 mb-10 text-center">
-					<!-- Launch Button -->
-					<div class="mt-6">
-							<button type="submit" class="bg-gray-900 hover:bg-gray-800 text-white font-semibold py-3 px-6 rounded-full shadow-lg text-lg">
-									Launch Bulk Campaign 🚀
-							</button>
-					</div>
-				</div>
+        <input type="hidden" name="submit_allocation" value="1">
 
-		</form>
+        <div class="container mx-auto px-4 mb-10 text-center">
+          <!-- Launch Button -->
+          <div class="mt-6">
+              <button type="submit" class="bg-gray-900 hover:bg-gray-800 text-white font-semibold py-3 px-6 rounded-full shadow-lg text-lg">
+                  Launch Bulk Campaign 🚀
+              </button>
+          </div>
+        </div>
+
+      </form>
+
+    </div>
 
 		<script>
 			function updateFileName(input) {
@@ -440,5 +467,57 @@
     }
   }
 </script>
+
+
+<script>
+  document.getElementById('campaign-form').addEventListener('submit', async function (e) {
+    e.preventDefault(); // Prevent form reload for Step 1 only
+
+    const form = e.target;
+    const formData = new FormData(form);
+
+    // Add submit_leads to simulate button name for Step 1
+    formData.append('submit_leads', '1');
+
+    try {
+      const response = await fetch(form.action, {
+        method: 'POST',
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: formData
+      });
+
+      const data = await response.json();
+      console.log('Response Data:', data);
+
+      if (data.status === 'success') {
+        alert(data.message);  // Optional: replace with toast
+
+        // Show Step 2 and scroll to it
+        document.getElementById('step-2-wrapper').classList.remove('hidden');
+        document.getElementById('step-2-wrapper').scrollIntoView({ behavior: 'smooth' });
+
+        // Optional: hide Step 1
+        // document.getElementById('step-1').classList.add('hidden');
+      } else {
+        // Show errors
+        if (data.errors) {
+          Object.entries(data.errors).forEach(([field, errorList]) => {
+            alert(`${field}: ${errorList[0][0].message}`);
+          });
+        } else {
+          alert(data.message);
+        }
+      }
+    } catch (error) {
+      console.error("AJAX error:", error);
+      alert("Something went wrong. Please try again.");
+    }
+  });
+</script>
+
+  
 
 {% endblock %}
