@@ -115,13 +115,16 @@ class CampaignForm(forms.Form):
         return cleaned_data
 
 class BulkCampaignForm(CampaignForm):
+    
+    select_all = forms.BooleanField(required=False, label="Select all accounts")
+
     def __init__(self, *args, **kwargs):
         self.user = kwargs.pop('user', None)
         self.total_leads = kwargs.pop('total_leads', 0)  # Total leads passed from view
         super().__init__(*args, user=self.user, **kwargs)
 
         # Set all fields as not required for Step 2
-        for field_name in ['file_upload', 'mc_number', 'targets_count', 'email_subject', 'email_body', 'delay', 'delay_unit']:
+        for field_name in ['file_upload', 'mc_number', 'targets_count', 'email_subject', 'email_body', 'delay', 'delay_unit', 'select_all']:
             if field_name in self.fields:
                 self.fields[field_name].required = False
 
@@ -133,8 +136,11 @@ class BulkCampaignForm(CampaignForm):
         if delay is not None and delay < 0:
             self.add_error('delay', "Delay must be 0 or a number greater than 0.")
 
-        # Only validate account allocation if 'submit_allocation' is present in the data
-        if 'submit_allocation' in self.data:
+        # Bypass account allocation check if 'select_all' is true
+        is_select_all = self.data.get('select_all') in ['true', 'on', '1']
+
+        # Only validate account allocation if 'submit_allocation' is present and 'select_all' is NOT active
+        if 'submit_allocation' in self.data and not is_select_all:
             selected_ids = self.data.getlist('selected_accounts')
             if not selected_ids:
                 raise forms.ValidationError("Please select at least one email account.")
@@ -157,6 +163,4 @@ class BulkCampaignForm(CampaignForm):
             # Validate that assigned leads match total leads
             if assigned_leads != self.total_leads:
                 self.add_error(None, f"ERROR! You assigned {assigned_leads} leads to email accounts, but {self.total_leads} leads are available from the selected lead source. Please resubmit the leads and make sure the numbers match this time.")
-
-        return cleaned_data
 

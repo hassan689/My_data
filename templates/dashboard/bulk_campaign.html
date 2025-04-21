@@ -77,109 +77,119 @@
 		
 		</div>
 
-
-
-		<section class="flex flex-col items-center text-center px-4 md:px-4 lg:px-5 py-6 my-5">
-			<span class="text-md font-medium text-gray-700 bg-slate-200 px-4 py-1 rounded-full">
-				Step 1
-			</span>
-			<h2 class="text-2xl md:text-3xl font-semibold mt-3">
-				Select Lead Source
-			</h2>
-			<p class="text-gray-500 text-base mt-2">
-				Choose <strong>One of the two methods,</strong> how you want to source leads for your campaign. Once done, you can proceed to the next step.
-			</p>
-		</section>
-
     <!-- Step 1 - Leads Input -->
-		<form id="campaign-form" method="post" action="{% url 'dashboard:bulk_campaign' %}" enctype="multipart/form-data">
+		<form id="campaign-form" method="post" action="{% url 'dashboard:bulk_campaign' %}" enctype="multipart/form-data" class="">
 			{% csrf_token %}
 				
-				<!-- Choose leads section -->
-				<div class="flex flex-col md:flex-row gap-6 w-full max-w-6xl mx-auto">
-					<!-- Upload File Box -->
-					<div class="w-full md:w-1/2 p-6 bg-white border border-gray-300 rounded-lg shadow-md focus-within:ring-2 focus-within:ring-blue-500">
-							<!-- Top Icon -->
-							<div class="flex justify-center">
-									<div class="w-12 h-12 flex items-center justify-center rounded-full bg-blue-100 text-blue-500">
-											<i class="fa-solid fa-arrow-up-from-bracket"></i>
-									</div>
-							</div>
+      <section class="flex flex-col items-center text-center px-4 md:px-4 lg:px-5 py-6 my-5">
+        <span class="text-md font-medium text-gray-700 bg-slate-200 px-4 py-1 rounded-full">
+          Step 1
+        </span>
+        <h2 class="text-2xl md:text-3xl font-semibold mt-3">
+          Select Lead Source
+        </h2>
+        <p class="text-gray-500 text-base mt-2">
+          Choose <strong>One of the two methods,</strong> how you want to source leads for your campaign. Once done, you can proceed to the next step.
+        </p>
+      </section>
+      
+      <!-- Choose leads section -->
+      <div class="flex flex-col md:flex-row gap-6 w-full max-w-6xl mx-auto">
+        <!-- Upload File Box -->
+        <div class="w-full md:w-1/2 p-6 bg-white border border-gray-300 rounded-lg shadow-md focus-within:ring-2 focus-within:ring-blue-500">
+            <!-- Top Icon -->
+            <div class="flex justify-center">
+                <div class="w-12 h-12 flex items-center justify-center rounded-full bg-blue-100 text-blue-500">
+                    <i class="fa-solid fa-arrow-up-from-bracket"></i>
+                </div>
+            </div>
 
-							<!-- Title & Description -->
-							<div class="mt-4 text-center">
-									<h2 class="text-lg font-medium text-gray-700">Upload Excel File</h2>
-									<p class="text-sm text-yellow-700 py-2">It is recommended that your sheet has upto <strong>300 leads</strong> only, as it'll help you to <strong>avoid spam</strong>. It should be <strong>only XLSX file.</strong> Support for other formats will be provided later, thank you for cooperation.</p>
-									<p class="text-sm text-red-700 py-2">Your file <strong>MUST HAVE</strong> three columns: <strong>Email, Name, and MC Number</strong> for personalized email sending. Without these, the system won't work properly!</p>
-							</div>
+            <!-- Title & Description -->
+            <div class="mt-4 text-center">
+                <h2 class="text-lg font-medium text-gray-700">Upload Excel File</h2>
+                <p class="text-sm text-yellow-700 py-2">It is recommended that your sheet has upto <strong>300 leads</strong> only, as it'll help you to <strong>avoid spam</strong>. It should be <strong>only XLSX file.</strong> Support for other formats will be provided later, thank you for cooperation.</p>
+                <p class="text-sm text-red-700 py-2">Your file <strong>MUST HAVE</strong> three columns: <strong>Email, Name, and MC Number</strong> for personalized email sending. Without these, the system won't work properly!</p>
+            </div>
 
-							<!-- Upload Box -->
-							<label class="mt-4 flex flex-col items-center justify-center w-full border-2 border-dashed border-gray-300 rounded-lg py-6 cursor-pointer hover:border-gray-400 focus-within:ring-2 focus-within:ring-blue-500">
-								{{ form.file_upload|attr:"class:hidden" |attr:"onchange:updateFileName(this)" }}
-								
-								<div class="flex flex-col items-center space-y-2">
-										<p class="text-sm font-medium text-gray-600">Click to upload or drag and drop</p>
-										<p class="text-xs text-gray-400">XLSX (max 10MB)</p>
-										<p id="file-name" class="text-sm text-gray-500"></p> <!-- Display file name -->
-								</div>
-							</label>
-							{% if form.file_upload.errors %}
-									<div class="bg-red-200 p-5 my-3 rounded-xl border-2 border-solid border-red-700"><p class="text-red-700 text-sm">{{ form.file_upload.errors.0 }}</p></div>
-							{% endif %}
-					</div>
-
-					<!-- Use Database Box -->
-					<div class="w-full md:w-1/2 p-6 bg-white border border-gray-300 rounded-lg shadow-md focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500">
-							<!-- Centered Icon -->
-							<div class="flex justify-center">
-									<div class="w-12 h-12 flex items-center justify-center rounded-full bg-blue-100 text-blue-500">
-											<i class="fa-solid fa-database"></i>
-									</div>
-							</div>
-
-							<!-- Centered Title & Description -->
-							<div class="text-center mt-3">
-									<h2 class="text-lg font-medium text-gray-700">Use Database</h2>
-									<p class="text-sm text-gray-500">Use our existing database of verified leads.</p>
-									<p class="text-sm text-gray-500 mt-5">Simply select the starting MC Number to filter your target carriers. Our system will automatically gather the neighboring leads required, as per you entered into the targets count. Ensuring precise and efficient campaign delivery.</p>
-							</div>
-
-							<!-- Input Fields -->
-							<div class="mt-6 space-y-4">
-									<div>
-										{% if not request.user.on_free_trial %}
-											<label class="block text-sm font-medium text-gray-700">MC Number</label>
-											{{ form.mc_number|add_class:"mt-1 block w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none" }}
-
-											<label class="block text-sm font-medium text-gray-700 mt-5">Targets Count</label>
-											{{ form.targets_count|add_class:"mt-1 block w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none" }}
-											{% if form.targets_count.errors %}
-													<div class="bg-red-200 p-5 my-3 rounded-xl border-2 border-solid border-red-700"><p class="text-red-700 text-sm">{{ form.targets_count.errors.0 }}</p></div>
-											{% endif %}
-
-										{% else %}
-											<p class="text-sm text-red-600"><strong>Exclusive to active subscribers</strong> — unlock this powerful feature and stay ahead, while free trial users remain limited</p>
-										{% endif %}
-
-										{% if form.mc_number.errors %}
-												<div class="bg-red-200 p-5 my-3 rounded-xl border-2 border-solid border-red-700"><p class="text-red-700 text-sm">{{ form.mc_number.errors.0 }}</p></div>
-										{% endif %}
-									</div>
-							</div>
-					</div>
-				</div>
-
-        <div class="container mx-auto px-4 mb-10 text-center">
-          <!-- Launch Button -->
-          <div class="mt-6">
-              <button type="submit" class="bg-gray-900 hover:bg-gray-800 text-white font-semibold py-3 px-6 rounded-full shadow-lg text-lg">
-                  Submit Leads
-              </button>
-          </div>
+            <!-- Upload Box -->
+            <label class="mt-4 flex flex-col items-center justify-center w-full border-2 border-dashed border-gray-300 rounded-lg py-6 cursor-pointer hover:border-gray-400 focus-within:ring-2 focus-within:ring-blue-500">
+              {{ form.file_upload|attr:"class:hidden" |attr:"onchange:updateFileName(this)" }}
+              
+              <div class="flex flex-col items-center space-y-2">
+                  <p class="text-sm font-medium text-gray-600">Click to upload or drag and drop</p>
+                  <p class="text-xs text-gray-400">XLSX (max 10MB)</p>
+                  <p id="file-name" class="text-sm text-gray-500"></p> <!-- Display file name -->
+              </div>
+            </label>
+            {% if form.file_upload.errors %}
+                <div class="bg-red-200 p-5 my-3 rounded-xl border-2 border-solid border-red-700"><p class="text-red-700 text-sm">{{ form.file_upload.errors.0 }}</p></div>
+            {% endif %}
         </div>
+
+        <!-- Use Database Box -->
+        <div class="w-full md:w-1/2 p-6 bg-white border border-gray-300 rounded-lg shadow-md focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500">
+            <!-- Centered Icon -->
+            <div class="flex justify-center">
+                <div class="w-12 h-12 flex items-center justify-center rounded-full bg-blue-100 text-blue-500">
+                    <i class="fa-solid fa-database"></i>
+                </div>
+            </div>
+
+            <!-- Centered Title & Description -->
+            <div class="text-center mt-3">
+                <h2 class="text-lg font-medium text-gray-700">Use Database</h2>
+                <p class="text-sm text-gray-500">Use our existing database of verified leads.</p>
+                <p class="text-sm text-gray-500 mt-5">Simply select the starting MC Number to filter your target carriers. Our system will automatically gather the neighboring leads required, as per you entered into the targets count. Ensuring precise and efficient campaign delivery.</p>
+            </div>
+
+            <!-- Input Fields -->
+            <div class="mt-6 space-y-4">
+                <div>
+                  {% if not request.user.on_free_trial %}
+                    <label class="block text-sm font-medium text-gray-700">MC Number</label>
+                    {{ form.mc_number|add_class:"mt-1 block w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none" }}
+
+                    <label class="block text-sm font-medium text-gray-700 mt-5">Targets Count</label>
+                    {{ form.targets_count|add_class:"mt-1 block w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none" }}
+                    {% if form.targets_count.errors %}
+                        <div class="bg-red-200 p-5 my-3 rounded-xl border-2 border-solid border-red-700"><p class="text-red-700 text-sm">{{ form.targets_count.errors.0 }}</p></div>
+                    {% endif %}
+
+                  {% else %}
+                    <p class="text-sm text-red-600"><strong>Exclusive to active subscribers</strong> — unlock this powerful feature and stay ahead, while free trial users remain limited</p>
+                  {% endif %}
+
+                  {% if form.mc_number.errors %}
+                      <div class="bg-red-200 p-5 my-3 rounded-xl border-2 border-solid border-red-700"><p class="text-red-700 text-sm">{{ form.mc_number.errors.0 }}</p></div>
+                  {% endif %}
+                </div>
+            </div>
+        </div>
+      </div>
+
+      <div class="container mx-auto px-4 mb-10 text-center">
+        <!-- Launch Button -->
+        <div class="mt-6">
+            <button type="submit" class="bg-gray-900 hover:bg-gray-800 text-white font-semibold py-3 px-6 rounded-full shadow-lg text-lg">
+                Submit Leads
+            </button>
+        </div>
+      </div>
 
 		</form>
 
+    <section id="reset-button" class="flex flex-col items-center text-center px-4 md:px-4 lg:px-5 py-6 my-5 hidden">
+      <span class="text-md font-medium text-gray-700 bg-slate-200 px-4 py-1 rounded-full">
+        Step 1
+      </span>
+      <h2 class="text-2xl md:text-3xl font-semibold mt-3">
+        Select Lead Source
+      </h2>
+      <!-- Reset Button (Initially Hidden) -->
+      <a href="{% url 'dashboard:bulk_campaign' %}" class="border border-gray-300 hover:bg-gray-900 hover:text-white mt-5 w-72 font-semibold py-3 px-6 rounded-full shadow-lg text-lg">
+        Reset Leads 🔁
+      </a>  
+    </section>
     <!-- Step 2 - Rest of the inputs -->
     <div id="step-2-wrapper" class="hidden">
 
@@ -211,30 +221,53 @@
               <h2 class="text-xl font-semibold mb-4 flex items-center justify-between">
                 <span>Select Email Accounts and Assign Lead Counts</span>
                 <span id="lead-summary" class="text-red-600 text-sm font-medium ml-4 whitespace-nowrap">
-                  Please make sure that the number of leads you assign here are equal to the leads you submitted earlier! 
+                  Make sure that the number of leads you assign here are equal to the leads you submitted earlier! 
                 </span>
               </h2>
               
         
               <div class="overflow-x-auto">
-                <table class="w-full table-auto">
-                  
+                <!-- Table Starts -->
+                <table class="w-full table-auto border border-gray-200 rounded-md overflow-hidden">
+
                   <thead class="bg-gray-100 text-gray-700 text-sm">
+
+                    <!-- Table Headers -->
                     <tr>
-                      <th class="border px-4 py-2 text-left">Email Accounts</th>
-                      <th class="border px-4 py-2 text-left">Leads to Send</th>
+                      <th class="border-t border-b px-4 py-2 text-left">Email Accounts</th>
+                      <th class="border-t border-b px-4 py-2 text-left">Leads to Send</th>
                     </tr>
+
                   </thead>
+                
                   <tbody class="text-sm text-gray-900">
+                    <!-- Select All Row -->
+                    <tr>
+                      <th colspan="2" class="px-4 py-2 text-left">
+                        <label class="inline-flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            name="select_all"
+                            id="select_all_checkbox"
+                            class="mr-2 border-gray-300 bg-gray-300 rounded-md"
+                            onclick="toggleAllAccounts(this)"
+                          >
+                          <span class="font-medium text-blue-600">
+                            Select All Accounts and Auto-Distribute Leads 
+                            <span class="text-gray-500">(No need to enter leads for each account)</span>
+                          </span>
+                        </label>
+                      </th>
+                    </tr>
                     {% for account in email_accounts %}
-                      <tr>
+                      <tr class="border-b">
                         <td class="px-4 py-2">
                           <label class="flex items-center space-x-2">
                             <input
                               type="checkbox"
                               name="selected_accounts"
                               value="{{ account.id }}"
-                              class="mr-2 border-gray-300 bg-gray-300 rounded-md"
+                              class="account-checkbox mr-2 border-gray-300 bg-gray-300 rounded-md"
                               id="checkbox_{{ account.id }}"
                               onclick="toggleLeadInput({{ account.id }})"
                             >
@@ -254,8 +287,9 @@
                       </tr>
                     {% endfor %}
                   </tbody>
-                  
+                
                 </table>
+                
               </div>
         
             </div>
@@ -465,9 +499,14 @@
 </div>
 
 <script>
-  function toggleLeadInput(accountId) {
+  function toggleLeadInput(accountId, forceChecked = null) {
     var checkbox = document.getElementById('checkbox_' + accountId);
     var leadInput = document.getElementById('lead_input_' + accountId);
+
+    // Set the checkbox state if forceChecked is provided
+    if (forceChecked !== null) {
+      checkbox.checked = forceChecked;
+    }
 
     // Toggle visibility of the lead input based on the checkbox
     if (checkbox.checked) {
@@ -476,7 +515,18 @@
       leadInput.classList.add('hidden');
     }
   }
+
+  function toggleAllAccounts(selectAllCheckbox) {
+    const checkboxes = document.querySelectorAll('.account-checkbox');
+    const selectAllState = selectAllCheckbox.checked;
+
+    checkboxes.forEach(checkbox => {
+      const accountId = checkbox.value;
+      toggleLeadInput(accountId, selectAllState);
+    });
+  }
 </script>
+
 
 <!-- Forms transition -->
 <script>
@@ -504,6 +554,10 @@
 
       if (data.status === 'success') {
         alert(data.message);  // Optional: replace with toast
+
+        // Hide Step 1 form and show the reset button
+        document.getElementById('campaign-form').classList.add('hidden');  // Hide the form
+        document.getElementById('reset-button').classList.remove('hidden'); // Show reset button
 
         // Show Step 2 and scroll to it
         document.getElementById('step-2-wrapper').classList.remove('hidden');

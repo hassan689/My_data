@@ -15,6 +15,7 @@ from threading import Thread
 from django.core.cache import cache
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
+from math import ceil
 
 ######################################## Campaign sending views
 
@@ -296,6 +297,25 @@ def campaign(request, email_account_id):
 #     })
 
 
+
+def distribute_leads_among_accounts(leads, accounts):
+    total_leads = len(leads)
+    total_accounts = len(accounts)
+    base_count = total_leads // total_accounts
+    remainder = total_leads % total_accounts
+
+    lead_index = 0
+    account_lead_map = {}
+
+    for i, account in enumerate(accounts):
+        count = base_count + (1 if i < remainder else 0)
+        assigned_leads = leads[lead_index:lead_index + count]
+        lead_index += count
+        account_lead_map[account] = assigned_leads
+
+    return account_lead_map
+
+
 @login_required
 @require_http_methods(["GET", "POST"])
 def bulk_campaign(request):
@@ -368,6 +388,7 @@ def bulk_campaign(request):
             leads = cached_data['leads']
             email_subject = form.cleaned_data.get('email_subject')
             email_body = form.cleaned_data.get('email_body')
+            select_all = form.cleaned_data.get('select_all')
             delay = form.cleaned_data.get('delay') or 0
             delay_unit = form.cleaned_data.get('delay_unit')
             if delay_unit == 'minutes':
@@ -377,35 +398,73 @@ def bulk_campaign(request):
             account_lead_map = {}
             total_requested_leads = 0
 
-            for account_id in selected_account_ids:
-                try:
-                    num_leads = int(request.POST.get(f'emails_for_account_{account_id}', '0'))
-                    if num_leads < 1:
+            if select_all:
+                # ✅ Get all user email accounts
+                accounts = EmailAccount.objects.filter(user=request.user)
+                if not accounts.exists():
+                    form.add_error(None, "No email accounts found for your user.")
+                    return render(request, 'dashboard/bulk_campaign.html', {
+                        'form': form,
+                        'email_accounts': email_accounts,
+                        'email_accounts_count': email_accounts_count,
+                        'leads_ready': bool(cached_data),
+                        'total_leads': len(leads),
+                    })
+
+                # ✅ Auto-distribute leads among accounts
+                account_lead_map = distribute_leads_among_accounts(leads, list(accounts))
+
+            else:
+                for account_id in selected_account_ids:
+                    try:
+                        num_leads = int(request.POST.get(f'emails_for_account_{account_id}', '0'))
+                        if num_leads < 1:
+                            continue
+
+                        account = EmailAccount.objects.get(id=account_id, user=request.user)
+                        account_lead_map[account] = num_leads
+                        total_requested_leads += num_leads
+                    except (ValueError, EmailAccount.DoesNotExist):
                         continue
-                    account = EmailAccount.objects.get(id=account_id, user=request.user)
-                    account_lead_map[account] = num_leads
-                    total_requested_leads += num_leads
-                except (ValueError, EmailAccount.DoesNotExist):
-                    continue
 
-            if total_requested_leads != len(leads):
-                form.add_error(None, f"Total assigned leads ({total_requested_leads}) must match total available ({len(leads)}).")
+                if total_requested_leads != len(leads):
+                    form.add_error(None, f"Total assigned leads ({total_requested_leads}) must match total available ({len(leads)}).")
+                    return render(request, 'dashboard/bulk_campaign.html', {
+                        'form': form,
+                        'email_accounts': email_accounts,
+                        'email_accounts_count': email_accounts_count,
+                        'leads_ready': bool(cached_data),
+                        'total_leads': len(leads),
+                    })
 
-                return render(request, 'dashboard/bulk_campaign.html', {
-                    'form': form,
-                    'email_accounts': email_accounts,
-                    'email_accounts_count': email_accounts_count,
-                    'leads_ready': bool(cached_data),
-                    'total_leads': len(leads),
-                })
+            # ✅ Convert account -> number to account -> list of leads
+            if not select_all:
+                lead_index = 0
+                updated_map = {}
+
+                for account, count in account_lead_map.items():
+                    if not isinstance(count, int):
+                        try:
+                            count = int(count[0]) if isinstance(count, list) else int(count)
+                        except (ValueError, TypeError):
+                            form.add_error(None, f"Invalid lead count for account {account}")
+                            return render(request, 'dashboard/bulk_campaign.html', {
+                                'form': form,
+                                'email_accounts': email_accounts,
+                                'email_accounts_count': email_accounts_count,
+                                'leads_ready': bool(cached_data),
+                                'total_leads': len(leads),
+                            })
+
+                    updated_map[account] = leads[lead_index:lead_index + count]
+                    lead_index += count
+
+                account_lead_map = updated_map
 
 
             def start_campaign():
-                lead_index = 0
                 with ThreadPoolExecutor(max_workers=min(5, len(account_lead_map))) as executor:
-                    for account, lead_count in account_lead_map.items():
-                        assigned_leads = leads[lead_index:lead_index + lead_count]
-                        lead_index += lead_count
+                    for account, assigned_leads in account_lead_map.items():
                         if assigned_leads:
                             executor.submit(
                                 send_bulk_emails,
@@ -419,7 +478,7 @@ def bulk_campaign(request):
             Thread(target=start_campaign).start()
             cache.delete(cache_key)  # clean up
 
-            messages.success(request, "🎉 Campaign started successfully!")
+            messages.success(request, "🎉 Bulk Campaign started successfully! Emails are being sent!")
             return redirect('dashboard:index')
 
         else:
