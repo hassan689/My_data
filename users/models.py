@@ -28,8 +28,6 @@ def decrypt_password(encrypted_password: str) -> str:
 
 
 
-# set the status to free trial on creation, then auto check it to false once 7 days are over and also send an email to the user to pay
-# for the subscription ...... DONE
 class CustomUser(AbstractUser):
     phone_number = models.CharField(max_length=20, unique=True)
     company_name = models.CharField(max_length=255)
@@ -67,6 +65,13 @@ class EmailAccount(models.Model):
         verbose_name="SMTP Server Type",
     )
     host = models.CharField(max_length=100, verbose_name="Outgoing Servr Host")
+    has_imap_configured = models.BooleanField(
+        default=False,
+        null=True,
+        blank=True,
+        verbose_name="IMAP Configured"
+    )
+
 
     def set_password(self, raw_password):
         """Encrypt and set the password securely."""
@@ -97,10 +102,6 @@ class EmailAccount(models.Model):
 
             if self.user.on_free_trial and email_account_count >= 3:
                 raise ValidationError("Cannot add more than 3 email accounts on free trial.")
-            
-            # Allowing unlimited versions
-            # elif not self.user.on_free_trial and email_account_count >= 20:
-            #     raise ValidationError("Cannot add more than 20 email accounts.")
 
         # Proceed with saving
         super().save(*args, **kwargs)
@@ -113,4 +114,33 @@ class EmailAccount(models.Model):
     class Meta:
         verbose_name = "Email Account"
         verbose_name_plural = "Email Accounts"
+
+
+# To store the IMAP settings for the email account. They will be used for the receiving emails thru unibox
+class IMAPSettings(models.Model):
+    email_account = models.OneToOneField(EmailAccount, on_delete=models.CASCADE, related_name="imap_settings")
+    
+    imap_host = models.CharField(max_length=100, verbose_name="IMAP Server Host")  # e.g. imap.gmail.com
+    imap_port = models.IntegerField(verbose_name="IMAP Port Number")  # IMAP Port (usually 993 for SSL)
+    imap_encryption = models.CharField(
+        max_length=10,
+        choices=[("SSL", "SSL"), ("TLS", "TLS")],
+        verbose_name="IMAP Encryption"
+    )
+    
+    def __str__(self):
+        return f"IMAP Settings for {self.email_account.email_address}"
+
+    class Meta:
+        verbose_name = "IMAP Settings"
+        verbose_name_plural = "IMAP Settings"
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)  # Save the IMAPSettings instance first
+
+        # Update the related EmailAccount
+        if self.email_account:
+            self.email_account.has_imap_configured = True
+            self.email_account.save(update_fields=["has_imap_configured"])
+
 

@@ -1,6 +1,6 @@
 from django.contrib import admin, messages
 from django.contrib.auth.admin import UserAdmin
-from .models import CustomUser, EmailAccount
+from .models import CustomUser, EmailAccount, IMAPSettings
 from django.forms import PasswordInput
 from django import forms
 from django.core.exceptions import ValidationError
@@ -74,12 +74,19 @@ class EmailAccountForm(forms.ModelForm):
         return email_account
 
 
+class IMAPSettingsInline(admin.StackedInline):
+    model = IMAPSettings
+
+
 @admin.register(EmailAccount)
 class EmailAccountAdmin(admin.ModelAdmin):
     form = EmailAccountForm  # Use custom form with decryption
     list_display = ("user", "company_name", "email_address", "email_provider", "server_type", "last_used_at")
     list_filter = ("last_used_at", "email_provider")
     search_fields = ("email_address", "user__username")
+
+    # Include IMAPSettings as inline in EmailAccount admin form
+    inlines = [IMAPSettingsInline]
     
     def company_name(self, obj):
         return obj.user.company_name  # Accessing company_name from related CustomUser model
