@@ -135,12 +135,4 @@ class IMAPSettings(models.Model):
         verbose_name = "IMAP Settings"
         verbose_name_plural = "IMAP Settings"
 
-    def save(self, *args, **kwargs):
-        super().save(*args, **kwargs)  # Save the IMAPSettings instance first
-
-        # Update the related EmailAccount
-        if self.email_account:
-            self.email_account.has_imap_configured = True
-            self.email_account.save(update_fields=["has_imap_configured"])
-
 
