@@ -13,6 +13,7 @@ class CustomUserAdmin(UserAdmin):
         "company_name",
         "date_joined", 
         "on_free_trial",
+        "email_account_count"
     )
     search_fields = ("username", "email", "first_name", "last_name", "company_name")
     list_filter = ("on_free_trial",)
@@ -38,6 +39,9 @@ class CustomUserAdmin(UserAdmin):
         }),
     )
 
+    def email_account_count(self, obj):
+        return obj.email_accounts.count()
+    email_account_count.short_description = "No. of Accounts"
 
 
 # ✅ Customizing EmailAccount Admin
@@ -81,7 +85,7 @@ class IMAPSettingsInline(admin.StackedInline):
 @admin.register(EmailAccount)
 class EmailAccountAdmin(admin.ModelAdmin):
     form = EmailAccountForm  # Use custom form with decryption
-    list_display = ("user", "company_name", "email_address", "email_provider", "server_type", "last_used_at")
+    list_display = ("user", "company_name", "email_address", "email_provider", "has_imap_configured", "last_used_at")
     list_filter = ("last_used_at", "email_provider")
     search_fields = ("email_address", "user__username")
 

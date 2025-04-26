@@ -142,14 +142,14 @@ WSGI_APPLICATION = 'growth_skool.wsgi.application'
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
 DATABASES = {
-   'default': {
-       'ENGINE': 'django.db.backends.postgresql_psycopg2',
-       'NAME': 'growth_skool_3',
-       'USER': 'postgres',
-       'PASSWORD': '1234',
-       'HOST': 'localhost',
-       'PORT': '5432',
-   }
+  'default': {
+      'ENGINE': 'django.db.backends.postgresql_psycopg2',
+      'NAME': 'growth_skool_3',
+      'USER': 'postgres',
+      'PASSWORD': '1234',
+      'HOST': 'localhost',
+      'PORT': '5432',
+  }
 }
 
 CACHES = {
@@ -200,24 +200,6 @@ EMAIL_HOST_USER = "jordan@truckingstory.com"
 EMAIL_HOST_PASSWORD = "Ahmad@2134"
 
 DEFAULT_FROM_EMAIL = "jordan@truckingstory.com"
-
-LOGGING = {
-    "version": 1,
-    "handlers": {
-        "file": {
-            "level": "DEBUG",
-            "class": "logging.FileHandler",
-            "filename": "django_email.log",
-        },
-    },
-    "loggers": {
-        "django": {
-            "handlers": ["file"],
-            "level": "DEBUG",
-            "propagate": True,
-        },
-    },
-}
 
 
 # Static files (CSS, JavaScript, Images)

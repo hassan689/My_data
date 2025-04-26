@@ -87,25 +87,35 @@
 								<!-- Last Used at -->
 								<td class="p-3">{{ account.last_used_at }}</td>
 				
-								<!-- Update Button -->
-								<td class="p-3">
-                  <div class="flex flex-col md:flex-row md:space-x-5 space-y-2 md:space-y-0">
-                    <a href="{% url 'dashboard:email_account_update' account.id %}" 
-                      class="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 text-center">
-                      Update
-                    </a>
+								<!-- Dropdown trigger button -->
+                <button id="dropdownMenuButton-{{ account.id }}" data-dropdown-toggle="dropdownMenu-{{ account.id }}" class="inline-flex items-center p-2 text-sm font-medium text-center text-gray-900 bg-white rounded-lg hover:bg-gray-100 focus:ring-4 focus:outline-none focus:ring-gray-50" type="button">
+                  <svg class="w-5 h-5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 16 3">
+                    <path d="M2 0a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3Zm6.041 0a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3ZM14 0a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3Z"/>
+                  </svg>
+                </button>
+
+                <!-- Dropdown menu -->
+                <div id="dropdownMenu-{{ account.id }}" class="z-10 hidden bg-white divide-y divide-gray-100 rounded-lg shadow w-44">
+                  <ul class="py-2 text-sm text-gray-700" aria-labelledby="dropdownMenuButton-{{ account.id }}">
+                    <li>
+                      <a href="{% url 'dashboard:email_account_update' account.id %}" class="block px-4 py-2 hover:bg-gray-200 font-semibold">Update</a>
+                    </li>
                     {% if not request.user.on_free_trial and request.user.subscription.status == "active" %}
-                    <a href="{% url 'dashboard:email_account_delete' account.id %}" 
-                      class="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 text-center">
-                      Delete
-                    </a>
+                    <li>
+                      <a href="{% url 'dashboard:email_account_delete' account.id %}" class="block px-4 py-2 hover:bg-gray-200 font-semibold">Delete</a>
+                    </li>
                     {% endif %}
-                    <a href="{% url 'dashboard:campaign' email_account_id=account.id %}" 
-                      class="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600 text-center">
-                      Launch Campaign
-                    </a>
-                  </div>
-                </td>
+                    <li>
+                      <a href="{% url 'dashboard:campaign' email_account_id=account.id %}" class="block px-4 py-2 hover:bg-gray-200 font-semibold">Launch Campaign</a>
+                    </li>
+                    {% if not account.has_imap_configured %}
+                    <li>
+                      <a href="{% url 'unibox:add_imap_settings' email_account_id=account.id %}" class="block px-4 py-2 hover:bg-gray-200 font-semibold">Configure IMAP</a>
+                    </li>
+                    {% endif %}
+                  </ul>
+                </div>
+
                 
 						</tr>
 						{% endfor %}
