@@ -45,10 +45,12 @@ INSTALLED_APPS = [
 		'subscriptions.apps.SubscriptionsConfig',
 		'leads_data.apps.LeadsDataConfig',
 		'dashboard.apps.DashboardConfig',
+    'unibox.apps.UniboxConfig',
 
 		'widget_tweaks',
 		'django_q',
 		'django_ckeditor_5',
+    'django_mailbox',
 ]
 
 Q_CLUSTER = {
