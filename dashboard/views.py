@@ -15,7 +15,10 @@ from threading import Thread
 from django.core.cache import cache
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
-from math import ceil
+from email.utils import make_msgid
+from django.db import transaction
+from unibox.models import EmailThread
+from .models import OutgoingEmailMessage
 
 ######################################## Campaign sending views
 
@@ -58,7 +61,38 @@ def send_emails(email_account, leads, subject, body, delay):
                 personalized_subject = subject.replace("[name]", str(lead['name'])).replace("[mc_number]", str(lead['mc_number']))
                 personalized_body = body.replace("[name]", str(lead['name'])).replace("[mc_number]", str(lead['mc_number']))
 
-                try:
+                message_id = make_msgid(domain='https://dispatchskool.com/')
+
+                # Check if the email is part of an existing conversation
+                existing_thread = None
+                in_reply_to = None
+
+                # Try to find an existing thread using subject (for simplicity, you can use the subject to search for threads)
+                if not leads:
+                    existing_thread = EmailThread.objects.filter(subject=personalized_subject).first()
+
+                if existing_thread:
+                    in_reply_to = existing_thread.message_id  # Link to the last message in the thread
+
+                # Create or get the thread instance
+                if not existing_thread:
+                    # Create a new thread if no thread found
+                    existing_thread = EmailThread.objects.create(subject=personalized_subject, email_account=email_account)
+
+                # Create OutgoingEmailMessage instance
+                with transaction.atomic():
+                    outgoing_message = OutgoingEmailMessage.objects.create(
+                        email_account=email_account,
+                        subject=personalized_subject,
+                        body=personalized_body,
+                        message_id=message_id,
+                        sender=email_account.email_address,
+                        recipient=lead['email'],
+                        in_reply_to=in_reply_to,  # Only set this if it's a reply
+                        thread=existing_thread  # Attach to the thread
+                    )
+
+                    # Send email using EmailMultiAlternatives
                     msg = EmailMultiAlternatives(
                         subject=personalized_subject,
                         body=personalized_body,
@@ -66,13 +100,12 @@ def send_emails(email_account, leads, subject, body, delay):
                         to=[lead['email']],
                         connection=connection
                     )
-                    msg.attach_alternative(personalized_body, "text/html")  # Attach the HTML version
+                    msg.attach_alternative(personalized_body, "text/html")  # Attach HTML version
+                    msg.message_id = message_id  # Add message_id to the email
                     msg.send()
 
                     # Add the delay here before sending the next email
-                    time.sleep(delay)  # delay in seconds, whether from minutes or directly in seconds
-                except:
-                    continue
+                    time.sleep(delay)
 
             print(f"Emails sent successfully to {len(leads)} recipients.")
 
