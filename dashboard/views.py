@@ -16,7 +16,6 @@ from django.core.cache import cache
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from email.utils import make_msgid
-from django.db import transaction
 from unibox.models import EmailThread
 from .models import OutgoingEmailMessage
 
@@ -61,7 +60,7 @@ def send_emails(email_account, leads, subject, body, delay):
                 personalized_subject = subject.replace("[name]", str(lead['name'])).replace("[mc_number]", str(lead['mc_number']))
                 personalized_body = body.replace("[name]", str(lead['name'])).replace("[mc_number]", str(lead['mc_number']))
 
-                message_id = make_msgid(domain='https://dispatchskool.com/')
+                message_id = make_msgid(domain='dispatchskool.com/')
 
                 # Check if the email is part of an existing conversation
                 existing_thread = None
@@ -79,9 +78,21 @@ def send_emails(email_account, leads, subject, body, delay):
                     # Create a new thread if no thread found
                     existing_thread = EmailThread.objects.create(subject=personalized_subject, email_account=email_account)
 
-                # Create OutgoingEmailMessage instance
-                with transaction.atomic():
-                    outgoing_message = OutgoingEmailMessage.objects.create(
+                try:
+                    
+                    # Send email using EmailMultiAlternatives
+                    msg = EmailMultiAlternatives(
+                        subject=personalized_subject,
+                        body=personalized_body,
+                        from_email=email_account.email_address,
+                        to=[lead['email']],
+                        connection=connection,
+                    )
+                    msg.extra_headers = {'Message-ID': message_id}
+                    msg.attach_alternative(personalized_body, "text/html")  # Attach HTML version
+                    msg.send()
+
+                    OutgoingEmailMessage.objects.create(
                         email_account=email_account,
                         subject=personalized_subject,
                         body=personalized_body,
@@ -92,20 +103,11 @@ def send_emails(email_account, leads, subject, body, delay):
                         thread=existing_thread  # Attach to the thread
                     )
 
-                    # Send email using EmailMultiAlternatives
-                    msg = EmailMultiAlternatives(
-                        subject=personalized_subject,
-                        body=personalized_body,
-                        from_email=email_account.email_address,
-                        to=[lead['email']],
-                        connection=connection
-                    )
-                    msg.attach_alternative(personalized_body, "text/html")  # Attach HTML version
-                    msg.message_id = message_id  # Add message_id to the email
-                    msg.send()
-
                     # Add the delay here before sending the next email
                     time.sleep(delay)
+                except Exception as e:
+                    print(f"Error sending email: {e}")
+
 
             print(f"Emails sent successfully to {len(leads)} recipients.")
 

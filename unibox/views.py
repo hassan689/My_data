@@ -22,6 +22,7 @@ def add_imap_settings(request, email_account_id):
             imap_settings = form.save(commit=False)
             imap_settings.email_account = email_account
             email_account.has_imap_configured = True
+            email_account.save()
             imap_settings.save()
 
             # Method to create their mailbox
