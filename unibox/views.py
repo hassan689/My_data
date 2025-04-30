@@ -4,7 +4,8 @@ from .forms import IMAPSettingsForm
 from django.contrib import messages
 from django_mailbox.models import Mailbox
 from django.contrib.auth.decorators import login_required
-
+from django.http import JsonResponse
+from unibox.models import EmailThread
 
 @login_required
 def add_imap_settings(request, email_account_id):
@@ -57,5 +58,29 @@ def add_imap_settings(request, email_account_id):
 
 
 @login_required
-def index(request):
+def inbox_page(request):
   return render(request, "unibox/index.html")
+
+
+@login_required
+def index(request):
+    # Retrieve email addresses from Mailbox objects
+    mailbox_addresses = Mailbox.objects.values_list('from_email', flat=True)
+
+    threads = EmailThread.objects.filter(
+        email_account__user=request.user,
+        email_account__has_imap_configured=True,
+        email_account__email_address__in=mailbox_addresses
+    )
+    data = [
+        {
+            "id": thread.id,
+            "subject": thread.subject,
+            "started_at": thread.started_at,
+            "messages": list(thread.get_ordered_messages())
+        }
+        for thread in threads
+    ]
+    return JsonResponse({"threads": data})
+
+
