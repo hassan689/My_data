@@ -3,9 +3,10 @@ from users.models import EmailAccount
 from .forms import IMAPSettingsForm
 from django.contrib import messages
 from django_mailbox.models import Mailbox
-from django.db import transaction
+from django.contrib.auth.decorators import login_required
 
 
+@login_required
 def add_imap_settings(request, email_account_id):
     
     email_account = get_object_or_404(EmailAccount, id=email_account_id)
@@ -55,3 +56,6 @@ def add_imap_settings(request, email_account_id):
     return render(request, 'unibox/imapsettings_form.html', {'form': form, 'email_account': email_account})
 
 
+@login_required
+def index(request):
+  return render(request, "unibox/index.html")

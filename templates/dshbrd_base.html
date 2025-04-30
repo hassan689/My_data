@@ -24,16 +24,20 @@
 		[data-accordion-target]:hover {
 				background-color: white !important;
 		}
+    body, #thread-section {
+      background-color: #ebfbff;
+      background-image: url("https://www.transparenttextures.com/patterns/wall-4-light.png");
+    }
 
 	</style>
 
 </head>
 
-	<body class="bg-slate-50 font-sans">
+	<body class="font-sans">
 		
 		{% include 'dshbrd_sidebar.html' %}
 
-		{% block 'content' %}{% endblock %}
+    {% block 'content' %}{% endblock %}
 
 		{% block 'script' %}{% endblock %}
 
