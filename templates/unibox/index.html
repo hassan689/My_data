@@ -266,181 +266,46 @@
   });
 </script> -->
 
+
 <script>
-  const messages = {
-    "john.doe@gmail.com": [
-      { from: "GitHub", subject: "Repo activity", time: "10:23 AM", snippet: "New commits pushed...", unread: true },
-      { from: "LinkedIn", subject: "Job Matches", time: "Yesterday", snippet: "Frontend role for you...", unread: true },
-      { from: "Alice Smith", subject: "Q2 Roadmap", time: "May 2", snippet: "Here's an update...", unread: false }
-    ],
-    "johndoe@outlook.com": [
-      { from: "Amazon", subject: "Order Update", time: "Today", snippet: "Your package shipped...", unread: true },
-      { from: "Team", subject: "Sprint Meeting", time: "Yesterday", snippet: "Reminder for sprint...", unread: false }
-    ],
-    "john.professional@gmail.com": [
-      { from: "Boss", subject: "Presentation", time: "Today", snippet: "Slides by EOD...", unread: true }
-    ]
-  };
-
-  messages["all"] = Object.values(messages).flat();
-
-  const container = document.getElementById("threads-container");
-  const inboxTitle = document.getElementById("inbox-title");
-  const accountList = document.getElementById("account-list");
-  const allInboxBtn = document.getElementById("all-inboxes-btn");
-
-  const modal = document.getElementById('threadModal');
-  const modalTitle = document.getElementById('modalThreadTitle');
-  const modalMessages = document.getElementById('modalMessages');
-  const closeModal = document.getElementById('closeModal');
-  const toggleReadBtn = document.getElementById('toggleReadBtn');
-
-  let currentThreadEl = null;
-  let currentAccount = null;
-  let currentIndex = null;
-
-  function renderSidebar() {
-    accountList.innerHTML = "";
-    for (const account in messages) {
-      if (account === "all") continue;
-
-      const unreadCount = messages[account].filter(m => m.unread).length;
-      const li = document.createElement("li");
-
-      li.innerHTML = `
-        <a href="#" data-account="${account}"
-           class="account-link flex items-center justify-between px-4 py-2 rounded-lg text-sm hover:bg-gray-100 text-gray-800">
-          ${account}
-          ${unreadCount > 0 ? `<span class="bg-blue-500 text-white text-xs px-2 py-1 rounded-full">${unreadCount}</span>` : ""}
-        </a>
-      `;
-
-      accountList.appendChild(li);
-    }
-
-    // Re-attach event listeners
-    document.querySelectorAll(".account-link").forEach(link => {
-      link.addEventListener("click", e => {
-        e.preventDefault();
-        updateActiveAccount(link.dataset.account);
-      });
-    });
-  }
-
-  function updateActiveAccount(account) {
-    document.querySelectorAll(".account-link").forEach(l =>
-      l.classList.remove("bg-blue-50", "border-blue-500", "text-blue-900", "border-l-4")
-    );
-    const activeLink = [...document.querySelectorAll(".account-link")]
-      .find(link => link.dataset.account === account);
-    if (activeLink) {
-      activeLink.classList.add("bg-blue-50", "border-blue-500", "text-blue-900", "border-l-4");
-    }
-
-    renderThreads(account);
-  }
-
-  function renderThreads(account) {
-    container.innerHTML = "";
-    inboxTitle.textContent = account === "all" ? "All Inboxes" : `Inbox: ${account}`;
-    currentAccount = account;
-
-    messages[account].forEach((msg, index) => {
-      const thread = document.createElement("div");
-      thread.className = `thread-card p-4 rounded-lg shadow-sm border relative cursor-pointer ${msg.unread ? "bg-white" : "bg-gray-100"}`;
-      thread.dataset.account = account;
-      thread.dataset.index = index;
-
-      if (msg.unread) {
-        thread.innerHTML += `<div class="unread-dot absolute top-2 right-2 w-2 h-2 bg-blue-600 rounded-full"></div>`;
-      }
-
-      thread.innerHTML += `
-        <p class="text-sm font-medium text-blue-700">${msg.from} <span class="text-xs text-gray-500 ml-2">${msg.time}</span></p>
-        <p class="font-semibold">${msg.subject}</p>
-        <p class="text-sm text-gray-600">${msg.snippet}</p>
-      `;
-
-      const threadData = {
-        title: msg.subject,
-        messages: [
-          { from: msg.from, body: msg.snippet, sentByMe: false },
-          { from: "You", body: "Thanks for the update!", sentByMe: true }
-        ]
-      };
-
-      thread.addEventListener("click", () => {
-        currentThreadEl = thread;
-        currentIndex = index;
-
-        modalTitle.textContent = threadData.title;
-        modalMessages.innerHTML = "";
-        threadData.messages.forEach(msg => {
-          const div = document.createElement("div");
-          div.className = `p-3 rounded-lg w-fit max-w-[80%] ${msg.sentByMe ? 'bg-blue-100 self-end ml-auto' : 'bg-gray-100'}`;
-          div.textContent = `${msg.from}: ${msg.body}`;
-          modalMessages.appendChild(div);
-        });
-
-        if (messages[account][index].unread) {
-          messages[account][index].unread = false;
-          thread.classList.remove("bg-white");
-          thread.classList.add("bg-gray-100");
-          const dot = thread.querySelector('.unread-dot');
-          if (dot) dot.remove();
+  document.addEventListener("DOMContentLoaded", async () => {
+    const response = await fetch("{% url 'unibox:inbox_json' %}");
+    const data = await response.json();
+    const threads = data.threads || [];
+  
+    const container = document.getElementById("threads-container");
+    container.innerHTML = ""; // Clear existing content
+  
+    threads.forEach((thread, threadIndex) => {
+      thread.messages.forEach((msg, msgIndex) => {
+        const threadCard = document.createElement("div");
+        threadCard.className = `thread-card p-4 rounded-lg shadow-sm border relative cursor-pointer ${msg.direction === 'incoming' ? "bg-white" : "bg-gray-100"}`;
+        threadCard.dataset.threadId = thread.id;
+        threadCard.dataset.msgIndex = msgIndex;
+  
+        if (msg.direction === 'incoming') {
+          threadCard.innerHTML += `<div class="unread-dot absolute top-2 right-2 w-2 h-2 bg-blue-600 rounded-full"></div>`;
         }
-
-        toggleReadBtn.textContent = "Mark as Unread";
-        modal.classList.remove("hidden");
+  
+        const from = msg.sender || "Unknown";
+        const time = new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const subject = msg.subject || "(No Subject)";
+        const snippet = msg.body ? msg.body.slice(0, 60) + "..." : "";
+  
+        threadCard.innerHTML += `
+          <p class="text-sm font-medium text-blue-700">${from} <span class="text-xs text-gray-500 ml-2">${time}</span></p>
+          <p class="font-semibold">${subject}</p>
+          <p class="text-sm text-gray-600">${snippet}</p>
+        `;
+  
+        container.appendChild(threadCard);
       });
-
-      container.appendChild(thread);
     });
-  }
-
-  toggleReadBtn.addEventListener("click", () => {
-    if (currentAccount !== null && currentIndex !== null) {
-      const msg = messages[currentAccount][currentIndex];
-      const isUnread = !msg.unread;
-
-      msg.unread = isUnread;
-      currentThreadEl.classList.toggle("bg-white", isUnread);
-      currentThreadEl.classList.toggle("bg-gray-100", !isUnread);
-
-      if (isUnread) {
-        const dot = document.createElement("div");
-        dot.className = "unread-dot absolute top-2 right-2 w-2 h-2 bg-blue-600 rounded-full";
-        currentThreadEl.appendChild(dot);
-        toggleReadBtn.textContent = "Mark as Read";
-      } else {
-        const dot = currentThreadEl.querySelector(".unread-dot");
-        if (dot) dot.remove();
-        toggleReadBtn.textContent = "Mark as Unread";
-      }
-
-      renderSidebar();
-    }
   });
+  </script>
+  
 
-  allInboxBtn.addEventListener("click", () => {
-    document.querySelectorAll(".account-link").forEach(l =>
-      l.classList.remove("bg-blue-50", "border-blue-500", "text-blue-900", "border-l-4")
-    );
-    renderThreads("all");
-  });
 
-  closeModal.addEventListener('click', () => {
-    modal.classList.add('hidden');
-  });
-
-  modal.addEventListener('click', (e) => {
-    if (e.target === modal) modal.classList.add('hidden');
-  });
-
-  // Initial load
-  renderSidebar();
-  renderThreads("all");
-</script>
 
 
 
