@@ -14,14 +14,23 @@ class EmailThread(models.Model):
     def get_ordered_messages(self):
         incoming = self.incoming_messages.annotate(
             timestamp=F('received_at'),
-            direction=Value('incoming', output_field=CharField())
-        ).values('id', 'subject', 'body', 'sender', 'message_id', 'in_reply_to', 'timestamp', 'direction')
+            direction=Value('incoming', output_field=CharField()),
+            recipient=Value('', output_field=CharField())  # dummy field to match outgoing
+        ).values(
+            'id', 'subject', 'body', 'sender', 'recipient',
+            'message_id', 'in_reply_to', 'timestamp', 'direction'
+        )
 
         outgoing = self.outgoing_messages.annotate(
             timestamp=F('sent_at'),
             direction=Value('outgoing', output_field=CharField())
-        ).values('id', 'subject', 'body', 'sender', 'recipient', 'message_id', 'in_reply_to', 'timestamp', 'direction')
+        ).values(
+            'id', 'subject', 'body', 'sender', 'recipient',
+            'message_id', 'in_reply_to', 'timestamp', 'direction'
+        )
+        result = incoming.union(outgoing, all=True).order_by('timestamp')
 
-        return incoming.union(outgoing, all=True).order_by('timestamp')
+        return result
+
 
 

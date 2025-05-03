@@ -6,6 +6,8 @@ from django_mailbox.models import Mailbox
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from unibox.models import EmailThread
+import re  # Import the regular expression module
+from django.db.models import Count, F, Value, CharField
 
 @login_required
 def add_imap_settings(request, email_account_id):
@@ -64,23 +66,101 @@ def inbox_page(request):
 
 @login_required
 def index(request):
-    # Retrieve email addresses from Mailbox objects
+    # Get all Mailbox email addresses
     mailbox_addresses = Mailbox.objects.values_list('from_email', flat=True)
 
-    threads = EmailThread.objects.filter(
-        email_account__user=request.user,
-        email_account__has_imap_configured=True,
-        email_account__email_address__in=mailbox_addresses
+    # Filter user's email accounts that are IMAP-configured and in Mailbox
+    email_accounts = EmailAccount.objects.filter(
+        user=request.user,
+        has_imap_configured=True,
+        email_address__in=mailbox_addresses
     )
-    data = [
-        {
+
+    # Annotate EmailThread with the total number of messages
+    threads = EmailThread.objects.filter(email_account__in=email_accounts).annotate(
+        num_incoming=Count('incoming_messages'),
+        num_outgoing=Count('outgoing_messages'),
+        total_messages=F('num_incoming') + F('num_outgoing')
+    ).filter(total_messages__gt=1)  # Filter for threads with more than 1 message
+
+    data = {
+        "email_accounts": [
+            {
+                "id": acc.id,
+                "email_address": acc.email_address,
+                "has_imap_configured": acc.has_imap_configured
+            }
+            for acc in email_accounts
+        ],
+        "threads": []
+    }
+
+    for thread in threads:
+        messages = thread.get_ordered_messages()
+        serialized_messages = []
+        for msg in messages:
+            serialized_messages.append({
+                "id": msg["id"],
+                "subject": msg["subject"],
+                "body": msg["body"],
+                "sender": msg["sender"],
+                "recipient": msg["recipient"],
+                "message_id": msg["message_id"],
+                "in_reply_to": msg["in_reply_to"],
+                "timestamp": msg["timestamp"].isoformat() if msg["timestamp"] else None,
+                "direction": msg["direction"]
+            })
+
+        data["threads"].append({
             "id": thread.id,
             "subject": thread.subject,
-            "started_at": thread.started_at,
-            "messages": list(thread.get_ordered_messages())
-        }
-        for thread in threads
-    ]
-    return JsonResponse({"threads": data})
+            "email_account_id": thread.email_account.id,
+            "started_at": thread.started_at.isoformat(),
+            "messages": serialized_messages
+        })
+
+    return JsonResponse(data)
+
+
+
+
+@login_required
+def get_thread_messages(request, thread_id):
+    
+    thread = get_object_or_404(EmailThread, id=thread_id)
+    messages = thread.get_ordered_messages()
+    serialized_messages = []
+    updated_subject = thread.subject
+
+    subject_prefixes = r"^(Re:|Fwd:|FW:|AW:|SV:)\s*" # Regular expression to match common prefixes
+
+    for msg in messages:
+        serialized_messages.append({
+          "id": msg["id"],
+          "subject": msg["subject"],
+          "body": msg["body"],
+          "sender": msg["sender"],
+          "recipient": msg["recipient"],
+          "message_id": msg["message_id"],
+          "in_reply_to": msg["in_reply_to"],
+          "timestamp": msg["timestamp"].isoformat() if msg["timestamp"] else None,
+          "direction": msg["direction"]
+        })
+        # Check if the message subject starts with a common reply/forward prefix
+        if re.match(subject_prefixes, msg["subject"], re.IGNORECASE) and not re.match(subject_prefixes, updated_subject, re.IGNORECASE):
+          updated_subject = msg["subject"]
+
+    # Update the thread subject if it has changed
+    if updated_subject != thread.subject:
+      thread.subject = updated_subject
+      thread.save()
+
+    data = {
+      "id": thread.id,
+      "subject": thread.subject, # Use the potentially updated subject
+      "messages": serialized_messages,
+      "email_account_id": thread.email_account.id,
+    }
+    return JsonResponse(data)
 
 
