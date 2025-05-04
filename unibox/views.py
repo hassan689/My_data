@@ -114,6 +114,7 @@ def index(request):
         data["threads"].append({
             "id": thread.id,
             "subject": thread.subject,
+            "is_read": thread.is_read,  # Include the is_read status
             "email_account_id": thread.email_account.id,
             "started_at": thread.started_at.isoformat(),
             "messages": serialized_messages
@@ -122,44 +123,56 @@ def index(request):
     return JsonResponse(data)
 
 
+@login_required
+def mark_thread_read(request, thread_id):
+    thread = get_object_or_404(EmailThread, id=thread_id, email_account__user=request.user)
+    if request.method == 'POST':
+        is_read_str = request.POST.get('is_read')
+        if is_read_str is not None:
+            is_read = is_read_str.lower() == 'true'
+            thread.is_read = is_read
+            thread.save()
+            return JsonResponse({'status': 'success', 'is_read': thread.is_read, 'message': f'Thread {thread_id} read status updated to {thread.is_read}'})
+        else:
+            return JsonResponse({'status': 'error', 'message': 'Missing "is_read" parameter'}, status=400)
+    else:
+        return JsonResponse({'status': 'error', 'message': 'Only POST requests are allowed'}, status=405)
 
 
 @login_required
 def get_thread_messages(request, thread_id):
-    
-    thread = get_object_or_404(EmailThread, id=thread_id)
+    thread = get_object_or_404(EmailThread, id=thread_id, email_account__user=request.user)
     messages = thread.get_ordered_messages()
     serialized_messages = []
     updated_subject = thread.subject
-
     subject_prefixes = r"^(Re:|Fwd:|FW:|AW:|SV:)\s*" # Regular expression to match common prefixes
 
     for msg in messages:
         serialized_messages.append({
-          "id": msg["id"],
-          "subject": msg["subject"],
-          "body": msg["body"],
-          "sender": msg["sender"],
-          "recipient": msg["recipient"],
-          "message_id": msg["message_id"],
-          "in_reply_to": msg["in_reply_to"],
-          "timestamp": msg["timestamp"].isoformat() if msg["timestamp"] else None,
-          "direction": msg["direction"]
+            "id": msg["id"],
+            "subject": msg["subject"],
+            "body": msg["body"],
+            "sender": msg["sender"],
+            "recipient": msg["recipient"],
+            "message_id": msg["message_id"],
+            "in_reply_to": msg["in_reply_to"],
+            "timestamp": msg["timestamp"].isoformat() if msg["timestamp"] else None,
+            "direction": msg["direction"]
         })
         # Check if the message subject starts with a common reply/forward prefix
         if re.match(subject_prefixes, msg["subject"], re.IGNORECASE) and not re.match(subject_prefixes, updated_subject, re.IGNORECASE):
-          updated_subject = msg["subject"]
+            updated_subject = msg["subject"]
 
     # Update the thread subject if it has changed
     if updated_subject != thread.subject:
-      thread.subject = updated_subject
-      thread.save()
+        thread.subject = updated_subject
+        thread.save()
 
     data = {
-      "id": thread.id,
-      "subject": thread.subject, # Use the potentially updated subject
-      "messages": serialized_messages,
-      "email_account_id": thread.email_account.id,
+        "id": thread.id,
+        "subject": thread.subject,
+        "messages": serialized_messages,
+        "email_account_id": thread.email_account.id,
     }
     return JsonResponse(data)
 
