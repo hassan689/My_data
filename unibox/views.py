@@ -66,7 +66,7 @@ def inbox_page(request):
 
 @login_required
 def index(request):
-    # Get all Mailbox email addresses
+    
     mailbox_addresses = Mailbox.objects.values_list('from_email', flat=True)
 
     # Filter user's email accounts that are IMAP-configured and in Mailbox
@@ -75,51 +75,50 @@ def index(request):
         has_imap_configured=True,
         email_address__in=mailbox_addresses
     )
-
-    # Annotate EmailThread with the total number of messages
+    account_id = request.GET.get('account_id')
     threads = EmailThread.objects.filter(email_account__in=email_accounts).annotate(
         num_incoming=Count('incoming_messages'),
         num_outgoing=Count('outgoing_messages'),
         total_messages=F('num_incoming') + F('num_outgoing')
-    ).filter(total_messages__gt=1)  # Filter for threads with more than 1 message
+    ).filter(total_messages__gt=1)
+
+    if account_id:
+        threads = threads.filter(email_account_id=account_id)
+    unread_counts = {}
+    total_unread_count = 0
+
+    for acc in email_accounts:
+        unread_count = threads.filter(email_account=acc, is_read=False).count()
+        unread_counts[acc.id] = unread_count
+        total_unread_count += unread_count
 
     data = {
         "email_accounts": [
-            {
-                "id": acc.id,
-                "email_address": acc.email_address,
-                "has_imap_configured": acc.has_imap_configured
-            }
+            {"id": acc.id, "email_address": acc.email_address, "has_imap_configured": acc.has_imap_configured, "unread_count": unread_counts.get(acc.id, 0)}
             for acc in email_accounts
         ],
-        "threads": []
+        "threads": [
+            {
+                "id": thread.id,
+                "subject": thread.subject,
+                "email_account_id": thread.email_account.id,
+                "started_at": thread.started_at.isoformat(),
+                "is_read": thread.is_read,
+                "messages": [
+                    {
+                        "id": msg["id"], "subject": msg["subject"], "body": msg["body"],
+                        "sender": msg["sender"], "recipient": msg["recipient"], "message_id": msg["message_id"],
+                        "in_reply_to": msg["in_reply_to"],
+                        "timestamp": msg["timestamp"].isoformat() if msg["timestamp"] else None,
+                        "direction": msg["direction"]
+                    }
+                    for msg in thread.get_ordered_messages()
+                ]
+            }
+            for thread in threads
+        ],
+        "total_unread_count": total_unread_count,
     }
-
-    for thread in threads:
-        messages = thread.get_ordered_messages()
-        serialized_messages = []
-        for msg in messages:
-            serialized_messages.append({
-                "id": msg["id"],
-                "subject": msg["subject"],
-                "body": msg["body"],
-                "sender": msg["sender"],
-                "recipient": msg["recipient"],
-                "message_id": msg["message_id"],
-                "in_reply_to": msg["in_reply_to"],
-                "timestamp": msg["timestamp"].isoformat() if msg["timestamp"] else None,
-                "direction": msg["direction"]
-            })
-
-        data["threads"].append({
-            "id": thread.id,
-            "subject": thread.subject,
-            "is_read": thread.is_read,  # Include the is_read status
-            "email_account_id": thread.email_account.id,
-            "started_at": thread.started_at.isoformat(),
-            "messages": serialized_messages
-        })
-
     return JsonResponse(data)
 
 
