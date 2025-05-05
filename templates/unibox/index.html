@@ -133,159 +133,7 @@
 
 </div>
 
-
-<!-- the initial phase's code that was just the prototype for how the frontend should look like -->
-<!-- <script>
-  const messages = {
-    "john.doe@gmail.com": [
-      { from: "GitHub", subject: "Repo activity", time: "10:23 AM", snippet: "New commits pushed...", unread: true },
-      { from: "LinkedIn", subject: "Job Matches", time: "Yesterday", snippet: "Frontend role for you...", unread: true },
-      { from: "Alice Smith", subject: "Q2 Roadmap", time: "May 2", snippet: "Here's an update...", unread: false }
-    ],
-    "johndoe@outlook.com": [
-      { from: "Amazon", subject: "Order Update", time: "Today", snippet: "Your package shipped...", unread: true },
-      { from: "Team", subject: "Sprint Meeting", time: "Yesterday", snippet: "Reminder for sprint...", unread: false }
-    ],
-    "john.professional@gmail.com": [
-      { from: "Boss", subject: "Presentation", time: "Today", snippet: "Slides by EOD...", unread: true }
-    ]
-  };
-
-  messages["all"] = Object.values(messages).flat();
-
-  const container = document.getElementById("threads-container");
-  const accountLinks = document.querySelectorAll(".account-link");
-  const allInboxBtn = document.getElementById("all-inboxes-btn");
-  const inboxTitle = document.getElementById("inbox-title");
-
-  const modal = document.getElementById('threadModal');
-  const modalTitle = document.getElementById('modalThreadTitle');
-  const modalMessages = document.getElementById('modalMessages');
-  const closeModal = document.getElementById('closeModal');
-  const toggleReadBtn = document.getElementById('toggleReadBtn');
-
-  let currentThreadEl = null;
-  let currentAccount = null;
-  let currentIndex = null;
-
-  function renderThreads(account) {
-    container.innerHTML = "";
-    inboxTitle.textContent = account === "all" ? "All Inboxes" : `Inbox: ${account}`;
-
-    messages[account].forEach((msg, index) => {
-      const thread = document.createElement("div");
-      thread.className = `thread-card p-4 rounded-lg shadow-sm border relative cursor-pointer ${msg.unread ? "bg-white" : "bg-gray-100"}`;
-      thread.dataset.account = account;
-      thread.dataset.index = index;
-
-      if (msg.unread) {
-        thread.innerHTML += `<div class="unread-dot absolute top-2 right-2 w-2 h-2 bg-blue-600 rounded-full"></div>`;
-      }
-
-      thread.innerHTML += `
-        <p class="text-sm font-medium text-blue-700">${msg.from} <span class="text-xs text-gray-500 ml-2">${msg.time}</span></p>
-        <p class="font-semibold">${msg.subject}</p>
-        <p class="text-sm text-gray-600">${msg.snippet}</p>
-      `;
-
-      const threadData = {
-        title: msg.subject,
-        messages: [
-          { from: msg.from, body: msg.snippet, sentByMe: false },
-          { from: "You", body: "Thanks for the update!", sentByMe: true }
-        ]
-      };
-
-      thread.addEventListener("click", () => {
-        // Store current state
-        currentThreadEl = thread;
-        currentAccount = account;
-        currentIndex = index;
-
-        // Open modal and render messages
-        modalTitle.textContent = threadData.title;
-        modalMessages.innerHTML = "";
-        threadData.messages.forEach(msg => {
-          const div = document.createElement("div");
-          div.className = `p-3 rounded-lg w-fit max-w-[80%] ${
-            msg.sentByMe ? 'bg-blue-100 self-end ml-auto' : 'bg-gray-100'
-          }`;
-          div.textContent = `${msg.from}: ${msg.body}`;
-          modalMessages.appendChild(div);
-        });
-
-        // Mark as read if unread
-        if (messages[account][index].unread) {
-          messages[account][index].unread = false;
-          thread.classList.remove("bg-white");
-          thread.classList.add("bg-gray-100");
-          const dot = thread.querySelector('.unread-dot');
-          if (dot) dot.remove();
-        }
-
-        // Set toggle button text
-        toggleReadBtn.textContent = "Mark as Unread";
-
-        modal.classList.remove("hidden");
-      });
-
-      container.appendChild(thread);
-    });
-  }
-
-  // Toggle read/unread from modal
-  toggleReadBtn.addEventListener("click", () => {
-    if (currentAccount !== null && currentIndex !== null) {
-      const msg = messages[currentAccount][currentIndex];
-      const isUnread = !msg.unread;
-
-      msg.unread = isUnread;
-      currentThreadEl.classList.toggle("bg-white", isUnread);
-      currentThreadEl.classList.toggle("bg-gray-100", !isUnread);
-
-      if (isUnread) {
-        const dot = document.createElement("div");
-        dot.className = "unread-dot absolute top-2 right-2 w-2 h-2 bg-blue-600 rounded-full";
-        currentThreadEl.appendChild(dot);
-        toggleReadBtn.textContent = "Mark as Read";
-      } else {
-        const dot = currentThreadEl.querySelector(".unread-dot");
-        if (dot) dot.remove();
-        toggleReadBtn.textContent = "Mark as Unread";
-      }
-    }
-  });
-
-  // Switch account
-  accountLinks.forEach(link => {
-    link.addEventListener("click", e => {
-      e.preventDefault();
-      accountLinks.forEach(l => l.classList.remove("bg-blue-50", "border-blue-500", "text-blue-900", "border-l-4"));
-      link.classList.add("bg-blue-50", "border-blue-500", "text-blue-900", "border-l-4");
-      renderThreads(link.dataset.account);
-    });
-  });
-
-  // All inboxes button
-  allInboxBtn.addEventListener("click", () => {
-    accountLinks.forEach(l => l.classList.remove("bg-blue-50", "border-blue-500", "text-blue-900", "border-l-4"));
-    renderThreads("all");
-  });
-
-  // Initial load
-  renderThreads("all");
-
-  // Close modal
-  closeModal.addEventListener('click', () => {
-    modal.classList.add('hidden');
-  });
-  modal.addEventListener('click', (e) => {
-    if (e.target === modal) modal.classList.add('hidden');
-  });
-</script> -->
-
-
-
+<!-- 
 <script>
   const fetchThreadUrlBase = "{% url 'unibox:get_thread_messages' thread_id=0 %}".slice(0, -1);
   const markReadUrlBase = "{% url 'unibox:mark_thread_read' thread_id=0 %}".slice(0, -1);
@@ -515,7 +363,298 @@
   function getCsrfToken() {
     return document.querySelector('[name=csrfmiddlewaretoken]').value;
   }
+</script> -->
+
+
+<script>
+  const fetchThreadUrlBase = "{% url 'unibox:get_thread_messages' thread_id=0 %}".slice(0, -1);
+  const markReadUrlBase = "{% url 'unibox:mark_thread_read' thread_id=0 %}".slice(0, -1);
+  const inboxJsonUrl = "{% url 'unibox:inbox_json' %}";
+
+  let currentAccountId = null; // To store the currently active account ID
+  let totalUnreadCount = 0; // Store the total unread count globally
+
+  function renderThreads(accountId = null) {
+    currentAccountId = accountId; // Update the current active account ID
+    let fetchUrl = inboxJsonUrl;
+    if (accountId) {
+      fetchUrl += `?account_id=${accountId}`;
+    }
+
+    fetch(fetchUrl)
+      .then(response => response.json())
+      .then(data => {
+        const threadsContainer = document.getElementById('threads-container');
+        const modal = document.getElementById('threadModal');
+        const modalTitle = document.getElementById('modalThreadTitle');
+        const modalMessages = document.getElementById('modalMessages');
+        const toggleReadBtn = document.getElementById('toggleReadBtn');
+        const closeModalBtn = document.getElementById('closeModal');
+        const accountList = document.getElementById('account-list');
+        const allInboxesBtn = document.getElementById('all-inboxes-btn');
+        let allInboxesDot = allInboxesBtn.querySelector('.unread-dot');
+        const inboxTitle = document.getElementById('inbox-title');
+
+        threadsContainer.innerHTML = '';
+        accountList.innerHTML = '';
+
+        // Store total unread count on initial load
+        if (accountId === null) {
+          totalUnreadCount = data.total_unread_count;
+        }
+
+        if (totalUnreadCount > 0) {
+          if (!allInboxesDot) {
+            allInboxesDot = document.createElement('div');
+            allInboxesDot.className = 'unread-dot w-3 h-3 rounded-full bg-white absolute top-1/2 right-2 -translate-y-1/2';
+            allInboxesBtn.style.position = 'relative';
+            allInboxesBtn.appendChild(allInboxesDot);
+          }
+        } else if (allInboxesDot) {
+          allInboxesDot.remove();
+        }
+
+        const activeAccount = data.email_accounts.find(acc => acc.id === parseInt(accountId));
+        if (activeAccount) {
+          inboxTitle.textContent = `Inbox: ${activeAccount.email_address}`;
+        } else {
+          inboxTitle.textContent = 'All Inboxes';
+        }
+
+        const allInboxesButton = document.getElementById('all-inboxes-btn');
+        allInboxesButton.classList.remove('bg-blue-100', 'border-l-4', 'border-blue-500', 'font-semibold');
+        if (currentAccountId === null) {
+          allInboxesButton.classList.add('bg-blue-100', 'border-l-4', 'border-blue-500', 'font-semibold');
+        }
+        allInboxesButton.addEventListener('click', () => {
+          document.querySelectorAll('.account-item').forEach(item => {
+            item.classList.remove('bg-blue-100', 'border-l-4', 'border-blue-500', 'font-semibold');
+            item.classList.add('bg-white');
+          });
+          currentAccountId = null; // Reset active account
+          allInboxesButton.classList.add('bg-blue-100', 'border-l-4', 'border-blue-500', 'font-semibold');
+          renderThreads(); // Call renderThreads without accountId to show all
+        });
+
+        if (data.threads.length === 0) {
+          threadsContainer.innerHTML = `
+            <div class="overflow-auto mx-auto p-5 bg-white max-w-6xl mt-5">
+              <p class="text-gray-500 text-lg md:text-xl">
+                No messages here for the selected account.
+              </p>
+            </div>
+          `;
+        } else {
+          data.threads.forEach(thread => {
+            const emailAccount = data.email_accounts.find(acc => acc.id === thread.email_account_id);
+            const latestMessage = thread.messages[thread.messages.length - 1];
+            const card = document.createElement('div');
+            card.className = 'relative border border-gray-200 rounded-lg shadow p-4 cursor-pointer hover:bg-gray-50 transition';
+            card.dataset.threadId = thread.id;
+            card.dataset.read = thread.is_read;
+            card.dataset.accountId = thread.email_account_id;
+
+            const unreadDot = document.createElement('div');
+            unreadDot.className = 'unread-dot w-3 h-3 rounded-full bg-blue-500 absolute top-1/2 right-2 -translate-y-1/2';
+            if (thread.is_read) {
+              card.classList.add('bg-gray-100', 'hover:bg-gray-200');
+            } else {
+              card.classList.add('bg-white', 'hover:bg-gray-50');
+              card.appendChild(unreadDot);
+            }
+            const emailEl = document.createElement('p');
+            emailEl.className = 'text-sm text-gray-500';
+            emailEl.textContent = `Owner Inbox: ${emailAccount ? emailAccount.email_address : 'N/A'}`;
+            card.appendChild(emailEl);
+            const subjectEl = document.createElement('h3');
+            subjectEl.className = 'text-md font-semibold text-gray-900 mt-1';
+            subjectEl.textContent = thread.subject || '(No Subject)';
+            card.appendChild(subjectEl);
+            const date = new Date(latestMessage.timestamp);
+            const dateTimeEl = document.createElement('p');
+            dateTimeEl.className = 'text-sm text-gray-400';
+            dateTimeEl.textContent = date.toLocaleString();
+            card.appendChild(dateTimeEl);
+            const previewEl = document.createElement('p');
+            previewEl.className = 'text-sm text-gray-700 mt-2 line-clamp-2';
+            previewEl.textContent = latestMessage.body?.slice(0, 150) || '(No message content)';
+            card.appendChild(previewEl);
+
+            card.addEventListener('click', () => {
+              const threadId = card.dataset.threadId;
+              currentThreadId = threadId;
+              fetch(`${markReadUrlBase}${threadId}/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': getCsrfToken() },
+                body: `is_read=true`
+              })
+                .then(response => response.json())
+                .then(data => {
+                  if (data.status === 'success') {
+                    renderThreads(currentAccountId); // Re-render to update dots
+                  }
+                })
+                .catch(error => console.error("Error marking read:", error));
+              openThreadModal(threadId);
+            });
+            threadsContainer.appendChild(card);
+          });
+        }
+
+        data.email_accounts.forEach(account => {
+          const listItem = document.createElement('li');
+          listItem.className = 'account-item text-sm text-gray-800 bg-white rounded-full px-4 py-2 cursor-pointer hover:bg-blue-100 transition flex justify-between items-center relative';
+          listItem.innerHTML = `<span>${account.email_address}</span>`;
+          if (account.unread_count > 0 && account.id === currentAccountId) { // Show dot only for the selected account
+            const unreadDot = document.createElement('div');
+            unreadDot.className = 'unread-dot w-3 h-3 rounded-full bg-blue-500 absolute top-1/2 right-2 -translate-y-1/2';
+            listItem.appendChild(unreadDot);
+          } else if (account.unread_count > 0 && currentAccountId === null) {
+            const unreadDot = document.createElement('div');
+            unreadDot.className = 'unread-dot w-3 h-3 rounded-full bg-blue-500 absolute top-1/2 right-2 -translate-y-1/2';
+            listItem.appendChild(unreadDot);
+          }
+          listItem.dataset.accountId = account.id;
+          listItem.addEventListener('click', () => {
+            document.querySelectorAll('.account-item').forEach(item => {
+              item.classList.remove('bg-blue-100', 'border-l-4', 'border-blue-500', 'font-semibold');
+              item.classList.add('bg-white');
+            });
+            allInboxesButton.classList.remove('bg-blue-100', 'border-l-4', 'border-blue-500', 'font-semibold');
+            listItem.classList.remove('bg-white');
+            listItem.classList.add('bg-blue-100', 'border-l-4', 'border-blue-500', 'font-semibold');
+            renderThreads(account.id);
+          });
+          accountList.appendChild(listItem);
+        });
+
+        closeModalBtn.addEventListener('click', () => modal.classList.add('hidden'));
+      })
+      .catch(error => console.error("Error fetching data:", error));
+  }
+
+  function openThreadModal(threadId) {
+    const modal = document.getElementById('threadModal');
+    const modalTitle = document.getElementById('modalThreadTitle');
+    const modalMessages = document.getElementById('modalMessages');
+    const toggleReadBtn = document.getElementById('toggleReadBtn');
+    const replyBox = document.getElementById('replyBox'); // Get the reply textarea
+    const sendReplyBtn = modal.querySelector('.border-t button'); // Assuming the send button is the first button in the reply div
+
+    const threadUrl = `${fetchThreadUrlBase}${threadId}/`;
+    fetch(threadUrl)
+      .then(response => response.json())
+      .then(data => {
+        modalTitle.textContent = data.subject || 'Email Thread';
+        modalMessages.innerHTML = '';
+        data.messages.forEach(message => {
+          const div = `<div class="p-3 rounded-lg mb-2 ${message.direction === 'incoming' ? 'bg-gray-100 text-gray-800 self-start' : 'bg-blue-200 text-gray-800 self-end'}">
+                        <p class="text-sm font-semibold">From: ${message.sender}</p>
+                        <p class="text-xs text-gray-500">${new Date(message.timestamp).toLocaleString()}</p>
+                        <p class="mt-1">${message.body}</p>
+                      </div>`;
+          modalMessages.innerHTML += div;
+        });
+        modal.classList.remove('hidden');
+        const currentCard = document.querySelector(`#threads-container > div[data-thread-id="${currentThreadId}"]`);
+        if (currentCard && currentCard.dataset.read === 'true') {
+          toggleReadBtn.textContent = 'Mark as Unread';
+        } else if (currentCard) {
+          toggleReadBtn.textContent = 'Mark as Read';
+        }
+
+        // --- New Reply Functionality ---
+        let recipientEmail = null;
+        // Find the sender of the latest incoming message or recipient of the latest outgoing
+        if (data.messages.length > 0) {
+          const lastMessage = data.messages[data.messages.length - 1];
+          recipientEmail = lastMessage.direction === 'incoming' ? lastMessage.sender : lastMessage.recipient;
+        }
+
+        if (sendReplyBtn) {
+          sendReplyBtn.addEventListener('click', () => {
+            const replyContent = replyBox.value;
+            if (replyContent.trim()) {
+              console.log("Recipient Email being sent:", recipientEmail);
+              fetch("{% url 'unibox:unibox_reply' %}", { // The URL we'll define in Django
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/x-www-form-urlencoded',
+                  'X-CSRFToken': getCsrfToken()
+                },
+                body: new URLSearchParams({
+                  thread_id: threadId,
+                  body: replyContent,
+                  recipient: recipientEmail // Send the determined recipient
+                })
+              })
+              .then(response => response.json())
+              .then(replyData => {
+                if (replyData.status === 'success') {
+                  replyBox.value = ''; // Clear the textarea
+                  // Re-fetch and re-render the thread messages to show the reply
+                  openThreadModal(threadId);
+                } else {
+                  // Display error message in the modal
+                  const errorDiv = document.createElement('div');
+                  errorDiv.className = 'text-red-500 mt-2';
+                  errorDiv.textContent = replyData.message || 'Failed to send reply.';
+                  replyBox.parentNode.appendChild(errorDiv);
+                  setTimeout(() => errorDiv.remove(), 3000); // Remove error after 3 seconds
+                }
+              })
+              .catch(error => {
+                console.error("Error sending reply:", error);
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'text-red-500 mt-2';
+                errorDiv.textContent = 'Failed to send reply due to a network error.';
+                replyBox.parentNode.appendChild(errorDiv);
+                setTimeout(() => errorDiv.remove(), 3000);
+              });
+            }
+          });
+        }
+        // --- End New Reply Functionality ---
+
+      })
+      .catch(error => console.error("Error fetching thread:", error));
+  }
+
+  const toggleReadBtn = document.getElementById('toggleReadBtn');
+  toggleReadBtn.addEventListener('click', () => {
+    const threadCard = document.querySelector(`#threads-container > div[data-thread-id="${currentThreadId}"]`);
+    if (threadCard) {
+      const newReadStatus = !(threadCard.dataset.read === 'true');
+      fetch(`${markReadUrlBase}${currentThreadId}/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': getCsrfToken() },
+        body: `is_read=${newReadStatus}`
+      })
+        .then(response => response.json())
+        .then(data => {
+          if (data.status === 'success') {
+            renderThreads(currentAccountId); // Re-render to update dots
+          }
+        })
+        .catch(error => console.error("Error toggling read:", error));
+    }
+  });
+
+  document.addEventListener('DOMContentLoaded', () => {
+    renderThreads(); // Initial load of all threads (All Inboxes active)
+  });
+
+  function getCsrfToken() {
+    return document.querySelector('[name=csrfmiddlewaretoken]').value;
+  }
 </script>
+
+<style>
+  .account-item > span {
+    line-height: inherit; /* Ensure vertical centering of dot */
+  }
+</style>
+
 
 
 {% endblock %}

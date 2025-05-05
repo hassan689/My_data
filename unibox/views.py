@@ -5,9 +5,16 @@ from django.contrib import messages
 from django_mailbox.models import Mailbox
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
+from dashboard.models import OutgoingEmailMessage, IncomingEmailMessage
 from unibox.models import EmailThread
-import re  # Import the regular expression module
-from django.db.models import Count, F, Value, CharField
+import re
+from django.db.models import Count, F, Q, Exists, OuterRef
+from django.views.decorators.http import require_POST
+from django.core.mail import get_connection, EmailMultiAlternatives
+from email.utils import make_msgid
+
+
+
 
 @login_required
 def add_imap_settings(request, email_account_id):
@@ -79,8 +86,18 @@ def index(request):
     threads = EmailThread.objects.filter(email_account__in=email_accounts).annotate(
         num_incoming=Count('incoming_messages'),
         num_outgoing=Count('outgoing_messages'),
-        total_messages=F('num_incoming') + F('num_outgoing')
-    ).filter(total_messages__gt=1)
+        total_messages=F('num_incoming') + F('num_outgoing'),
+        has_first_incoming=Exists(
+            IncomingEmailMessage.objects.filter(thread=OuterRef('id')).order_by('received_at').values('id')[:1]
+        ),
+        has_first_outgoing=Exists(
+            OutgoingEmailMessage.objects.filter(thread=OuterRef('id')).order_by('sent_at').values('id')[:1]
+        )
+    ).filter(
+        Q(has_first_incoming=True) | Q(total_messages__gt=1)
+    ).exclude(
+        Q(has_first_outgoing=True) & Q(total_messages__lt=2)
+    )
 
     if account_id:
         threads = threads.filter(email_account_id=account_id)
@@ -175,4 +192,87 @@ def get_thread_messages(request, thread_id):
     }
     return JsonResponse(data)
 
+
+@login_required
+@require_POST
+def unibox_reply_view(request):
+    thread_id = request.POST.get('thread_id')
+    body = request.POST.get('body')
+    recipient_email = request.POST.get('recipient')
+    print(f"Recipient Email: {recipient_email}")
+
+    if not thread_id or not body or not recipient_email:
+        return JsonResponse({'status': 'error', 'message': 'Missing required data.'}, status=400)
+
+    try:
+        thread = get_object_or_404(EmailThread, id=thread_id)
+        email_account = thread.email_account
+
+        # Decrypt the stored password
+        decrypted_password = email_account.get_password()
+
+        # Determine SMTP security type
+        use_tls = email_account.server_type == "TLS"
+        use_ssl = email_account.server_type == "SSL"
+
+        connection = get_connection(
+            backend="django.core.mail.backends.smtp.EmailBackend",
+            host=email_account.host,
+            port=email_account.port_number,
+            username=email_account.email_address,
+            password=decrypted_password,
+            use_tls=use_tls,
+            use_ssl=use_ssl,
+        )
+
+        try:
+            connection.open()
+        except Exception as e:
+            print(f"Exception while opening connection: {e}")
+            return JsonResponse({'status': 'error', 'message': f'Could not connect to SMTP server: {e}'}, status=500)
+
+        # Construct the email message
+        subject = f"Re: {thread.subject}"
+        from_email = email_account.email_address
+        to_email = [recipient_email]
+        message_id = make_msgid(domain='dispatchskool.com/')
+
+        # Get the message_id of the latest incoming message for In-Reply-To
+        latest_incoming = thread.incoming_messages.order_by('-received_at').first()
+        in_reply_to = latest_incoming.message_id if latest_incoming else None
+
+        msg = EmailMultiAlternatives(subject=subject, body=body, from_email=from_email, to=to_email, connection=connection)
+        msg.attach_alternative(body, "text/html")
+        msg.extra_headers = {'Message-ID': message_id}
+        if in_reply_to:
+            msg.extra_headers['In-Reply-To'] = in_reply_to
+            msg.extra_headers['References'] = in_reply_to # For a simple reply, References can often be the same as In-Reply-To
+
+        print(msg)
+        print(msg.send())
+
+        # Save the outgoing message
+        OutgoingEmailMessage.objects.create(
+            email_account=email_account,
+            subject=subject,
+            body=body,
+            recipient=recipient_email,
+            sender=from_email,
+            message_id=message_id,
+            thread=thread,
+            in_reply_to=in_reply_to
+        )
+
+        connection.close()
+        return JsonResponse({'status': 'success'})
+
+    except EmailAccount.DoesNotExist:
+        return JsonResponse({'status': 'error', 'message': 'Email account not found for this thread.'}, status=404)
+    except EmailThread.DoesNotExist:
+        return JsonResponse({'status': 'error', 'message': 'Thread not found.'}, status=404)
+    except Exception as e:
+        print(f"Error sending reply: {e}")
+        if 'authentication failed' in str(e).lower():
+            return JsonResponse({'status': 'error', 'message': f'Authentication failed while sending email: {e}'}, status=401)
+        return JsonResponse({'status': 'error', 'message': f'Failed to send reply: {e}'}, status=500)
 

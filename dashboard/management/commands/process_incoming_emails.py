@@ -7,6 +7,7 @@ from dashboard.models import IncomingEmailMessage, OutgoingEmailMessage
 from unibox.models import EmailThread
 from django.contrib.postgres.search import TrigramSimilarity
 from users.models import EmailAccount
+from email.utils import parseaddr
 
 
 class Command(BaseCommand):
@@ -46,7 +47,8 @@ class Command(BaseCommand):
 
                 subject = msg.subject or ''
                 body = msg.body or ''
-                sender = msg.from_address or ''
+                sender_tuple = parseaddr(msg.from_address or '')
+                sender = sender_tuple[1] or ''
                 received_at = msg.processed or timezone.now()
 
                 thread = None
@@ -71,7 +73,7 @@ class Command(BaseCommand):
                             subject=subject
                         )
                     else:
-                        keywords = ['dispatch', 'service', 'load', 'driver', 'carrier', 'fmcsa', 'truck']
+                        keywords = ['dispatch', 'service', 'load', 'driver', 'carrier', 'fmcsa', 'truck', 'quote', 'request']
                         if not any(keyword in subject.lower() for keyword in keywords):
                             to_delete_ids.append(msg.id)
                             deleted_count += 1

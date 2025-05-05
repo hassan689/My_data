@@ -107,7 +107,6 @@ class EmailAccount(models.Model):
         super().save(*args, **kwargs)
 
 
-
     def __str__(self):
         return f"{self.user.username} - {self.email_address}"
 
@@ -116,7 +115,7 @@ class EmailAccount(models.Model):
         verbose_name_plural = "Email Accounts"
 
 
-# To store the IMAP settings for the email account. They will be used for the receiving emails thru unibox
+# Synchronizing it with the email account model on creation and deletion
 class IMAPSettings(models.Model):
     email_account = models.OneToOneField(EmailAccount, on_delete=models.CASCADE, related_name="imap_settings")
     
