@@ -1,27 +1,30 @@
 from django.contrib import admin
 from .models import EmailThread
 import django_mailbox.admin
-from django.db.models import Count
+from django.db.models import Count, F, ExpressionWrapper, IntegerField
+from django.db import models
 
 
 
 @admin.register(EmailThread)
 class EmailThreadAdmin(admin.ModelAdmin):
-    list_display = ('subject', 'started_at', 'email_account', 'messages_count')
-    search_fields = ('subject', 'email_account__email_address')
-    list_filter = ('started_at', 'subject')
+    list_display = ('id', 'mailbox', 'subject', 'email1', 'email2', 'total_messages', 'is_read')
+    search_fields = ('subject', 'email1', 'email2')
 
     def get_queryset(self, request):
-        qs = super().get_queryset(request)
-        qs = qs.annotate(
-            incoming_count=Count('incoming_messages', distinct=True),
-            outgoing_count=Count('outgoing_messages', distinct=True),
+        queryset = super().get_queryset(request)
+        return queryset.annotate(
+            num_incoming=Count('incoming_messages'),
+            num_outgoing=Count('outgoing_messages'),
+            total_msgs=ExpressionWrapper(
+                F('num_incoming') + F('num_outgoing'),
+                output_field=IntegerField()
+            )
         )
-        return qs
 
-    @admin.display(ordering='incoming_count')  # <= important
-    def messages_count(self, obj):
-        incoming = getattr(obj, 'incoming_count', 0)
-        outgoing = getattr(obj, 'outgoing_count', 0)
-        return incoming + outgoing
+    def total_messages(self, obj):
+        return obj.total_msgs
+
+    total_messages.admin_order_field = 'total_msgs'
+    total_messages.short_description = 'Total Messages'
 

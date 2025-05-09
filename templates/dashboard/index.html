@@ -109,7 +109,7 @@
                       <li>
                         <a href="{% url 'dashboard:campaign' email_account_id=account.id %}" class="block px-4 py-2 hover:bg-gray-200 font-semibold">Launch Campaign</a>
                       </li>
-                      {% if not account.has_imap_configured %}
+                      {% if not account.imap_settings %}
                       <li>
                         <a href="{% url 'unibox:add_imap_settings' email_account_id=account.id %}" class="block px-4 py-2 hover:bg-gray-200 font-semibold">Configure IMAP</a>
                       </li>

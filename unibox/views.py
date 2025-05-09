@@ -8,12 +8,10 @@ from django.http import JsonResponse
 from dashboard.models import OutgoingEmailMessage, IncomingEmailMessage
 from unibox.models import EmailThread
 import re
-from django.db.models import Count, F, Q, Exists, OuterRef
+from django.db.models import Count
 from django.views.decorators.http import require_POST
 from django.core.mail import get_connection, EmailMultiAlternatives
 from email.utils import make_msgid
-
-
 
 
 @login_required
@@ -32,8 +30,6 @@ def add_imap_settings(request, email_account_id):
         if form.is_valid():
             imap_settings = form.save(commit=False)
             imap_settings.email_account = email_account
-            email_account.has_imap_configured = True
-            email_account.save()
             imap_settings.save()
 
             # Method to create their mailbox
@@ -73,206 +69,249 @@ def inbox_page(request):
 
 @login_required
 def index(request):
-    
+    # Step 1: Fetch all mailbox addresses
     mailbox_addresses = Mailbox.objects.values_list('from_email', flat=True)
 
-    # Filter user's email accounts that are IMAP-configured and in Mailbox
+    # Step 2: Filter user's email accounts that are IMAP-configured and in Mailbox
     email_accounts = EmailAccount.objects.filter(
         user=request.user,
-        has_imap_configured=True,
         email_address__in=mailbox_addresses
     )
     account_id = request.GET.get('account_id')
-    threads = EmailThread.objects.filter(email_account__in=email_accounts).annotate(
-        num_incoming=Count('incoming_messages'),
-        num_outgoing=Count('outgoing_messages'),
-        total_messages=F('num_incoming') + F('num_outgoing'),
-        has_first_incoming=Exists(
-            IncomingEmailMessage.objects.filter(thread=OuterRef('id')).order_by('received_at').values('id')[:1]
-        ),
-        has_first_outgoing=Exists(
-            OutgoingEmailMessage.objects.filter(thread=OuterRef('id')).order_by('sent_at').values('id')[:1]
-        )
-    ).filter(
-        Q(has_first_incoming=True) | Q(total_messages__gt=1)
-    ).exclude(
-        Q(has_first_outgoing=True) & Q(total_messages__lt=2)
-    )
 
+    # Step 3: Get all mailbox instances corresponding to the user’s email accounts
+    user_mailboxes = Mailbox.objects.filter(from_email__in=email_accounts.values_list('email_address', flat=True))
+
+    # Step 4: Filter threads where the mailbox is the receiver (email2 = mailbox.from_email)
+    threads = EmailThread.objects.filter(email2__in=user_mailboxes.values_list('from_email', flat=True))
+
+    # Step 5: Apply account_id filter if provided
     if account_id:
-        threads = threads.filter(email_account_id=account_id)
-    unread_counts = {}
-    total_unread_count = 0
+        try:
+            selected_account = EmailAccount.objects.get(id=account_id, user=request.user)
+            selected_mailbox_email = selected_account.email_address
+            threads = threads.filter(email2=selected_mailbox_email)
+        except EmailAccount.DoesNotExist:
+            threads = threads.none()
 
-    for acc in email_accounts:
-        unread_count = threads.filter(email_account=acc, is_read=False).count()
-        unread_counts[acc.id] = unread_count
-        total_unread_count += unread_count
 
-    data = {
-        "email_accounts": [
-            {"id": acc.id, "email_address": acc.email_address, "has_imap_configured": acc.has_imap_configured, "unread_count": unread_counts.get(acc.id, 0)}
-            for acc in email_accounts
-        ],
-        "threads": [
-            {
-                "id": thread.id,
-                "subject": thread.subject,
-                "email_account_id": thread.email_account.id,
-                "started_at": thread.started_at.isoformat(),
-                "is_read": thread.is_read,
-                "messages": [
-                    {
-                        "id": msg["id"], "subject": msg["subject"], "body": msg["body"],
-                        "sender": msg["sender"], "recipient": msg["recipient"], "message_id": msg["message_id"],
-                        "in_reply_to": msg["in_reply_to"],
-                        "timestamp": msg["timestamp"].isoformat() if msg["timestamp"] else None,
-                        "direction": msg["direction"]
-                    }
-                    for msg in thread.get_ordered_messages()
-                ]
-            }
-            for thread in threads
-        ],
-        "total_unread_count": total_unread_count,
+    # Step 6: Unread counts for each mailbox
+    unread_counts = EmailThread.objects.filter(
+        mailbox__from_email__in=email_accounts.values_list('email_address', flat=True),
+        is_read=False
+    ).values('mailbox__from_email').annotate(count=Count('id'))
+
+    # Map mailbox emails to EmailAccount IDs
+    email_to_account_id = {acc.email_address: acc.id for acc in email_accounts}
+    unread_counts_dict = {
+        email_to_account_id.get(item['mailbox__from_email']): item['count']
+        for item in unread_counts if email_to_account_id.get(item['mailbox__from_email']) is not None
     }
-    return JsonResponse(data)
+
+    # Step 7: Build email_accounts list with unread count
+    email_accounts_data = [
+        {
+            "id": acc.id,
+            "email_address": acc.email_address,
+            "unread_count": unread_counts_dict.get(acc.id, 0)
+        }
+        for acc in email_accounts
+    ]
+
+    # Step 8: Build threads list
+    threads_data = []
+    for thread in threads.select_related('mailbox'):
+        messages = thread.get_ordered_messages()
+        messages_data = []
+
+        for msg in messages:
+            is_incoming = isinstance(msg, IncomingEmailMessage)
+            messages_data.append({
+                "id": msg.id,
+                "subject": msg.subject,
+                "body": msg.body,
+                "sender": msg.sender,
+                "recipient": msg.recipient,
+                "message_id": msg.message_id,
+                "in_reply_to": msg.in_reply_to,
+                "timestamp": getattr(msg, 'received_at', None) if is_incoming else getattr(msg, 'sent_at', None),
+                "type": "incoming" if is_incoming else "outgoing"
+            })
+
+        threads_data.append({
+            "id": thread.id,
+            "subject": thread.subject,
+            "created_at": thread.created_at,
+            "is_read": thread.is_read,
+            "mailbox_email": thread.mailbox.from_email,
+            "email1": thread.email1,
+            "email2": thread.email2,
+            "messages": messages_data
+        })
+
+    # Final JSON response
+    data = {
+        "email_accounts": email_accounts_data,
+        "threads": threads_data
+    }
+
+    return JsonResponse(data, safe=False)
 
 
 @login_required
 def mark_thread_read(request, thread_id):
-    thread = get_object_or_404(EmailThread, id=thread_id, email_account__user=request.user)
-    if request.method == 'POST':
-        is_read_str = request.POST.get('is_read')
-        if is_read_str is not None:
-            is_read = is_read_str.lower() == 'true'
-            thread.is_read = is_read
-            thread.save()
-            return JsonResponse({'status': 'success', 'is_read': thread.is_read, 'message': f'Thread {thread_id} read status updated to {thread.is_read}'})
-        else:
-            return JsonResponse({'status': 'error', 'message': 'Missing "is_read" parameter'}, status=400)
-    else:
-        return JsonResponse({'status': 'error', 'message': 'Only POST requests are allowed'}, status=405)
+    pass
+#     # Get all email addresses the user owns
+#     user_email_addresses = EmailAccount.objects.filter(user=request.user).values_list('email_address', flat=True)
+
+#     # Get thread only if its mailbox belongs to user's email accounts
+#     thread = get_object_or_404(
+#         EmailThread,
+#         id=thread_id,
+#         mailbox__from_email__in=user_email_addresses
+#     )
+
+#     if request.method == 'POST':
+#         is_read_str = request.POST.get('is_read')
+#         if is_read_str is not None:
+#             is_read = is_read_str.lower() == 'true'
+#             thread.is_read = is_read
+#             thread.save()
+#             return JsonResponse({'status': 'success', 'is_read': thread.is_read, 'message': f'Thread {thread_id} read status updated to {thread.is_read}'})
+#         else:
+#             return JsonResponse({'status': 'error', 'message': 'Missing "is_read" parameter'}, status=400)
+#     else:
+#         return JsonResponse({'status': 'error', 'message': 'Only POST requests are allowed'}, status=405)
+
 
 
 @login_required
 def get_thread_messages(request, thread_id):
-    thread = get_object_or_404(EmailThread, id=thread_id, email_account__user=request.user)
+    # Get all email addresses the user owns
+    user_email_addresses = EmailAccount.objects.filter(user=request.user).values_list('email_address', flat=True)
+
+    # Make sure the thread belongs to one of the user's mailboxes
+    thread = get_object_or_404(EmailThread, id=thread_id, mailbox__from_email__in=user_email_addresses)
+
     messages = thread.get_ordered_messages()
     serialized_messages = []
     updated_subject = thread.subject
-    subject_prefixes = r"^(Re:|Fwd:|FW:|AW:|SV:)\s*" # Regular expression to match common prefixes
+    subject_prefixes = r"^(Re:|Fwd:|FW:|AW:|SV:)\s*"
 
     for msg in messages:
         serialized_messages.append({
-            "id": msg["id"],
-            "subject": msg["subject"],
-            "body": msg["body"],
-            "sender": msg["sender"],
-            "recipient": msg["recipient"],
-            "message_id": msg["message_id"],
-            "in_reply_to": msg["in_reply_to"],
-            "timestamp": msg["timestamp"].isoformat() if msg["timestamp"] else None,
-            "direction": msg["direction"]
+            "id": msg.id,
+            "subject": msg.subject,
+            "body": msg.body,
+            "sender": msg.sender,
+            "recipient": msg.recipient,
+            "message_id": msg.message_id,
+            "in_reply_to": msg.in_reply_to,
+            "timestamp": msg._timestamp.isoformat() if msg._timestamp else None,
+            "direction": "incoming" if hasattr(msg, 'received_at') else "outgoing"
         })
-        # Check if the message subject starts with a common reply/forward prefix
-        if re.match(subject_prefixes, msg["subject"], re.IGNORECASE) and not re.match(subject_prefixes, updated_subject, re.IGNORECASE):
-            updated_subject = msg["subject"]
+        if re.match(subject_prefixes, msg.subject, re.IGNORECASE) and not re.match(subject_prefixes, updated_subject, re.IGNORECASE):
+            updated_subject = msg.subject
 
-    # Update the thread subject if it has changed
     if updated_subject != thread.subject:
         thread.subject = updated_subject
         thread.save()
+
+    # Find the associated email account for this thread's mailbox
+    try:
+        email_account = EmailAccount.objects.get(email_address=thread.mailbox.from_email, user=request.user)
+        email_account_id = email_account.id
+    except EmailAccount.DoesNotExist:
+        email_account_id = None
 
     data = {
         "id": thread.id,
         "subject": thread.subject,
         "messages": serialized_messages,
-        "email_account_id": thread.email_account.id,
+        "email_account_id": email_account_id,
     }
     return JsonResponse(data)
+
 
 
 @login_required
 @require_POST
 def unibox_reply_view(request):
-    thread_id = request.POST.get('thread_id')
-    body = request.POST.get('body')
-    recipient_email = request.POST.get('recipient')
-    print(f"Recipient Email: {recipient_email}")
+    pass
+#     thread_id = request.POST.get('thread_id')
+#     body = request.POST.get('body')
 
-    if not thread_id or not body or not recipient_email:
-        return JsonResponse({'status': 'error', 'message': 'Missing required data.'}, status=400)
+#     if not thread_id or not body:
+#         return JsonResponse({'status': 'error', 'message': 'Missing required data.'}, status=400)
 
-    try:
-        thread = get_object_or_404(EmailThread, id=thread_id)
-        email_account = thread.email_account
+#     try:
+#         thread = get_object_or_404(EmailThread, id=thread_id)
 
-        # Decrypt the stored password
-        decrypted_password = email_account.get_password()
+#         # Verify the thread belongs to the current user
+#         user_email_addresses = EmailAccount.objects.filter(user=request.user).values_list('email_address', flat=True)
+#         if thread.mailbox.from_email not in user_email_addresses:
+#             return JsonResponse({'status': 'error', 'message': 'Permission denied for this thread.'}, status=403)
 
-        # Determine SMTP security type
-        use_tls = email_account.server_type == "TLS"
-        use_ssl = email_account.server_type == "SSL"
+#         recipient_email = thread.email1  # ✅ use thread.email1, not from request
+#         email_account = EmailAccount.objects.get(email_address=thread.mailbox.from_email, user=request.user)
+#         decrypted_password = email_account.get_password()
 
-        connection = get_connection(
-            backend="django.core.mail.backends.smtp.EmailBackend",
-            host=email_account.host,
-            port=email_account.port_number,
-            username=email_account.email_address,
-            password=decrypted_password,
-            use_tls=use_tls,
-            use_ssl=use_ssl,
-        )
+#         use_tls = email_account.server_type == "TLS"
+#         use_ssl = email_account.server_type == "SSL"
 
-        try:
-            connection.open()
-        except Exception as e:
-            print(f"Exception while opening connection: {e}")
-            return JsonResponse({'status': 'error', 'message': f'Could not connect to SMTP server: {e}'}, status=500)
+#         connection = get_connection(
+#             backend="django.core.mail.backends.smtp.EmailBackend",
+#             host=email_account.host,
+#             port=email_account.port_number,
+#             username=email_account.email_address,
+#             password=decrypted_password,
+#             use_tls=use_tls,
+#             use_ssl=use_ssl,
+#         )
 
-        # Construct the email message
-        subject = f"Re: {thread.subject}"
-        from_email = email_account.email_address
-        to_email = [recipient_email]
-        message_id = make_msgid(domain='dispatchskool.com/')
+#         try:
+#             connection.open()
+#         except Exception as e:
+#             return JsonResponse({'status': 'error', 'message': f'Could not connect to SMTP server: {e}'}, status=500)
 
-        # Get the message_id of the latest incoming message for In-Reply-To
-        latest_incoming = thread.incoming_messages.order_by('-received_at').first()
-        in_reply_to = latest_incoming.message_id if latest_incoming else None
+#         subject = f"Re: {thread.subject}"
+#         from_email = email_account.email_address
+#         to_email = [recipient_email]
+#         message_id = make_msgid(domain='dispatchskool.com/')
 
-        msg = EmailMultiAlternatives(subject=subject, body=body, from_email=from_email, to=to_email, connection=connection)
-        msg.attach_alternative(body, "text/html")
-        msg.extra_headers = {'Message-ID': message_id}
-        if in_reply_to:
-            msg.extra_headers['In-Reply-To'] = in_reply_to
-            msg.extra_headers['References'] = in_reply_to # For a simple reply, References can often be the same as In-Reply-To
+#         latest_incoming = thread.incoming_messages.order_by('-received_at').first()
+#         in_reply_to = latest_incoming.message_id if latest_incoming else None
 
-        print(msg)
-        print(msg.send())
+#         msg = EmailMultiAlternatives(subject=subject, body=body, from_email=from_email, to=to_email, connection=connection)
+#         msg.attach_alternative(body, "text/html")
+#         msg.extra_headers = {'Message-ID': message_id}
+#         if in_reply_to:
+#             msg.extra_headers['In-Reply-To'] = in_reply_to
+#             msg.extra_headers['References'] = in_reply_to
 
-        # Save the outgoing message
-        OutgoingEmailMessage.objects.create(
-            email_account=email_account,
-            subject=subject,
-            body=body,
-            recipient=recipient_email,
-            sender=from_email,
-            message_id=message_id,
-            thread=thread,
-            in_reply_to=in_reply_to
-        )
+#         msg.send()
+#         connection.close()
 
-        connection.close()
-        return JsonResponse({'status': 'success'})
+#         # ✅ Save the outgoing message — no email_account field now
+#         OutgoingEmailMessage.objects.create(
+#             thread=thread,
+#             subject=subject,
+#             body=body,
+#             recipient=recipient_email,
+#             sender=from_email,
+#             message_id=message_id,
+#             in_reply_to=in_reply_to
+#         )
 
-    except EmailAccount.DoesNotExist:
-        return JsonResponse({'status': 'error', 'message': 'Email account not found for this thread.'}, status=404)
-    except EmailThread.DoesNotExist:
-        return JsonResponse({'status': 'error', 'message': 'Thread not found.'}, status=404)
-    except Exception as e:
-        print(f"Error sending reply: {e}")
-        if 'authentication failed' in str(e).lower():
-            return JsonResponse({'status': 'error', 'message': f'Authentication failed while sending email: {e}'}, status=401)
-        return JsonResponse({'status': 'error', 'message': f'Failed to send reply: {e}'}, status=500)
+#         return JsonResponse({'status': 'success'})
+
+#     except EmailAccount.DoesNotExist:
+#         return JsonResponse({'status': 'error', 'message': 'Email account not found.'}, status=404)
+#     except EmailThread.DoesNotExist:
+#         return JsonResponse({'status': 'error', 'message': 'Thread not found.'}, status=404)
+#     except Exception as e:
+#         if 'authentication failed' in str(e).lower():
+#             return JsonResponse({'status': 'error', 'message': f'Authentication failed: {e}'}, status=401)
+#         return JsonResponse({'status': 'error', 'message': f'Failed to send reply: {e}'}, status=500)
+
 

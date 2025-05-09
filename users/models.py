@@ -65,13 +65,6 @@ class EmailAccount(models.Model):
         verbose_name="SMTP Server Type",
     )
     host = models.CharField(max_length=100, verbose_name="Outgoing Servr Host")
-    has_imap_configured = models.BooleanField(
-        default=False,
-        null=True,
-        blank=True,
-        verbose_name="IMAP Configured"
-    )
-
 
     def set_password(self, raw_password):
         """Encrypt and set the password securely."""
@@ -133,5 +126,4 @@ class IMAPSettings(models.Model):
     class Meta:
         verbose_name = "IMAP Settings"
         verbose_name_plural = "IMAP Settings"
-
 

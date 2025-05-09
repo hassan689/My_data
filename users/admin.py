@@ -91,10 +91,9 @@ class IMAPSettingsInline(admin.StackedInline):
 @admin.register(EmailAccount)
 class EmailAccountAdmin(admin.ModelAdmin):
     form = EmailAccountForm  # Use custom form with decryption
-    list_display = ("user", "company_name", "email_address", "email_provider", "has_imap_configured", "last_used_at")
+    list_display = ("user", "company_name", "email_address", "email_provider", "last_used_at")
     list_filter = ("last_used_at", "email_provider")
     search_fields = ("email_address", "user__username")
-    list_editable = ("has_imap_configured",)
 
     # Include IMAPSettings as inline in EmailAccount admin form
     inlines = [IMAPSettingsInline]
@@ -112,8 +111,12 @@ class EmailAccountAdmin(admin.ModelAdmin):
 				
     def save_model(self, request, obj, form, change):
         try:
-            obj.clean()  # Explicitly call clean() before saving
+            # Explicitly call clean() before saving
+            obj.clean()
             obj.save()
+
         except ValidationError as e:
+            # If there is a validation error, display the message
             self.message_user(request, e.messages[0], level=messages.ERROR)
+
 

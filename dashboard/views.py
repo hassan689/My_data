@@ -17,12 +17,13 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from email.utils import make_msgid
 from unibox.models import EmailThread
+from django_mailbox.models import Mailbox
 from .models import OutgoingEmailMessage
 
 ######################################## Campaign sending views
 
 
-def send_emails(email_account, leads, subject, body, delay):
+def send_emails(email_account, leads, subject, body, delay, mailbox):
     """Sends multiple personalized emails using Django's `EmailMultiAlternatives` in a separate thread."""
 
     def _send():
@@ -60,23 +61,14 @@ def send_emails(email_account, leads, subject, body, delay):
                 personalized_subject = subject.replace("[name]", str(lead['name'])).replace("[mc_number]", str(lead['mc_number']))
                 personalized_body = body.replace("[name]", str(lead['name'])).replace("[mc_number]", str(lead['mc_number']))
 
-                message_id = make_msgid(domain='dispatchskool.com/')
+                message_id = make_msgid(domain='dispatchskool.com')
 
-                # Check if the email is part of an existing conversation
-                existing_thread = None
-                in_reply_to = None
-
-                # Try to find an existing thread using subject (for simplicity, you can use the subject to search for threads)
-                if not leads:
-                    existing_thread = EmailThread.objects.filter(subject=personalized_subject).first()
-
-                if existing_thread:
-                    in_reply_to = existing_thread.message_id  # Link to the last message in the thread
-
-                # Create or get the thread instance
-                if not existing_thread:
-                    # Create a new thread if no thread found
-                    existing_thread = EmailThread.objects.create(subject=personalized_subject, email_account=email_account)
+                new_thread = EmailThread.objects.create(
+                    subject=personalized_subject,
+                    mailbox=mailbox,
+                    email1=email_account.email_address, #sender
+                    email2=lead['email'] #receiver
+                )
 
                 try:
                     
@@ -93,21 +85,19 @@ def send_emails(email_account, leads, subject, body, delay):
                     msg.send()
 
                     OutgoingEmailMessage.objects.create(
-                        email_account=email_account,
                         subject=personalized_subject,
                         body=personalized_body,
                         message_id=message_id,
                         sender=email_account.email_address,
                         recipient=lead['email'],
-                        in_reply_to=in_reply_to,  # Only set this if it's a reply
-                        thread=existing_thread  # Attach to the thread
+                        in_reply_to=None,  # It's not a reply, it's a first message
+                        thread=new_thread  # Attach to the new thread
                     )
 
                     # Add the delay here before sending the next email
                     time.sleep(delay)
                 except Exception as e:
                     print(f"Error sending email: {e}")
-
 
             print(f"Emails sent successfully to {len(leads)} recipients.")
 
@@ -208,6 +198,14 @@ def get_leads_from_db(starting_mc_number, targets_count):
 def campaign(request, email_account_id):
     
     email_account = get_object_or_404(EmailAccount, id=email_account_id, user=request.user)
+    
+    # Check if mailbox exists for this account
+    mailbox = Mailbox.objects.filter(from_email=email_account.email_address).first()  # or whatever field links them
+    
+    if not mailbox:
+        messages.error(request, "IMAP is not configured for this account. Please set it up before sending a campaign.")
+        return redirect("dashboard:index")
+    
     form = CampaignForm(user=request.user)
 
     if request.method == 'POST':
@@ -236,7 +234,7 @@ def campaign(request, email_account_id):
                 return redirect('dashboard:index')
 
             # Call send_emails function which already uses threading
-            send_emails(email_account, leads, email_subject, email_body, delay)
+            send_emails(email_account, leads, email_subject, email_body, delay, mailbox)
 
             messages.success(request, f"Success! Emails are being sent for {email_account.email_address}. Thank you for your patience.")
             return redirect('dashboard:index')
@@ -411,12 +409,39 @@ def bulk_campaign(request):
                 account_lead_map = updated_map
 
 
+            # Step 1: Filter accounts with and without mailbox
+            valid_account_lead_map = {}
+            failed_accounts = []
+
+            for account, leads in account_lead_map.items():
+                try:
+                    if not account.imap_settings:
+                        failed_accounts.append(account.email_address)
+                    else:
+                        valid_account_lead_map[account] = leads
+                except:
+                    continue
+
+            print(valid_account_lead_map)
+            print(failed_accounts)
+
+            # Step 2: Define the thread
             def start_campaign():
-                with ThreadPoolExecutor(max_workers=min(5, len(account_lead_map))) as executor:
-                    for account, assigned_leads in account_lead_map.items():
+
+                # Instead of using `in_bulk()`, we manually filter the mailboxes
+                all_mailboxes = Mailbox.objects.filter(
+                    from_email__in=[a.email_address for a in valid_account_lead_map]
+                )
+                # Create a dictionary to map email addresses to mailboxes
+                mailbox_dict = {mailbox.from_email: mailbox for mailbox in all_mailboxes}
+
+                with ThreadPoolExecutor(max_workers=min(5, len(valid_account_lead_map))) as executor:
+                    for account, assigned_leads in valid_account_lead_map.items():
                         if assigned_leads:
+                            mailbox = mailbox_dict.get(account.email_address)
                             executor.submit(
                                 send_bulk_emails,
+                                mailbox,
                                 account,
                                 assigned_leads,
                                 email_subject,
@@ -424,10 +449,21 @@ def bulk_campaign(request):
                                 delay
                             )
 
-            Thread(target=start_campaign).start()
-            cache.delete(cache_key)  # clean up
+            # Step 3: Start thread and show message
+            if valid_account_lead_map:
+                Thread(target=start_campaign).start()
+                cache.delete(cache_key)
 
-            messages.success(request, "🎉 Bulk Campaign started successfully! Emails are being sent!")
+                success_emails = [acc.email_address for acc in valid_account_lead_map]
+                message = f"🎉 Bulk Campaign started for:\n- " + "\n- ".join(success_emails)
+
+                if failed_accounts:
+                    message += "\n\n⚠️ Skipped due to missing IMAP:\n- " + "\n- ".join(failed_accounts)
+
+                messages.success(request, message)
+            else:
+                messages.error(request, "❌ Campaign not started. None of the selected accounts have IMAP configured.")
+
             return redirect('dashboard:index')
 
         else:
@@ -452,7 +488,7 @@ def bulk_campaign(request):
 
 
 
-def send_bulk_emails(email_account, leads, subject, body, delay):
+def send_bulk_emails(mailbox, email_account, leads, subject, body, delay):
     """Sends personalized emails using the given email account."""
 
     try:
@@ -485,6 +521,14 @@ def send_bulk_emails(email_account, leads, subject, body, delay):
             personalized_subject = subject.replace("[name]", str(lead['name'])).replace("[mc_number]", str(lead['mc_number']))
             personalized_body = body.replace("[name]", str(lead['name'])).replace("[mc_number]", str(lead['mc_number']))
 
+            message_id = make_msgid(domain='dispatchskool.com')
+            new_thread = EmailThread.objects.create(
+                    subject=personalized_subject,
+                    mailbox=mailbox,
+                    email1=email_account.email_address, #sender
+                    email2=lead['email'] #receiver
+                )
+
             try:
                 msg = EmailMultiAlternatives(
                     subject=personalized_subject,
@@ -495,6 +539,17 @@ def send_bulk_emails(email_account, leads, subject, body, delay):
                 )
                 msg.attach_alternative(personalized_body, "text/html")
                 msg.send()
+
+                OutgoingEmailMessage.objects.create(
+                    subject=personalized_subject,
+                    body=personalized_body,
+                    message_id=message_id,
+                    sender=email_account.email_address,
+                    recipient=lead['email'],
+                    in_reply_to=None,  # It's not a reply, it's a first message
+                    thread=new_thread  # Attach to the new thread
+                )
+
                 time.sleep(delay)
             except Exception as e:
                 print(f"Error sending email to {lead['email']}: {e}")

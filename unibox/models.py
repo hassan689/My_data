@@ -1,37 +1,34 @@
 from django.db import models
-from users.models import EmailAccount
-from django.db.models import Value, CharField, F
-
+from django_mailbox.models import Mailbox
+from itertools import chain
 
 class EmailThread(models.Model):
-    email_account = models.ForeignKey(EmailAccount, on_delete=models.CASCADE, related_name="threads")
+    mailbox = models.ForeignKey(Mailbox, on_delete=models.CASCADE)  # Owner
+    email1 = models.EmailField()  # sender role
+    email2 = models.EmailField()  # recipient role, which is mostly my mailbox's address
     subject = models.CharField(max_length=255)
-    started_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True)
     is_read = models.BooleanField(default=False)
-    
+
+    # email1 and email2 fields are only there to keep track of the participants in the conversation not the sender/reciver logics .....
+    # incoming and outgoing message instances have the correct record of the sender and the recipient
+
     def __str__(self):
-        return f"Thread: {self.subject} - ({self.email_account.email_address})"
-    
+        return f"{self.email2} -> {self.subject}" # email 2 is supposed to be the owner of the thread, since its on the receiving side for the inboxes
+
     def get_ordered_messages(self):
-        incoming = self.incoming_messages.annotate(
-            timestamp=F('received_at'),
-            direction=Value('incoming', output_field=CharField()),
-            recipient=Value('', output_field=CharField())  # dummy field to match outgoing
-        ).values(
-            'id', 'subject', 'body', 'sender', 'recipient',
-            'message_id', 'in_reply_to', 'timestamp', 'direction'
-        )
+        incoming = list(self.incoming_messages.all())
+        outgoing = list(self.outgoing_messages.all())
 
-        outgoing = self.outgoing_messages.annotate(
-            timestamp=F('sent_at'),
-            direction=Value('outgoing', output_field=CharField())
-        ).values(
-            'id', 'subject', 'body', 'sender', 'recipient',
-            'message_id', 'in_reply_to', 'timestamp', 'direction'
-        )
-        result = incoming.union(outgoing, all=True).order_by('timestamp')
+        # Annotate each with a common timestamp attribute for sorting
+        for msg in incoming:
+            msg._timestamp = msg.received_at
+        for msg in outgoing:
+            msg._timestamp = msg.sent_at
 
-        return result
+        combined = list(chain(incoming, outgoing))
+        combined.sort(key=lambda msg: msg._timestamp)
 
+        return combined
 
 
