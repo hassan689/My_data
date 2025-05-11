@@ -195,13 +195,12 @@ USE_TZ = True
 
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.hostinger.com'
-EMAIL_USE_TLS = False  # Enable TLS
-EMAIL_USE_SSL = True  # Disable SSL
+EMAIL_USE_SSL = True
 EMAIL_PORT = 465  # TLS requires port 587
-EMAIL_HOST_USER = "jordan@truckingstory.com"
+EMAIL_HOST_USER = "joseph@truckingstory.com"
 EMAIL_HOST_PASSWORD = "Ahmad@2134"
 
-DEFAULT_FROM_EMAIL = "jordan@truckingstory.com"
+DEFAULT_FROM_EMAIL = "joseph@truckingstory.com"
 
 
 # Static files (CSS, JavaScript, Images)

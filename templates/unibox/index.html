@@ -243,7 +243,7 @@
                   data.threads.forEach(thread => {
                       const latestMessage = thread.messages[thread.messages.length - 1];
                       const card = document.createElement('div');
-                      card.className = 'relative border border-gray-200 rounded-lg shadow p-4 cursor-pointer hover:bg-gray-50 transition mb-2';
+                      card.className = 'relative border border-gray-200 rounded-lg shadow-xl p-4 cursor-pointer hover:bg-gray-50 transition mb-2';
                       card.dataset.threadId = thread.id;
                       card.dataset.read = thread.is_read;
                       card.dataset.accountId = thread.email_account_id;
@@ -346,7 +346,18 @@
 
 document.addEventListener('DOMContentLoaded', () => {
     console.log('DOM loaded');
-    renderThreads(null);
+
+    renderThreads(null); // Initial load of threads
+
+    // Call renderThreads every minute (60000 milliseconds)
+    setInterval(() => {
+        if (currentAccountId) {
+          renderThreads(currentAccountId); // Refresh threads for the currently selected account (or all)
+        } else {
+          renderThreads(null);
+        }
+    }, 60000);
+    
     const inboxTitle = document.getElementById('inbox-title');
     if (inboxTitle) {
         inboxTitle.textContent = 'All Inboxes';
@@ -473,4 +484,3 @@ function sendReply() {
 
 
 {% endblock %}
-

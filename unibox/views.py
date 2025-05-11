@@ -159,29 +159,17 @@ def index(request):
 
 
 @login_required
-def mark_thread_read(request, thread_id):
-    pass
-#     # Get all email addresses the user owns
-#     user_email_addresses = EmailAccount.objects.filter(user=request.user).values_list('email_address', flat=True)
-
-#     # Get thread only if its mailbox belongs to user's email accounts
-#     thread = get_object_or_404(
-#         EmailThread,
-#         id=thread_id,
-#         mailbox__from_email__in=user_email_addresses
-#     )
-
-#     if request.method == 'POST':
-#         is_read_str = request.POST.get('is_read')
-#         if is_read_str is not None:
-#             is_read = is_read_str.lower() == 'true'
-#             thread.is_read = is_read
-#             thread.save()
-#             return JsonResponse({'status': 'success', 'is_read': thread.is_read, 'message': f'Thread {thread_id} read status updated to {thread.is_read}'})
-#         else:
-#             return JsonResponse({'status': 'error', 'message': 'Missing "is_read" parameter'}, status=400)
-#     else:
-#         return JsonResponse({'status': 'error', 'message': 'Only POST requests are allowed'}, status=405)
+def toggle_read_status(request, thread_id):
+    if request.method == 'POST':
+        try:
+            thread = get_object_or_404(EmailThread, id=thread_id)
+            thread.is_read = not thread.is_read
+            thread.save()
+            return JsonResponse({'status': 'success', 'is_read': thread.is_read})
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+    else:
+        return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
 
 
 
