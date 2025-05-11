@@ -20,22 +20,23 @@
       </div>
 
       <div class="p-4">
-        <button id="all-inboxes-btn"
-          class="flex items-center justify-between w-full bg-gray-900 text-white px-4 py-2 rounded-lg font-medium">
-          <div class="flex items-center gap-2">
-            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round"
-                d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-            </svg>
-            All Inboxes
-          </div>
-          <span></span>
-        </button>
+          <button id="all-inboxes-btn" onclick="renderThreads(null)"
+              class="flex items-center justify-between w-full bg-gray-900 text-white px-4 py-2 rounded-lg font-medium">
+              <div class="flex items-center gap-2">
+                  <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round"
+                          d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                  All Inboxes
+              </div>
+              <span></span>
+          </button>
       </div>
 
       <div class="px-4">
         <h3 class="text-sm text-gray-500 font-medium mb-2">Accounts</h3>
-        <ul id="account-list" class="space-y-1"></ul>
+        <ul id="account-list" class="mt-4 space-y-2">
+        </ul>
       </div>
     </aside>
 
@@ -72,9 +73,14 @@
 
       <!-- Reply -->
       <div class="border-t p-4">
-        <textarea id="replyBox" class="w-full p-3 border rounded-lg bg-gray-50"
-          placeholder="Type your reply..."></textarea>
-        <button class="mt-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Send</button>
+        <textarea id="replyBox" class="w-full p-3 border rounded-lg bg-gray-50" placeholder="Type your reply..."></textarea>
+        
+        <div class="flex items-center gap-4 mt-2">
+          <button class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Send</button>
+          <p id="sendingNotice" class="text-yellow-700 text-sm hidden">
+            This might take a few seconds. Please be patient.
+          </p>
+        </div>
       </div>
     </div>
   </div>
@@ -136,292 +142,327 @@
 
 
 <script>
-  const fetchThreadUrlBase = "{% url 'unibox:get_thread_messages' thread_id=0 %}".slice(0, -1);
-  const markReadUrlBase = "{% url 'unibox:mark_thread_read' thread_id=0 %}".slice(0, -1);
-  const inboxJsonUrl = "{% url 'unibox:inbox_json' %}";
+    const fetchThreadUrlBase = "{% url 'unibox:get_thread_messages' thread_id=0 %}".slice(0, -1);
+    const inboxJsonUrl = "{% url 'unibox:inbox_json' %}";
 
-  let currentAccountId = null;
-  let totalUnreadCount = 0;
+    let currentAccountId = null;
+    let currentThreadId = null; // To store the ID of the currently open thread
 
-  function renderThreads(accountId = null) {
-    currentAccountId = accountId;
-    let fetchUrl = inboxJsonUrl;
-    if (accountId) {
-      fetchUrl += `?account_id=${accountId}`;
+    function renderThreads(accountId = null) {
+        currentAccountId = accountId;
+        let fetchUrl = inboxJsonUrl;
+        if (accountId) {
+            fetchUrl += `?account_id=${accountId}`;
+        }
+
+        fetch(fetchUrl)
+            .then(response => response.json())
+            .then(data => {
+                console.log('Data received:', data); // Debugging
+
+                const threadsContainer = document.getElementById('threads-container');
+                const modal = document.getElementById('threadModal');
+                const modalTitle = document.getElementById('modalThreadTitle');
+                const modalMessages = document.getElementById('modalMessages');
+                const closeModalBtn = document.getElementById('closeModal');
+                const accountList = document.getElementById('account-list');
+                const allInboxesBtn = document.getElementById('all-inboxes-btn');
+                let allInboxesDot = allInboxesBtn.querySelector('.unread-dot');
+                const inboxTitle = document.getElementById('inbox-title'); // You might need this in your HTML
+
+                threadsContainer.innerHTML = '';
+                accountList.innerHTML = '';
+
+                let hasAnyUnread = false;
+                data.email_accounts.forEach(account => {
+                    if (account.unread_count > 0) {
+                        hasAnyUnread = true;
+                    }
+                });
+
+                if (hasAnyUnread) {
+                    if (!allInboxesDot) {
+                        allInboxesDot = document.createElement('div');
+                        allInboxesDot.className = 'unread-dot w-3 h-3 rounded-full bg-white absolute top-1/2 right-2 -translate-y-1/2';
+                        allInboxesBtn.style.position = 'relative';
+                        allInboxesBtn.appendChild(allInboxesDot);
+                    }
+                } else if (allInboxesDot) {
+                    allInboxesDot.remove();
+                }
+
+                const activeAccount = data.email_accounts.find(acc => acc.id === parseInt(accountId));
+                if (activeAccount && inboxTitle) {
+                    inboxTitle.textContent = `Inbox: ${activeAccount.email_address}`;
+                } else if (inboxTitle) {
+                    inboxTitle.textContent = 'All Inboxes';
+                }
+
+                const allInboxesButton = document.getElementById('all-inboxes-btn');
+                allInboxesButton.classList.remove('bg-blue-100', 'border-l-4', 'border-blue-500', 'font-semibold', 'bg-gray-700'); // Remove potential highlighting
+                if (currentAccountId === null) {
+                    allInboxesButton.classList.add('bg-gray-700'); // Highlight 'All Inboxes' with a slightly lighter shade
+                } else {
+                    allInboxesButton.classList.add('bg-gray-900'); // Ensure default background when an account is selected
+                }
+
+                accountList.innerHTML = '';
+                data.email_accounts.forEach(account => {
+                    const listItem = document.createElement('li');
+                    listItem.className = 'account-item text-sm text-gray-800 bg-white rounded-full px-4 py-2 cursor-pointer hover:bg-blue-100 transition flex justify-between items-center relative';
+                    listItem.innerHTML = `<span>${account.email_address}</span>`;
+                    if (account.unread_count > 0) {
+                        const unreadDot = document.createElement('div');
+                        unreadDot.className = 'unread-dot w-3 h-3 rounded-full bg-blue-500 absolute top-1/2 right-2 -translate-y-1/2';
+                        listItem.appendChild(unreadDot);
+                    }
+                    listItem.dataset.accountId = account.id;
+
+                    listItem.classList.remove('bg-blue-100', 'border-l-4', 'border-blue-500', 'font-semibold');
+                    if (parseInt(accountId) === account.id) {
+                        listItem.classList.add('bg-blue-100', 'border-l-4', 'border-blue-500', 'font-semibold');
+                    } else {
+                        listItem.classList.add('bg-white');
+                    }
+
+                    listItem.addEventListener('click', () => {
+                        document.querySelectorAll('.account-item').forEach(item => {
+                            item.classList.remove('bg-blue-100', 'border-l-4', 'border-blue-500', 'font-semibold');
+                            item.classList.add('bg-white');
+                        });
+                        allInboxesButton.classList.remove('bg-gray-700'); // Unhighlight 'All Inboxes'
+                        allInboxesButton.classList.add('bg-gray-900');
+                        listItem.classList.add('bg-blue-100', 'border-l-4', 'border-blue-500', 'font-semibold');
+                        renderThreads(account.id);
+                    });
+                    accountList.appendChild(listItem);
+                });
+
+                threadsContainer.innerHTML = '';
+                if (data.threads && data.threads.length > 0) {
+                  data.threads.forEach(thread => {
+                      const latestMessage = thread.messages[thread.messages.length - 1];
+                      const card = document.createElement('div');
+                      card.className = 'relative border border-gray-200 rounded-lg shadow p-4 cursor-pointer hover:bg-gray-50 transition mb-2';
+                      card.dataset.threadId = thread.id;
+                      card.dataset.read = thread.is_read;
+                      card.dataset.accountId = thread.email_account_id;
+
+                      if (thread.is_read) {
+                          card.classList.add('bg-gray-100', 'hover:bg-gray-200');
+                      } else {
+                          card.classList.add('bg-white', 'hover:bg-gray-50');
+                      }
+
+                      const inboxInfo = document.createElement('p');
+                      inboxInfo.className = 'text-sm text-gray-500';
+                      inboxInfo.textContent = `INBOX: ${thread.email2 || 'N/A'}`;
+                      card.appendChild(inboxInfo);
+
+                      const subjectEl = document.createElement('h3');
+                      subjectEl.className = 'text-md font-semibold text-gray-900 mt-1';
+                      subjectEl.textContent = thread.subject || '(No Subject)';
+                      card.appendChild(subjectEl);
+
+                      const date = new Date(latestMessage.timestamp);
+                      const dateTimeEl = document.createElement('p');
+                      dateTimeEl.className = 'text-sm text-gray-400';
+                      dateTimeEl.textContent = date.toLocaleString();
+                      card.appendChild(dateTimeEl);
+
+                      const previewEl = document.createElement('p');
+                      previewEl.className = 'text-sm text-gray-700 mt-2 line-clamp-2';
+                      previewEl.textContent = latestMessage.body?.slice(0, 150) || '(No message content)'; // Using the latest message's body
+                      card.appendChild(previewEl);
+
+                      card.addEventListener('click', () => {
+                          const threadId = card.dataset.threadId;
+                          openThreadModal(threadId);
+                      });
+                      threadsContainer.appendChild(card);
+                  });
+              } else {
+                  threadsContainer.innerHTML = '<p class="text-gray-500 p-5 text-center bg-white">No threads available.</p>';
+              }
+
+                closeModalBtn.addEventListener('click', () => modal.classList.add('hidden'));
+            })
+            .catch(error => console.error("Error fetching data:", error));
     }
 
-    fetch(fetchUrl)
-      .then(response => response.json())
-      .then(data => {
-        const threadsContainer = document.getElementById('threads-container');
-        const modal = document.getElementById('threadModal');
-        const modalTitle = document.getElementById('modalThreadTitle');
-        const modalMessages = document.getElementById('modalMessages');
-        const toggleReadBtn = document.getElementById('toggleReadBtn');
-        const closeModalBtn = document.getElementById('closeModal');
-        const accountList = document.getElementById('account-list');
-        const allInboxesBtn = document.getElementById('all-inboxes-btn');
-        let allInboxesDot = allInboxesBtn.querySelector('.unread-dot');
-        const inboxTitle = document.getElementById('inbox-title');
-
-        threadsContainer.innerHTML = '';
-        accountList.innerHTML = '';
-
-        if (accountId === null) {
-          totalUnreadCount = data.total_unread_count;
-        }
-
-        if (totalUnreadCount > 0) {
-          if (!allInboxesDot) {
-            allInboxesDot = document.createElement('div');
-            allInboxesDot.className = 'unread-dot w-3 h-3 rounded-full bg-white absolute top-1/2 right-2 -translate-y-1/2';
-            allInboxesBtn.style.position = 'relative';
-            allInboxesBtn.appendChild(allInboxesDot);
-          }
-        } else if (allInboxesDot) {
-          allInboxesDot.remove();
-        }
-
-        const activeAccount = data.email_accounts.find(acc => acc.id === parseInt(accountId));
-        if (activeAccount) {
-          inboxTitle.textContent = `Inbox: ${activeAccount.email_address}`;
-        } else {
-          inboxTitle.textContent = 'All Inboxes';
-        }
-
-        const allInboxesButton = document.getElementById('all-inboxes-btn');
-        allInboxesButton.classList.remove('bg-blue-100', 'border-l-4', 'border-blue-500', 'font-semibold');
-        if (currentAccountId === null) {
-          allInboxesButton.classList.add('bg-blue-100', 'border-l-4', 'border-blue-500', 'font-semibold');
-        }
-        allInboxesButton.addEventListener('click', () => {
-          document.querySelectorAll('.account-item').forEach(item => {
-            item.classList.remove('bg-blue-100', 'border-l-4', 'border-blue-500', 'font-semibold');
-            item.classList.add('bg-white');
-          });
-          currentAccountId = null;
-          allInboxesButton.classList.add('bg-blue-100', 'border-l-4', 'border-blue-500', 'font-semibold');
-          renderThreads();
-        });
-
-        if (data.threads.length === 0) {
-          threadsContainer.innerHTML = `
-            <div class="overflow-auto mx-auto p-5 bg-white max-w-6xl mt-5">
-              <p class="text-gray-500 text-lg md:text-xl">
-                No messages here for the selected account.
-              </p>
-            </div>
-          `;
-        } else {
-          data.threads.forEach(thread => {
-            const emailAccount = data.email_accounts.find(acc => acc.id === thread.email_account_id);
-            const latestMessage = thread.messages[thread.messages.length - 1];
-            const card = document.createElement('div');
-            card.className = 'relative border border-gray-200 rounded-lg shadow p-4 cursor-pointer hover:bg-gray-50 transition';
-            card.dataset.threadId = thread.id;
-            card.dataset.read = thread.is_read; // **Corrected: Use the backend's value directly**
-            card.dataset.accountId = thread.email_account_id;
-
-            const unreadDot = document.createElement('div');
-            unreadDot.className = 'unread-dot w-3 h-3 rounded-full bg-blue-500 absolute top-1/2 right-2 -translate-y-1/2';
-            if (thread.is_read) {
-              card.classList.add('bg-gray-100', 'hover:bg-gray-200');
-            } else {
-              card.classList.add('bg-white', 'hover:bg-gray-50');
-              card.appendChild(unreadDot);
-            }
-            const emailEl = document.createElement('p');
-            emailEl.className = 'text-sm text-gray-500';
-            emailEl.textContent = `INBOX: ${thread ? thread.email2 : 'N/A'}, Thread id: ${thread.id}`;
-            card.appendChild(emailEl);
-            const subjectEl = document.createElement('h3');
-            subjectEl.className = 'text-md font-semibold text-gray-900 mt-1';
-            subjectEl.textContent = thread.subject || '(No Subject)';
-            card.appendChild(subjectEl);
-            const date = new Date(latestMessage.timestamp);
-            const dateTimeEl = document.createElement('p');
-            dateTimeEl.className = 'text-sm text-gray-400';
-            dateTimeEl.textContent = date.toLocaleString();
-            card.appendChild(dateTimeEl);
-            const previewEl = document.createElement('p');
-            previewEl.className = 'text-sm text-gray-700 mt-2 line-clamp-2';
-            previewEl.textContent = latestMessage.body?.slice(0, 150) || '(No message content)';
-            card.appendChild(previewEl);
-
-            card.addEventListener('click', () => {
-              const threadId = card.dataset.threadId;
-              currentThreadId = threadId;
-              fetch(`${markReadUrlBase}${threadId}/`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': getCsrfToken() },
-                body: `is_read=true` // **Corrected: Always mark as read on click**
-              })
-                .then(response => response.json())
-                .then(data => {
-                  if (data.status === 'success') {
-                    renderThreads(currentAccountId);
-                  }
-                })
-                .catch(error => console.error("Error marking read:", error));
-              openThreadModal(threadId);
-            });
-            threadsContainer.appendChild(card);
-          });
-        }
-
-        data.email_accounts.forEach(account => {
-          const listItem = document.createElement('li');
-          listItem.className = 'account-item text-sm text-gray-800 bg-white rounded-full px-4 py-2 cursor-pointer hover:bg-blue-100 transition flex justify-between items-center relative';
-          listItem.innerHTML = `<span>${account.email_address}</span>`;
-          if (account.unread_count > 0 && account.id === currentAccountId) {
-            const unreadDot = document.createElement('div');
-            unreadDot.className = 'unread-dot w-3 h-3 rounded-full bg-blue-500 absolute top-1/2 right-2 -translate-y-1/2';
-            listItem.appendChild(unreadDot);
-          } else if (account.unread_count > 0 && currentAccountId === null) {
-            const unreadDot = document.createElement('div');
-            unreadDot.className = 'unread-dot w-3 h-3 rounded-full bg-blue-500 absolute top-1/2 right-2 -translate-y-1/2';
-            listItem.appendChild(unreadDot);
-          }
-          listItem.dataset.accountId = account.id;
-          listItem.addEventListener('click', () => {
-            document.querySelectorAll('.account-item').forEach(item => {
-              item.classList.remove('bg-blue-100', 'border-l-4', 'border-blue-500', 'font-semibold');
-              item.classList.add('bg-white');
-            });
-            allInboxesButton.classList.remove('bg-blue-100', 'border-l-4', 'border-blue-500', 'font-semibold');
-            listItem.classList.remove('bg-white');
-            listItem.classList.add('bg-blue-100', 'border-l-4', 'border-blue-500', 'font-semibold');
-            renderThreads(account.id);
-          });
-          accountList.appendChild(listItem);
-        });
-
-        closeModalBtn.addEventListener('click', () => modal.classList.add('hidden'));
-      })
-      .catch(error => console.error("Error fetching data:", error));
-  }
-
-  function openThreadModal(threadId) {
+    function openThreadModal(threadId) {
+    currentThreadId = threadId; // Set the currentThreadId when the modal is opened
     const modal = document.getElementById('threadModal');
     const modalTitle = document.getElementById('modalThreadTitle');
     const modalMessages = document.getElementById('modalMessages');
-    const toggleReadBtn = document.getElementById('toggleReadBtn');
     const replyBox = document.getElementById('replyBox');
-    const sendReplyBtn = modal.querySelector('.border-t button');
+    const sendingNotice = document.getElementById('sendingNotice');
+    const sendButtonContainer = modal.querySelector('.border-t .flex.items-center.gap-4');
+    const initialSendButton = modal.querySelector('.border-t .flex.items-center.gap-4 button');
+
+    if (replyBox) {
+        replyBox.addEventListener('input', function() {
+            if (replyBox.value.trim()) {
+                sendingNotice.classList.remove('hidden');
+            } else {
+                sendingNotice.classList.add('hidden');
+            }
+        });
+    }
 
     const threadUrl = `${fetchThreadUrlBase}${threadId}/`;
     fetch(threadUrl)
-      .then(response => response.json())
-      .then(data => {
-        modalTitle.textContent = data.subject || 'Email Thread';
-        modalMessages.innerHTML = '';
-        data.messages.forEach(message => {
-          const fromLabel = message.direction === 'incoming' ? 'From' : 'From';
-          const toLabel = message.direction === 'incoming' ? 'To' : 'To';
+        .then(response => response.json())
+        .then(data => {
+            modalTitle.textContent = data.subject || 'Email Thread';
+            modalMessages.innerHTML = '';
+            data.messages.forEach(message => {
+                const isIncoming = message.direction === 'incoming';
+                const bubbleBgColor = isIncoming ? 'bg-gray-100' : 'bg-blue-200';
+                const bubbleTextColor = 'text-gray-800';
+                const alignmentClass = isIncoming ? 'self-start' : 'self-end';
 
-          const div = `<div class="p-3 rounded-lg mb-2 ${message.direction === 'incoming' ? 'bg-gray-100 text-gray-800 self-start' : 'bg-blue-200 text-gray-800 self-end'}">
-                            <p class="text-sm font-semibold">${fromLabel}: ${message.sender}</p>
-                            <p class="text-sm font-semibold">${toLabel}: ${message.recipient}</p>
-                            <p class="text-xs text-gray-500">${new Date(message.timestamp).toLocaleString()}</p>
+                const messageDiv = `
+                    <div class="mb-2 w-full flex ${alignmentClass} flex-col items-${isIncoming ? 'start' : 'end'}">
+                        <p class="text-xs text-gray-500 mb-1">${isIncoming ? 'From' : 'From'}: ${message.sender}</p>
+                        <div class="${bubbleBgColor} ${bubbleTextColor} rounded-lg p-3 max-w-fit break-words">
                             <p class="mt-1">${message.body}</p>
-                          </div>`;
-          modalMessages.innerHTML += div;
-        });
-        modal.classList.remove('hidden');
-        const currentCard = document.querySelector(`#threads-container > div[data-thread-id="${threadId}"]`);
-        let isRead = false;
-        if (currentCard) {
-          isRead = currentCard.dataset.read === 'true'; // **Corrected: Use the dataset value directly**
-          toggleReadBtn.textContent = isRead ? 'Mark as Unread' : 'Mark as Read';
-        }
+                        </div>
+                        <p class="text-xs text-gray-500 mt-1">${new Date(message.timestamp).toLocaleString()}</p>
+                    </div>
+                `;
+                modalMessages.innerHTML += messageDiv;
+            });
+            modal.classList.remove('hidden');
 
-        toggleReadBtn.onclick = () => {
-          const newReadStatus = !isRead; // Correctly toggle based on *current* isRead
-          fetch(`${markReadUrlBase}${threadId}/`, { // Use the provided URL
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/x-www-form-urlencoded',
-              'X-CSRFToken': getCsrfToken()
-            },
-            body: new URLSearchParams({
-              is_read: newReadStatus // Send the *new* status
-            })
-          })
-            .then(response => response.json())
-            .then(data => {
-              if (data.status === 'success') {
-                isRead = newReadStatus; // Update local state
-                toggleReadBtn.textContent = isRead ? 'Mark as Unread' : 'Mark as Read';
-                if (currentCard) {
-                  currentCard.dataset.read = isRead; // Update DOM
+            modal.addEventListener('click', function(event) {
+                if (event.target === modal) {
+                    modal.classList.add('hidden');
                 }
-                renderThreads(currentAccountId); // Use the provided renderThreads function
-              }
-            })
-            .catch(error => console.error("Error toggling read:", error));
-        };
-        
-        
-        let recipientEmail = null;
-        if (data.messages.length > 0) {
-          const lastMessage = data.messages[data.messages.length - 1];
-          recipientEmail = lastMessage.direction === 'incoming' ? lastMessage.sender : lastMessage.recipient;
+            });
+        })
+        .catch(error => console.error("Error fetching thread:", error));
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('DOM loaded');
+    renderThreads(null);
+    const inboxTitle = document.getElementById('inbox-title');
+    if (inboxTitle) {
+        inboxTitle.textContent = 'All Inboxes';
+    }
+
+    const modal = document.getElementById('threadModal');
+    if (modal) {
+        const replyButton = modal.querySelector('.border-t .flex.items-center.gap-4 button'); // Select the Send button within the modal
+        if (replyButton) {
+            replyButton.addEventListener('click', sendReply);
         }
+    }
+});
 
-        if (sendReplyBtn) {
-          sendReplyBtn.addEventListener('click', () => {
-            const replyContent = replyBox.value;
-            if (replyContent.trim()) {
-              console.log("Recipient Email being sent:", recipientEmail);
-              fetch("{% url 'unibox:unibox_reply' %}", {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/x-www-form-urlencoded',
-                  'X-CSRFToken': getCsrfToken()
-                },
-                body: new URLSearchParams({
-                  thread_id: threadId,
-                  body: replyContent,
-                  recipient: recipientEmail
-                })
-              })
-                .then(response => response.json())
-                .then(replyData => {
-                  if (replyData.status === 'success') {
-                    replyBox.value = '';
-                    openThreadModal(threadId);
-                  } else {
-                    const errorDiv = document.createElement('div');
-                    errorDiv.className = 'text-red-500 mt-2';
-                    errorDiv.textContent = replyData.message || 'Failed to send reply.';
-                    replyBox.parentNode.appendChild(errorDiv);
-                    setTimeout(() => errorDiv.remove(), 3000);
-                  }
-                })
-                .catch(error => {
-                  console.error("Error sending reply:", error);
-                  const errorDiv = document.createElement('div');
-                  errorDiv.className = 'text-red-500 mt-2';
-                  errorDiv.textContent = 'Failed to send reply due to a network error.';
-                  replyBox.parentNode.appendChild(errorDiv);
-                  setTimeout(() => errorDiv.remove(), 3000);
-                });
-            }
-          });
-        }
-      })
-      .catch(error => console.error("Error fetching thread:", error));
-  }
-
-  document.addEventListener('DOMContentLoaded', () => {
-    renderThreads();
-  });
-
-  function getCsrfToken() {
+function getCsrfToken() {
     return document.querySelector('[name=csrfmiddlewaretoken]').value;
-  }
-</script>
+}
 
+function sendReply() {
+    const body = document.getElementById('replyBox').value;
+    if (!body.trim()) {
+        alert('Please enter a reply.');
+        return;
+    }
+
+    if (!currentThreadId) {
+        console.error('No current thread ID to reply to.');
+        alert('Error: Could not determine the thread to reply to.');
+        return;
+    }
+
+    const modal = document.getElementById('threadModal');
+    const modalMessagesElement = document.getElementById('modalMessages');
+    const messageElements = modalMessagesElement.querySelectorAll('.self-start'); // Get all incoming message bubbles
+    const lastIncomingMessageElement = messageElements[messageElements.length - 1]; // Get the last one
+    const sendButtonContainer = modal.querySelector('.border-t .flex.items-center.gap-4');
+    const initialSendButton = modal.querySelector('.border-t .flex.items-center.gap-4 button');
+
+    let recipientEmail = null;
+    if (lastIncomingMessageElement) {
+        const senderElement = lastIncomingMessageElement.querySelector('p:nth-child(1)'); // The 'From: sender@email.com' paragraph
+        if (senderElement) {
+            const senderText = senderElement.textContent;
+            // Extract the email address from "From: sender@email.com"
+            const emailMatch = senderText.match(/From: (.+)/);
+            if (emailMatch && emailMatch[1]) {
+                recipientEmail = emailMatch[1].trim();
+            }
+        }
+    }
+
+    console.log("Extracted recipient email:", recipientEmail);  // Debug log
+
+    if (!recipientEmail) {
+        alert('Could not determine the recipient for the reply.');
+        return;
+    }
+
+    // Disable the send button and show the loading state
+    if (sendButtonContainer && initialSendButton) {
+        const loadingButtonHTML = `
+            <button disabled type="button" class="text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center me-2 inline-flex items-center">
+                <svg aria-hidden="true" role="status" class="inline w-4 h-4 me-3 text-white animate-spin" viewBox="0 0 100 101" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M100 50.5908C100 78.2051 77.6142 100.591 50 100.591C22.3858 100.591 0 78.2051 0 50.5908C0 22.9766 22.3858 0.59082 50 0.59082C77.6142 0.59082 100 22.9766 100 50.5908ZM9.08144 50.5908C9.08144 73.1895 27.4013 91.5094 50 91.5094C72.5987 91.5094 90.9186 73.1895 90.9186 50.5908C90.9186 27.9921 72.5987 9.67226 50 9.67226C27.4013 9.67226 9.08144 27.9921 9.08144 50.5908Z" fill="#E5E7EB"/>
+                    <path d="M93.9676 39.0409C96.393 38.4038 97.8624 35.9116 97.0079 33.5539C95.2932 28.8227 92.871 24.3692 89.8167 20.348C85.8452 15.1192 80.8826 10.7238 75.2124 7.41289C69.5422 4.10194 63.2754 1.94025 56.7698 1.05124C51.7666 0.367541 46.6976 0.446843 41.7345 1.27873C39.2613 1.69328 37.813 4.19778 38.4501 6.62326C39.0873 9.04874 41.5694 10.4717 44.0505 10.1071C47.8511 9.54855 51.7191 9.52689 55.5402 10.0491C60.8642 10.7766 65.9928 12.5457 70.6331 15.2552C75.2735 17.9648 79.3347 21.5619 82.5849 25.841C84.9175 28.9121 86.7997 32.2913 88.1811 35.8758C89.083 38.2158 91.5421 39.6781 93.9676 39.0409Z" fill="currentColor"/>
+                </svg>
+                Sending...
+            </button>
+        `;
+        sendButtonContainer.innerHTML = loadingButtonHTML;
+    }
+
+    const csrfToken = getCsrfToken();
+    const replyUrl = "{% url 'unibox:reply' %}"; // Ensure this URL is correctly defined
+
+    fetch(replyUrl, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': csrfToken,
+        },
+        body: `thread_id=${currentThreadId}&body=${encodeURIComponent(body)}&recipient_email=${encodeURIComponent(recipientEmail)}`,
+    })
+    .then(response => response.json())
+    .then(data => {
+        // Revert the button to its original state
+        if (sendButtonContainer) {
+            sendButtonContainer.innerHTML = `<button class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Send</button>`;
+            const newSendButton = sendButtonContainer.querySelector('button');
+            if (newSendButton) {
+                newSendButton.addEventListener('click', sendReply);
+            }
+        }
+
+        if (data.status === 'success') {
+            document.getElementById('replyBox').value = ''; // Clear the reply box
+            openThreadModal(currentThreadId); // Re-fetch and re-render the thread
+        } else {
+            alert(`Reply failed: ${data.message}`);
+        }
+    })
+    .catch(error => {
+        // Revert the button to its original state on error as well
+        if (sendButtonContainer) {
+            sendButtonContainer.innerHTML = `<button class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Send</button>`;
+            const newSendButton = sendButtonContainer.querySelector('button');
+            if (newSendButton) {
+                newSendButton.addEventListener('click', sendReply);
+            }
+        }
+        console.error('Error sending reply:', error);
+        alert('Failed to send reply. Please try again.');
+    });
+  }
+
+</script>
 
 <style>
   .account-item > span {
