@@ -8,7 +8,8 @@ from django.http import JsonResponse
 from dashboard.models import OutgoingEmailMessage, IncomingEmailMessage
 from unibox.models import EmailThread
 import re
-from django.db.models import Count
+from django.db.models import Count, Max
+from django.db.models.functions import Greatest
 from django.views.decorators.http import require_POST
 from django.core.mail import get_connection, EmailMultiAlternatives
 from email.utils import make_msgid
@@ -94,18 +95,24 @@ def index(request):
         except EmailAccount.DoesNotExist:
             threads = threads.none()
 
+    # Annotate threads with the latest message timestamp.  This is the key change.
+    threads = threads.annotate(
+        latest_incoming_timestamp=Max('incoming_messages__received_at')
+    ).order_by('is_read', '-latest_incoming_timestamp') # Order by the latest timestamp
+
 
     # Step 6: Unread counts for each mailbox
     unread_counts = EmailThread.objects.filter(
-        mailbox__from_email__in=email_accounts.values_list('email_address', flat=True),
+        email2__in=email_accounts.values_list('email_address', flat=True),
         is_read=False
-    ).values('mailbox__from_email').annotate(count=Count('id'))
+    ).values('email2').annotate(count=Count('id'))
 
-    # Map mailbox emails to EmailAccount IDs
+
+    # Map email address to account ID
     email_to_account_id = {acc.email_address: acc.id for acc in email_accounts}
     unread_counts_dict = {
-        email_to_account_id.get(item['mailbox__from_email']): item['count']
-        for item in unread_counts if email_to_account_id.get(item['mailbox__from_email']) is not None
+        email_to_account_id.get(item['email2']): item['count']
+        for item in unread_counts if email_to_account_id.get(item['email2']) is not None
     }
 
     # Step 7: Build email_accounts list with unread count
@@ -220,6 +227,25 @@ def get_thread_messages(request, thread_id):
     }
     return JsonResponse(data)
 
+
+@login_required
+def delete_thread(request, thread_id):
+    if request.method == 'POST':
+        try:
+            thread = get_object_or_404(EmailThread, id=thread_id)
+
+            # Only allow if the thread email2 matches one of the user's accounts
+            user_emails = EmailAccount.objects.filter(user=request.user).values_list('email_address', flat=True)
+            if thread.email2 not in user_emails:
+                return JsonResponse({'status': 'error', 'message': 'Permission denied'}, status=403)
+
+            thread.delete()
+            return JsonResponse({'status': 'success', 'message': 'Thread deleted'})
+
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+
+    return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
 
 
 @login_required

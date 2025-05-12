@@ -42,8 +42,8 @@ def send_unread_notification(mailbox_email):
     Args:
         mailbox_email (str): The email address of the mailbox.
     """
-    subject = "Dispatch Skool: New Unread Messages"
-    message = "You have new unread messages in your mail boxes. Please log in to view them."
+    subject = "New Unread Messages"
+    message = "You have new unread messages in your Dispatch Skool mail boxes. Please log in to view them."
     from_email = settings.EMAIL_HOST_USER
     recipient_list = [mailbox_email]
 
