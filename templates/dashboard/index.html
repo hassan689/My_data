@@ -96,6 +96,7 @@
                       </svg>
                     </button>
 
+                    <a href="{% url 'dashboard:campaign' email_account_id=account.id %}" class="px-3 py-1 text-sm font-semibold text-green-500 border border-green-500 rounded hover:bg-green-500 hover:text-white transition-colors whitespace-nowrap">Launch Campaign</a>
                     {% if not account.imap_settings %}
                     <a href="{% url 'unibox:add_imap_settings' email_account_id=account.id %}" class="px-3 py-1 text-sm font-semibold text-blue-500 border border-blue-500 rounded hover:bg-blue-500 hover:text-white transition-colors whitespace-nowrap">
                       Configure IMAP
@@ -114,9 +115,6 @@
                         <a href="{% url 'dashboard:email_account_delete' account.id %}" class="block px-4 py-2 hover:bg-gray-200 font-semibold">Delete</a>
                       </li>
                       {% endif %}
-                      <li>
-                        <a href="{% url 'dashboard:campaign' email_account_id=account.id %}" class="block px-4 py-2 hover:bg-gray-200 font-semibold">Launch Campaign</a>
-                      </li>
                     </ul>
                   </div>
                 </td>

@@ -9,7 +9,6 @@ from dashboard.models import OutgoingEmailMessage, IncomingEmailMessage
 from unibox.models import EmailThread
 import re
 from django.db.models import Count, Max
-from django.db.models.functions import Greatest
 from django.views.decorators.http import require_POST
 from django.core.mail import get_connection, EmailMultiAlternatives
 from email.utils import make_msgid
@@ -50,7 +49,7 @@ def add_imap_settings(request, email_account_id):
             # Create new Mailbox
             Mailbox.objects.create(
                 name = f"Mailbox-{email_account.id}",
-                uri = uri,
+                uri = f"{uri}?archive=DispatchSkool",
                 from_email = email_account.email_address,
                 active = True
             )
@@ -95,7 +94,14 @@ def index(request):
         except EmailAccount.DoesNotExist:
             threads = threads.none()
 
-    # Annotate threads with the latest message timestamp.  This is the key change.
+    # Step 6: Annotate and filter threads where total message count > 0
+    threads = threads.annotate(
+        num_messages=Count('incoming_messages', distinct=True) + Count('outgoing_messages', distinct=True)
+    ).filter(
+        num_messages__gt=0
+    )
+
+    # Step 7: Annotate threads with the latest message timestamp and order them
     threads = threads.annotate(
         latest_incoming_timestamp=Max('incoming_messages__received_at')
     ).order_by('is_read', '-latest_incoming_timestamp') # Order by the latest timestamp

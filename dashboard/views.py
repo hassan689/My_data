@@ -63,13 +63,6 @@ def send_emails(email_account, leads, subject, body, delay, mailbox):
 
                 message_id = make_msgid(domain='dispatchskool.com')
 
-                new_thread = EmailThread.objects.create(
-                    subject=personalized_subject,
-                    mailbox=mailbox,
-                    email1=email_account.email_address, #sender
-                    email2=lead['email'] #receiver
-                )
-
                 try:
                     
                     # Send email using EmailMultiAlternatives
@@ -83,6 +76,13 @@ def send_emails(email_account, leads, subject, body, delay, mailbox):
                     msg.extra_headers = {'Message-ID': message_id}
                     msg.attach_alternative(personalized_body, "text/html")  # Attach HTML version
                     msg.send()
+
+                    new_thread = EmailThread.objects.create(
+                        subject=personalized_subject,
+                        mailbox=mailbox,
+                        email1=email_account.email_address, #sender
+                        email2=lead['email'] #receiver
+                    )
 
                     OutgoingEmailMessage.objects.create(
                         subject=personalized_subject,
@@ -522,12 +522,6 @@ def send_bulk_emails(mailbox, email_account, leads, subject, body, delay):
             personalized_body = body.replace("[name]", str(lead['name'])).replace("[mc_number]", str(lead['mc_number']))
 
             message_id = make_msgid(domain='dispatchskool.com')
-            new_thread = EmailThread.objects.create(
-                    subject=personalized_subject,
-                    mailbox=mailbox,
-                    email1=email_account.email_address, #sender
-                    email2=lead['email'] #receiver
-                )
 
             try:
                 msg = EmailMultiAlternatives(
@@ -539,6 +533,13 @@ def send_bulk_emails(mailbox, email_account, leads, subject, body, delay):
                 )
                 msg.attach_alternative(personalized_body, "text/html")
                 msg.send()
+
+                new_thread = EmailThread.objects.create(
+                    subject=personalized_subject,
+                    mailbox=mailbox,
+                    email1=email_account.email_address, #sender
+                    email2=lead['email'] #receiver
+                )
 
                 OutgoingEmailMessage.objects.create(
                     subject=personalized_subject,

@@ -10,6 +10,7 @@ import re
 from django.core.mail import send_mail
 from django.conf import settings
 import threading
+import imaplib
 
 
 def extract_reply_only(body):
@@ -129,7 +130,8 @@ def process_mailbox(mailbox):
                     received_at=received_at
                 )
                 new_messages_created = True  # Set the flag
-                to_delete_ids.append(msg.id)
+                Message.objects.get(id=msg.id).delete()
+                # to_delete_ids.append(msg.id)
                 processed_count += 1
                 continue  # Skip rest of logic for this case
             except OutgoingEmailMessage.DoesNotExist:
@@ -188,9 +190,10 @@ def process_mailbox(mailbox):
                     )
                 else:
                     # Keyword matching
-                    keywords = ['dispatch', 'service', 'load', 'driver', 'carrier', 'fmcsa', 'truck', 'quote', 'request']
+                    keywords = ['dispatch', 'service', 'load', 'driver', 'carrier', 'fmcsa', 'truck', 'trucking', 'quote', 'request']
                     if not any(keyword in subject.lower() for keyword in keywords):
-                        to_delete_ids.append(msg.id)
+                        Message.objects.get(id=msg.id).delete()
+                        # to_delete_ids.append(msg.id)
                         deleted_count += 1
                         continue
                     else:
@@ -213,14 +216,15 @@ def process_mailbox(mailbox):
                 received_at=received_at
             )
             new_messages_created = True  # Set the flag
-            to_delete_ids.append(msg.id)
+            Message.objects.get(id=msg.id).delete()
+            # to_delete_ids.append(msg.id)
             processed_count += 1
 
         except Exception as e:
             print(f"Error processing message {msg.id}: {e}")
 
-    if to_delete_ids:
-        deleted_count += Message.objects.filter(id__in=to_delete_ids).delete()[0]
+    # if to_delete_ids:
+    #     deleted_count += Message.objects.filter(id__in=to_delete_ids).delete()[0]
 
     print(f"Total processed: {processed_count}")
     print(f"Deleted {deleted_count} messages.")
@@ -236,18 +240,47 @@ def process_incoming_emails():
     Main function to fetch and process incoming emails for all mailboxes.
     """
     # Step 1: Fetch new emails for all mailboxes
-    call_command('getmail')
 
-    # Step 2: Fetch all registered mailboxes
-    mailboxes = Mailbox.objects.all()
-    print(mailboxes)
+    troubled_mailboxes = []
+    active_mailboxes = Mailbox.objects.all()
+    print(f"Processing {active_mailboxes.count()} active mailboxes...")
 
-    # Limit processing to 5 mailboxes at a time (or less if fewer exist)
-    max_workers = min(5, mailboxes.count())
+    fetched_mailboxes = []
 
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        for mailbox in mailboxes:
-            executor.submit(process_mailbox, mailbox)
+    for mailbox in active_mailboxes:
+        print(f"Attempting to fetch mail for: ({mailbox.from_email})")
+        try:
+            mailbox.get_new_mail()
+            print(f"Successfully fetched mail for: {mailbox.from_email}")
+            fetched_mailboxes.append(mailbox)
+        except imaplib.IMAP4.error as e:
+            troubled_mailboxes.append(f"{mailbox.from_email} - Authentication Failed: {e}")
+        except Exception as e:
+            troubled_mailboxes.append(f"{mailbox.from_email} - Fetch Error: {e}")
+
+    # Step 2: Process the successfully fetched emails using ThreadPoolExecutor
+    if fetched_mailboxes:
+        max_workers = min(5, len(fetched_mailboxes))
+        print(f"Processing fetched mail for {len(fetched_mailboxes)} mailboxes")
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            for mailbox in fetched_mailboxes:
+                executor.submit(process_mailbox, mailbox)
+    else:
+        print("No mailboxes had successful fetching attempts.")
+
+    # Step 3: Send email report for troubled mailboxes
+    if troubled_mailboxes and settings.EMAIL_HOST_USER:
+        subject = "Problematic Email Accounts During Mail Fetch"
+        body = "The following email accounts encountered issues while attempting to fetch new mail:\n\n"
+        body += "\n".join(troubled_mailboxes)
+        body += "\n\nPlease investigate these issues."
+        try:
+            send_mail(subject, body, settings.EMAIL_HOST_USER, ["abdullahatif132@gmail.com",])
+            print(f"Sent email report about {len(troubled_mailboxes)} problematic mailboxes to {settings.EMAIL_HOST_USER}")
+        except Exception as e:
+            print(f"Error sending email report: {e}")
+    else:
+        print("No troublesome mailboxes found during mail fetch.")
 
 
 
