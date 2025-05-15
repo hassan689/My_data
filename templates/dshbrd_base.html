@@ -24,22 +24,16 @@
 		[data-accordion-target]:hover {
 				background-color: white !important;
 		}
-    body, #thread-section {
-      /* background-color: #ebfbff; */
-      background-image: url("{% static 'imgs/bg.webp' %}");
-      background-repeat: no-repeat;
-      background-size: cover;
-    }
 
 	</style>
 
 </head>
 
-	<body class="font-sans">
+	<body class="bg-slate-50 font-sans">
 		
 		{% include 'dshbrd_sidebar.html' %}
 
-    {% block 'content' %}{% endblock %}
+		{% block 'content' %}{% endblock %}
 
 		{% block 'script' %}{% endblock %}
 

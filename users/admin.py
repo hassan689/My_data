@@ -1,10 +1,9 @@
 from django.contrib import admin, messages
 from django.contrib.auth.admin import UserAdmin
-from .models import CustomUser, EmailAccount, IMAPSettings
+from .models import CustomUser, EmailAccount
 from django.forms import PasswordInput
 from django import forms
 from django.core.exceptions import ValidationError
-from django.db.models import Count
 
 # ✅ Customizing CustomUser Admin
 @admin.register(CustomUser)
@@ -14,17 +13,16 @@ class CustomUserAdmin(UserAdmin):
         "company_name",
         "date_joined", 
         "on_free_trial",
-        "email_account_count",
     )
     search_fields = ("username", "email", "first_name", "last_name", "company_name")
     list_filter = ("on_free_trial",)
     list_editable = ("on_free_trial",)
-    ordering = ("-date_joined",)  # ⚡ Only real database fields here
+    ordering = ("-date_joined",)
 
     fieldsets = (
         ("Personal Information", {"fields": ("username", "first_name", "last_name", "email", "phone_number")}),
         ("Company Details", {"fields": ("company_name", "website_link", "mc_number")}),
-        ("Subscription Info", {"fields": ("on_free_trial",)}),
+        ("Subscription Info", {"fields": ("on_free_trial", )}),
         ("Permissions", {"fields": ("is_active", "is_staff", "is_superuser", "groups", "user_permissions")}),
         ("Important Dates", {"fields": ("last_login", "date_joined")}),
     )
@@ -35,18 +33,10 @@ class CustomUserAdmin(UserAdmin):
             "fields": (
                 "username", "email", "first_name", "last_name", "phone_number",
                 "password1", "password2", "company_name", "website_link", "mc_number",
-                "on_free_trial", "is_active", "is_staff", "is_superuser", "groups", "user_permissions",
+                "on_free_trial", "is_active", "is_staff", "is_superuser", "groups", "user_permissions"
             ),
         }),
     )
-
-    def get_queryset(self, request):
-        qs = super().get_queryset(request)
-        return qs.annotate(email_account_count=Count("email_accounts"))
-
-    @admin.display(ordering="email_account_count")  # ✅ clicking the column can still sort!
-    def email_account_count(self, obj):
-        return obj.email_account_count or 0
 
 
 
@@ -84,19 +74,12 @@ class EmailAccountForm(forms.ModelForm):
         return email_account
 
 
-class IMAPSettingsInline(admin.StackedInline):
-    model = IMAPSettings
-
-
 @admin.register(EmailAccount)
 class EmailAccountAdmin(admin.ModelAdmin):
     form = EmailAccountForm  # Use custom form with decryption
-    list_display = ("user", "company_name", "email_address", "email_provider", "last_used_at")
+    list_display = ("user", "company_name", "email_address", "email_provider", "server_type", "last_used_at")
     list_filter = ("last_used_at", "email_provider")
     search_fields = ("email_address", "user__username")
-
-    # Include IMAPSettings as inline in EmailAccount admin form
-    inlines = [IMAPSettingsInline]
     
     def company_name(self, obj):
         return obj.user.company_name  # Accessing company_name from related CustomUser model
@@ -111,12 +94,8 @@ class EmailAccountAdmin(admin.ModelAdmin):
 				
     def save_model(self, request, obj, form, change):
         try:
-            # Explicitly call clean() before saving
-            obj.clean()
+            obj.clean()  # Explicitly call clean() before saving
             obj.save()
-
         except ValidationError as e:
-            # If there is a validation error, display the message
             self.message_user(request, e.messages[0], level=messages.ERROR)
-
 

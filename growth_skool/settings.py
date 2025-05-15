@@ -45,12 +45,10 @@ INSTALLED_APPS = [
 		'subscriptions.apps.SubscriptionsConfig',
 		'leads_data.apps.LeadsDataConfig',
 		'dashboard.apps.DashboardConfig',
-    'unibox.apps.UniboxConfig',
 
 		'widget_tweaks',
 		'django_q',
 		'django_ckeditor_5',
-    'django_mailbox',
 ]
 
 Q_CLUSTER = {
@@ -144,14 +142,14 @@ WSGI_APPLICATION = 'growth_skool.wsgi.application'
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
 DATABASES = {
-  'default': {
-      'ENGINE': 'django.db.backends.postgresql_psycopg2',
-      'NAME': 'growth_skool_3',
-      'USER': 'postgres',
-      'PASSWORD': '1234',
-      'HOST': 'localhost',
-      'PORT': '5432',
-  }
+   'default': {
+       'ENGINE': 'django.db.backends.postgresql_psycopg2',
+       'NAME': 'growth_skool_3',
+       'USER': 'postgres',
+       'PASSWORD': '1234',
+       'HOST': 'localhost',
+       'PORT': '5432',
+   }
 }
 
 CACHES = {
@@ -195,12 +193,31 @@ USE_TZ = True
 
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.hostinger.com'
-EMAIL_USE_SSL = True
+EMAIL_USE_TLS = False  # Enable TLS
+EMAIL_USE_SSL = True  # Disable SSL
 EMAIL_PORT = 465  # TLS requires port 587
-EMAIL_HOST_USER = "joseph@truckingstory.com"
+EMAIL_HOST_USER = "jordan@truckingstory.com"
 EMAIL_HOST_PASSWORD = "Ahmad@2134"
 
-DEFAULT_FROM_EMAIL = "joseph@truckingstory.com"
+DEFAULT_FROM_EMAIL = "jordan@truckingstory.com"
+
+LOGGING = {
+    "version": 1,
+    "handlers": {
+        "file": {
+            "level": "DEBUG",
+            "class": "logging.FileHandler",
+            "filename": "django_email.log",
+        },
+    },
+    "loggers": {
+        "django": {
+            "handlers": ["file"],
+            "level": "DEBUG",
+            "propagate": True,
+        },
+    },
+}
 
 
 # Static files (CSS, JavaScript, Images)
