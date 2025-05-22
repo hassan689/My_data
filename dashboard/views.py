@@ -15,10 +15,12 @@ from threading import Thread
 from django.core.cache import cache
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
-from math import ceil
+import re
 
 ######################################## Campaign sending views
 
+# Basic email regex for quick pre-validation (can be more robust if needed)
+email_regex = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
 
 def send_emails(email_account, leads, subject, body, delay):
     """Sends multiple personalized emails using Django's `EmailMultiAlternatives` in a separate thread."""
@@ -49,12 +51,20 @@ def send_emails(email_account, leads, subject, body, delay):
 
             # Open the SMTP connection
             try:
-              connection.open()
+                connection.open()
             except Exception as e:
-              print(f"exception while opening connection: {e}")
+                # If connection fails to open, none will be sent for this account.
+                print(f"Exception while opening connection for {email_account.email_address}: {e}")
+                return # Exit this thread's execution if connection fails
 
             # Send personalized emails
+            sent_count = 0
             for lead in leads:
+                # --- CRITICAL NEW CHECK HERE ---
+                if not lead.get('email') or not re.match(email_regex, lead['email']):
+                    print(f"Skipping lead due to invalid or empty email: {lead.get('email', 'N/A')}")
+                    continue # Skip this lead and proceed to the next
+                
                 personalized_subject = subject.replace("[name]", str(lead['name'])).replace("[mc_number]", str(lead['mc_number']))
                 personalized_body = body.replace("[name]", str(lead['name'])).replace("[mc_number]", str(lead['mc_number']))
 
@@ -68,13 +78,14 @@ def send_emails(email_account, leads, subject, body, delay):
                     )
                     msg.attach_alternative(personalized_body, "text/html")  # Attach the HTML version
                     msg.send()
-
-                    # Add the delay here before sending the next email
-                    time.sleep(delay)  # delay in seconds, whether from minutes or directly in seconds
-                except:
+                    sent_count += 1
+                    time.sleep(delay)
+                except Exception as e: # Catch any specific error for this email and continue
+                    print(f"Error sending email to {lead['email']} from {email_account.email_address}: {e}")
+                    # This email failed, but we continue to the next one
                     continue
 
-            print(f"Emails sent successfully to {len(leads)} recipients.")
+            print(f"Emails sent successfully to {sent_count} out of {len(leads)} recipients using {email_account.email_address}.")
 
             # Close the SMTP connection after sending
             connection.close()
@@ -94,10 +105,13 @@ def send_emails(email_account, leads, subject, body, delay):
 def process_excel_file(file):
     if not file.name.endswith('.xlsx'):
         return []
-    
+
+    # Basic email regex for quick pre-validation (can be more robust if needed)
+    email_regex = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
+
     try:
         df = pd.read_excel(file)
-        
+
         normalized_columns = {col: col.strip().lower().replace(" ", "") for col in df.columns}
         column_mapping = {}
         expected_columns = {
@@ -105,22 +119,23 @@ def process_excel_file(file):
             'name': ['name', 'legalname'],
             'email': ['email', 'emailaddress']
         }
-        
+
         for key, aliases in expected_columns.items():
             for col, norm_col in normalized_columns.items():
                 if norm_col in aliases:
                     column_mapping[key] = col
-                    break 
+                    break
 
         if 'email' not in column_mapping or 'mc_number' not in column_mapping:
+            # If essential columns are missing, return empty list
+            print("Required 'email' or 'mc_number' column not found in the Excel file.")
             return []
 
-        # ✅ NEW: Helper to clean values (e.g., remove .0 from float or strip spaces)
         def clean_value(val):
             if pd.isnull(val):
                 return ''
             if isinstance(val, float) and val.is_integer():
-                return str(int(val))  # ✅ CHANGED: Prevents float to string issues
+                return str(int(val))
             return str(val).strip()
 
         def normalize_mc_number(val):
@@ -128,16 +143,27 @@ def process_excel_file(file):
             if not val.lower().startswith('mc'):
                 return f"MC {val}"
             return val
-        
-        leads = [
-            {
-                'mc_number': normalize_mc_number(row[column_mapping['mc_number']]),
-                'name': clean_value(row.get(column_mapping.get('name', ''), '')),
-                'email': clean_value(row[column_mapping['email']])
-            }
-            for _, row in df.iterrows()
-            if pd.notnull(row[column_mapping['email']])
-        ]
+
+        leads = []
+        for _, row in df.iterrows():
+            # Get and clean/normalize all relevant values first
+            mc_number_val = normalize_mc_number(row.get(column_mapping.get('mc_number', ''), ''))
+            name_val = clean_value(row.get(column_mapping.get('name', ''), ''))
+            email_val = clean_value(row.get(column_mapping.get('email', ''), ''))
+
+            # Filter out leads if any of the required fields are empty
+            # or if the email format is invalid
+            if (mc_number_val and name_val and email_val and
+                re.match(email_regex, email_val)):
+                leads.append({
+                    'mc_number': mc_number_val,
+                    'name': name_val,
+                    'email': email_val
+                })
+            else:
+                # Optional: Print a message for leads that were skipped
+                print(f"Skipping lead due to missing/invalid data: MC: '{mc_number_val}', Name: '{name_val}', Email: '{email_val}'")
+
 
         return leads
     except Exception as e:
@@ -210,92 +236,6 @@ def campaign(request, email_account_id):
         form = CampaignForm(user=request.user)
 
     return render(request, 'dashboard/campaign.html', {'form': form, 'email_account': email_account})
-
-
-# @login_required
-# def bulk_campaign(request):
-#     email_accounts = EmailAccount.objects.filter(user=request.user)
-#     email_accounts_count = email_accounts.count()
-
-#     form = BulkCampaignForm(user=request.user)
-
-#     if request.method == 'POST':
-#         form = BulkCampaignForm(request.POST, request.FILES, user=request.user)
-
-#         if form.is_valid():
-#             email_subject = form.cleaned_data['email_subject']
-#             email_body = form.cleaned_data['email_body']
-#             file_upload = form.cleaned_data['file_upload']
-#             mc_number = form.cleaned_data['mc_number']
-#             targets_count = form.cleaned_data['targets_count']
-#             delay = form.cleaned_data.get('delay') or 0
-#             delay_unit = form.cleaned_data.get('delay_unit')
-
-#             if delay_unit == 'minutes':
-#                 delay *= 60
-
-#             leads = []
-#             if file_upload:
-#                 leads = process_excel_file(file_upload)
-#             elif mc_number and not request.user.on_free_trial:
-#                 leads = get_leads_from_db(mc_number, targets_count)
-
-#             if not leads:
-#                 messages.error(request, "No valid leads found.")
-#                 return redirect('dashboard:index')
-
-#             selected_account_ids = request.POST.getlist('selected_accounts')
-#             account_lead_map = {}
-#             total_requested_leads = 0
-
-#             for account_id in selected_account_ids:
-#                 try:
-#                     num_leads = int(request.POST.get(f'emails_for_account_{account_id}', '0'))
-#                     if num_leads < 1:
-#                         continue
-#                     account = EmailAccount.objects.get(id=account_id, user=request.user)
-#                     account_lead_map[account] = num_leads
-#                     total_requested_leads += num_leads
-#                 except (ValueError, EmailAccount.DoesNotExist):
-#                     continue
-
-#             if total_requested_leads > len(leads):
-#                 messages.error(
-#                     request,
-#                     f"You requested {total_requested_leads} leads, but only {len(leads)} available."
-#                 )
-#                 return redirect(request.path)
-
-#             def start_campaign():
-#                 lead_index = 0
-#                 with ThreadPoolExecutor(max_workers=min(5, len(account_lead_map))) as executor:
-#                     for account, lead_count in account_lead_map.items():
-#                         assigned_leads = leads[lead_index:lead_index + lead_count]
-#                         lead_index += lead_count
-#                         if assigned_leads:
-#                             executor.submit(
-#                                 send_bulk_emails,
-#                                 account,
-#                                 assigned_leads,
-#                                 email_subject,
-#                                 email_body,
-#                                 delay
-#                             )
-
-#             Thread(target=start_campaign).start()
-
-#             messages.success(request, "Campaign has started across selected email accounts!")
-#             return redirect('dashboard:index')
-#         else:
-#             print(form.errors)
-#             return redirect(request.path)
-
-#     return render(request, 'dashboard/bulk_campaign.html', {
-#         'form': form,
-#         'email_accounts': email_accounts,
-#         'email_accounts_count': email_accounts_count
-#     })
-
 
 
 def distribute_leads_among_accounts(leads, accounts):
@@ -529,10 +469,18 @@ def send_bulk_emails(email_account, leads, subject, body, delay):
         try:
             connection.open()
         except Exception as e:
-            print(f"Exception while opening connection: {e}")
-            return
+            # If connection fails to open, none will be sent for this account.
+            print(f"Exception while opening connection for {email_account.email_address}: {e}")
+            return # Exit this function's execution if connection fails
 
+        sent_count = 0
         for lead in leads:
+            
+            # --- CRITICAL NEW CHECK HERE ---
+            if not lead.get('email') or not re.match(email_regex, lead['email']):
+                print(f"Skipping lead due to invalid or empty email: {lead.get('email', 'N/A')}")
+                continue # Skip this lead and proceed to the next
+
             personalized_subject = subject.replace("[name]", str(lead['name'])).replace("[mc_number]", str(lead['mc_number']))
             personalized_body = body.replace("[name]", str(lead['name'])).replace("[mc_number]", str(lead['mc_number']))
 
@@ -546,19 +494,21 @@ def send_bulk_emails(email_account, leads, subject, body, delay):
                 )
                 msg.attach_alternative(personalized_body, "text/html")
                 msg.send()
+                sent_count += 1
                 time.sleep(delay)
-            except Exception as e:
-                print(f"Error sending email to {lead['email']}: {e}")
+            except Exception as e: # Catch any specific error for this email and continue
+                print(f"Error sending email to {lead['email']} from {email_account.email_address}: {e}")
+                # This email failed, but we continue to the next one
                 continue
 
         connection.close()
         email_account.last_used_at = now()
         email_account.save(update_fields=["last_used_at"])
 
-        print(f"✅ Emails sent using {email_account.email_address}")
+        print(f"✅ Emails sent successfully to {sent_count} of {len(leads)} recipients using {email_account.email_address}")
 
     except Exception as e:
-        print(f"❌ Error in sending emails: {e}")
+        print(f"❌ Error in sending emails for account {email_account.email_address}: {e}")
 
 
 

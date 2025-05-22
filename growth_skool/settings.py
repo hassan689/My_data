@@ -144,7 +144,7 @@ WSGI_APPLICATION = 'growth_skool.wsgi.application'
 DATABASES = {
    'default': {
        'ENGINE': 'django.db.backends.postgresql_psycopg2',
-       'NAME': 'growth_skool_3',
+       'NAME': 'growht_skool_3',
        'USER': 'postgres',
        'PASSWORD': '1234',
        'HOST': 'localhost',
