@@ -53,7 +53,7 @@ INSTALLED_APPS = [
 
 Q_CLUSTER = {
     'name': 'pdm',
-    'workers': 1,
+    'workers': 5,
     'recycle': 500,
     'timeout': 60,
     'retry': 120,

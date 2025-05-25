@@ -4,14 +4,12 @@ from users.models import EmailAccount
 from .forms import EmailAccountForm, CampaignForm, BulkCampaignForm
 from leads_data.models import Lead, DailySheet
 import pandas as pd
-from django.utils.timezone import now
 from django.contrib import messages
-from django.core.mail import get_connection, EmailMultiAlternatives, EmailMessage
+from django.core.mail import get_connection, EmailMessage
 from concurrent.futures import ThreadPoolExecutor
+from django_q.tasks import async_task
 from django.core.exceptions import ValidationError
-import time
 from django.conf import settings
-from threading import Thread
 from django.core.cache import cache
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
@@ -25,81 +23,84 @@ email_regex = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
 def send_emails(email_account, leads, subject, body, delay):
     """Sends multiple personalized emails using Django's `EmailMultiAlternatives` in a separate thread."""
 
-    def _send():
-        try:
-            # Decrypt the stored password before using it
-            decrypted_password = email_account.get_password()
+    async_task('dashboard.tasks.send_emails_task', email_account.id, leads, subject, body, delay)
 
-            # Determine the SMTP security type
-            use_tls = email_account.server_type == "TLS"
-            use_ssl = email_account.server_type == "SSL"
+    # --- Legacy threading code (commented out for reference) ---
+    # def _send():
+    #     try:
+    #         # Decrypt the stored password before using it
+    #         decrypted_password = email_account.get_password()
 
-            if use_tls and use_ssl:
-                print("Invalid configuration: Cannot enable both TLS and SSL.")
-                return
+    #         # Determine the SMTP security type
+    #         use_tls = email_account.server_type == "TLS"
+    #         use_ssl = email_account.server_type == "SSL"
 
-            # Create a custom SMTP connection using Django's EmailBackend
-            connection = get_connection(
-                backend="django.core.mail.backends.smtp.EmailBackend",
-                host=email_account.host,
-                port=email_account.port_number,
-                username=email_account.email_address,
-                password=decrypted_password,
-                use_tls=use_tls,
-                use_ssl=use_ssl,
-            )
+    #         if use_tls and use_ssl:
+    #             print("Invalid configuration: Cannot enable both TLS and SSL.")
+    #             return
 
-            # Open the SMTP connection
-            try:
-                connection.open()
-            except Exception as e:
-                # If connection fails to open, none will be sent for this account.
-                print(f"Exception while opening connection for {email_account.email_address}: {e}")
-                return # Exit this thread's execution if connection fails
+    #         # Create a custom SMTP connection using Django's EmailBackend
+    #         connection = get_connection(
+    #             backend="django.core.mail.backends.smtp.EmailBackend",
+    #             host=email_account.host,
+    #             port=email_account.port_number,
+    #             username=email_account.email_address,
+    #             password=decrypted_password,
+    #             use_tls=use_tls,
+    #             use_ssl=use_ssl,
+    #         )
 
-            # Send personalized emails
-            sent_count = 0
-            for lead in leads:
-                # --- CRITICAL NEW CHECK HERE ---
-                if not lead.get('email') or not re.match(email_regex, lead['email']):
-                    print(f"Skipping lead due to invalid or empty email: {lead.get('email', 'N/A')}")
-                    continue # Skip this lead and proceed to the next
+    #         # Open the SMTP connection
+    #         try:
+    #             connection.open()
+    #         except Exception as e:
+    #             # If connection fails to open, none will be sent for this account.
+    #             print(f"Exception while opening connection for {email_account.email_address}: {e}")
+    #             return # Exit this thread's execution if connection fails
+
+    #         # Send personalized emails
+    #         sent_count = 0
+    #         for lead in leads:
+    #             # --- CRITICAL NEW CHECK HERE ---
+    #             if not lead.get('email') or not re.match(email_regex, lead['email']):
+    #                 print(f"Skipping lead due to invalid or empty email: {lead.get('email', 'N/A')}")
+    #                 continue # Skip this lead and proceed to the next
                 
-                personalized_subject = subject.replace("[name]", str(lead['name'])).replace("[mc_number]", str(lead['mc_number']))
-                personalized_body = body.replace("[name]", str(lead['name'])).replace("[mc_number]", str(lead['mc_number']))
+    #             personalized_subject = subject.replace("[name]", str(lead['name'])).replace("[mc_number]", str(lead['mc_number']))
+    #             personalized_body = body.replace("[name]", str(lead['name'])).replace("[mc_number]", str(lead['mc_number']))
 
-                try:
-                    msg = EmailMultiAlternatives(
-                        subject=personalized_subject,
-                        body=personalized_body,
-                        from_email=email_account.email_address,
-                        to=[lead['email']],
-                        connection=connection
-                    )
-                    msg.attach_alternative(personalized_body, "text/html")  # Attach the HTML version
-                    msg.send()
-                    sent_count += 1
-                    time.sleep(delay)
-                except Exception as e: # Catch any specific error for this email and continue
-                    print(f"Error sending email to {lead['email']} from {email_account.email_address}: {e}")
-                    # This email failed, but we continue to the next one
-                    continue
+    #             try:
+    #                 msg = EmailMultiAlternatives(
+    #                     subject=personalized_subject,
+    #                     body=personalized_body,
+    #                     from_email=email_account.email_address,
+    #                     to=[lead['email']],
+    #                     connection=connection
+    #                 )
+    #                 msg.attach_alternative(personalized_body, "text/html")  # Attach the HTML version
+    #                 msg.send()
+    #                 sent_count += 1
+    #                 time.sleep(delay)
+    #             except Exception as e: # Catch any specific error for this email and continue
+    #                 print(f"Error sending email to {lead['email']} from {email_account.email_address}: {e}")
+    #                 # This email failed, but we continue to the next one
+    #                 continue
 
-            print(f"Emails sent successfully to {sent_count} out of {len(leads)} recipients using {email_account.email_address}.")
+    #         print(f"Emails sent successfully to {sent_count} out of {len(leads)} recipients using {email_account.email_address}.")
 
-            # Close the SMTP connection after sending
-            connection.close()
+    #         # Close the SMTP connection after sending
+    #         connection.close()
 
-            # Update last used timestamp
-            email_account.last_used_at = now()
-            email_account.save(update_fields=["last_used_at"])
+    #         # Update last used timestamp
+    #         email_account.last_used_at = now()
+    #         email_account.save(update_fields=["last_used_at"])
 
-        except Exception as e:
-            print(f"Error in sending emails: {e}")
+    #     except Exception as e:
+    #         print(f"Error in sending emails: {e}")
 
-    # Execute the email sending process in a separate thread
-    executor = ThreadPoolExecutor(max_workers=5)
-    executor.submit(_send)
+    # # Execute the email sending process in a separate thread
+    # executor = ThreadPoolExecutor(max_workers=5)
+    # executor.submit(_send)
 
 
 def process_excel_file(file):
@@ -403,19 +404,31 @@ def bulk_campaign(request):
 
 
             def start_campaign():
-                with ThreadPoolExecutor(max_workers=min(5, len(account_lead_map))) as executor:
-                    for account, assigned_leads in account_lead_map.items():
-                        if assigned_leads:
-                            executor.submit(
-                                send_bulk_emails,
-                                account,
-                                assigned_leads,
-                                email_subject,
-                                email_body,
-                                delay
-                            )
+                # with ThreadPoolExecutor(max_workers=min(5, len(account_lead_map))) as executor:
+                #     for account, assigned_leads in account_lead_map.items():
+                #         if assigned_leads:
+                #             executor.submit(
+                #                 send_bulk_emails,
+                #                 account,
+                #                 assigned_leads,
+                #                 email_subject,
+                #                 email_body,
+                #                 delay
+                #             )
 
-            Thread(target=start_campaign).start()
+                for account, assigned_leads in account_lead_map.items():
+                    if assigned_leads:
+                        async_task(
+                            'dashboard.tasks.send_emails_task',
+                            account.id,
+                            assigned_leads,
+                            email_subject,
+                            email_body,
+                            delay
+                        )
+
+            # Thread(target=start_campaign).start()
+            start_campaign()
             cache.delete(cache_key)  # clean up
 
             messages.success(request, "🎉 Bulk Campaign started successfully! Emails are being sent!")
@@ -443,72 +456,72 @@ def bulk_campaign(request):
 
 
 
-def send_bulk_emails(email_account, leads, subject, body, delay):
-    """Sends personalized emails using the given email account."""
+# def send_bulk_emails(email_account, leads, subject, body, delay):
+#     """Sends personalized emails using the given email account."""
 
-    try:
-        decrypted_password = email_account.get_password()
+#     try:
+#         decrypted_password = email_account.get_password()
 
-        use_tls = email_account.server_type == "TLS"
-        use_ssl = email_account.server_type == "SSL"
+#         use_tls = email_account.server_type == "TLS"
+#         use_ssl = email_account.server_type == "SSL"
 
-        if use_tls and use_ssl:
-            print("Invalid configuration: Cannot enable both TLS and SSL.")
-            return
+#         if use_tls and use_ssl:
+#             print("Invalid configuration: Cannot enable both TLS and SSL.")
+#             return
 
-        connection = get_connection(
-            backend="django.core.mail.backends.smtp.EmailBackend",
-            host=email_account.host,
-            port=email_account.port_number,
-            username=email_account.email_address,
-            password=decrypted_password,
-            use_tls=use_tls,
-            use_ssl=use_ssl,
-        )
+#         connection = get_connection(
+#             backend="django.core.mail.backends.smtp.EmailBackend",
+#             host=email_account.host,
+#             port=email_account.port_number,
+#             username=email_account.email_address,
+#             password=decrypted_password,
+#             use_tls=use_tls,
+#             use_ssl=use_ssl,
+#         )
 
-        try:
-            connection.open()
-        except Exception as e:
-            # If connection fails to open, none will be sent for this account.
-            print(f"Exception while opening connection for {email_account.email_address}: {e}")
-            return # Exit this function's execution if connection fails
+#         try:
+#             connection.open()
+#         except Exception as e:
+#             # If connection fails to open, none will be sent for this account.
+#             print(f"Exception while opening connection for {email_account.email_address}: {e}")
+#             return # Exit this function's execution if connection fails
 
-        sent_count = 0
-        for lead in leads:
+#         sent_count = 0
+#         for lead in leads:
             
-            # --- CRITICAL NEW CHECK HERE ---
-            if not lead.get('email') or not re.match(email_regex, lead['email']):
-                print(f"Skipping lead due to invalid or empty email: {lead.get('email', 'N/A')}")
-                continue # Skip this lead and proceed to the next
+#             # --- CRITICAL NEW CHECK HERE ---
+#             if not lead.get('email') or not re.match(email_regex, lead['email']):
+#                 print(f"Skipping lead due to invalid or empty email: {lead.get('email', 'N/A')}")
+#                 continue # Skip this lead and proceed to the next
 
-            personalized_subject = subject.replace("[name]", str(lead['name'])).replace("[mc_number]", str(lead['mc_number']))
-            personalized_body = body.replace("[name]", str(lead['name'])).replace("[mc_number]", str(lead['mc_number']))
+#             personalized_subject = subject.replace("[name]", str(lead['name'])).replace("[mc_number]", str(lead['mc_number']))
+#             personalized_body = body.replace("[name]", str(lead['name'])).replace("[mc_number]", str(lead['mc_number']))
 
-            try:
-                msg = EmailMultiAlternatives(
-                    subject=personalized_subject,
-                    body=personalized_body,
-                    from_email=email_account.email_address,
-                    to=[lead['email']],
-                    connection=connection
-                )
-                msg.attach_alternative(personalized_body, "text/html")
-                msg.send()
-                sent_count += 1
-                time.sleep(delay)
-            except Exception as e: # Catch any specific error for this email and continue
-                print(f"Error sending email to {lead['email']} from {email_account.email_address}: {e}")
-                # This email failed, but we continue to the next one
-                continue
+#             try:
+#                 msg = EmailMultiAlternatives(
+#                     subject=personalized_subject,
+#                     body=personalized_body,
+#                     from_email=email_account.email_address,
+#                     to=[lead['email']],
+#                     connection=connection
+#                 )
+#                 msg.attach_alternative(personalized_body, "text/html")
+#                 msg.send()
+#                 sent_count += 1
+#                 time.sleep(delay)
+#             except Exception as e: # Catch any specific error for this email and continue
+#                 print(f"Error sending email to {lead['email']} from {email_account.email_address}: {e}")
+#                 # This email failed, but we continue to the next one
+#                 continue
 
-        connection.close()
-        email_account.last_used_at = now()
-        email_account.save(update_fields=["last_used_at"])
+#         connection.close()
+#         email_account.last_used_at = now()
+#         email_account.save(update_fields=["last_used_at"])
 
-        print(f"✅ Emails sent successfully to {sent_count} of {len(leads)} recipients using {email_account.email_address}")
+#         print(f"✅ Emails sent successfully to {sent_count} of {len(leads)} recipients using {email_account.email_address}")
 
-    except Exception as e:
-        print(f"❌ Error in sending emails for account {email_account.email_address}: {e}")
+#     except Exception as e:
+#         print(f"❌ Error in sending emails for account {email_account.email_address}: {e}")
 
 
 
