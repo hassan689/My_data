@@ -55,8 +55,9 @@ Q_CLUSTER = {
     'name': 'pdm',
     'workers': 5,
     'recycle': 500,
-    'timeout': 60,
-    'retry': 120,
+    'timeout': 14400, # 4 hours ......... for campaign sends
+    'retry': 16000,
+    'max_attempts': 1,
     'compress': True,
     'save_limit': 250,
     'queue_limit': 500,

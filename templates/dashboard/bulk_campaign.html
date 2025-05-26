@@ -11,7 +11,7 @@
 
 <div class="p-4 sm:ml-72">
 
-	{% if request.user.subscription.status == "active" and email_accounts_count < 2 %}
+	{% if can_launch_bulk_campaign and email_accounts_count < 2 %}
 
     <div class="text-center max-w-4xl mx-auto px-4 pt-16 pb-5">
       <h2 class="text-3xl md:text-4xl font-bold">
@@ -40,7 +40,7 @@
       </p>
     </div>
 
-	{% elif  request.user.subscription.status == "active" and email_accounts_count >= 2 %}
+	{% elif  can_launch_bulk_campaign and email_accounts_count >= 2 %}
 
 		<div class="text-center max-w-4xl mx-auto px-4 pt-16 pb-5">
 			<h2 class="text-3xl md:text-4xl font-bold">
@@ -434,28 +434,6 @@
 					document.getElementById("file-name").textContent = fileName;
 			}
 		</script>
-
-  {% elif request.user.on_free_trial %}
-
-    <div class="text-center max-w-4xl mx-auto px-4 pt-16 pb-5">
-      <h2 class="text-3xl md:text-4xl font-bold">
-        Create <span class="text-blue-500">One Click Launch Bulk Campaigns</span> seemlessly and deploy all your email accounts at once!
-      </h2>
-      <p class="text-gray-500 text-lg md:text-xl mt-5">
-        Reach your ideal customers in <strong>less than 5 minutes</strong> — our powerful tool <strong>delivers your campaign instantly</strong>,
-        maximizing impact while you focus on growing your business.
-      </p>
-    </div>
-
-    <div class="overflow-auto mx-auto p-5 bg-white max-w-6xl mt-5">
-      <p class="text-gray-500 text-lg md:text-xl">
-        We're glad you're here!
-      </p>
-      <p class="text-gray-500 text-lg md:text-xl mt-5">
-        Just a heads-up — the <strong>bulk sender</strong> feature is part of our <strong>premium toolkit</strong> and is available exclusively to our <strong>paying subscribers</strong>.
-        It's not included during the free trial, but there's still plenty to explore! Upgrade anytime to unlock the full power of automated campaigns and more.
-      </p>      
-    </div>
     
   {% else %}    
 
@@ -474,22 +452,67 @@
 		<div class="flex flex-col md:flex-row justify-center gap-8 p-8">
 	
 			<!-- Pro Plan -->
-			<div class="w-full md:w-1/2 lg:w-1/3 bg-white shadow-lg rounded-2xl p-8 border text-center">
-					<h2 class="text-2xl font-extrabold">All Features Included</h2>
-					<p class="text-4xl md:text-5xl font-extrabold mt-3">$99/month</p>
-					<p class="text-gray-500 text-lg mt-2">Everything you need to scale</p>
-					<ul class="text-left my-6 space-y-3 text-lg sm:px-16">
-							<li>✔ Automated Carrier Outreach</li>
-							<li>✔ Full carrier database access</li>
-							<li>✔ Onboarding Automation</li>
-							<li>✔ Daily MC Sheet Updates</li>
-							<li>✔ Priority Support</li>
-							<li>✔ Custom templates</li>
-					</ul>
-					<a href="{% url 'main:price_page' %}" class="mt-16 bg-gray-900 hover:bg-gray-800 text-white text-lg font-semibold py-3 px-10 md:px-24 rounded-xl">
-							Get Started
-					</a>
-			</div>
+			<div class="relative w-full md:w-1/2 lg:w-1/3 bg-white shadow-lg rounded-2xl p-8 border text-center">
+
+        <!-- Discount Badge -->
+        <div class="absolute top-4 right-4 bg-green-500 text-white text-xs font-bold px-3 py-1 rounded-full">
+          45% OFF
+        </div>
+
+        <!-- Title -->
+        <h2 class="text-2xl font-extrabold">All Features Included</h2>
+
+        <!-- Price with strike and discount -->
+        <div class="relative mt-3 flex flex-col items-center justify-center">
+          <span class="text-4xl md:text-2xl mb-5 font-extrabold text-red-500 line-through relative z-10">$99</span>
+          <span class="text-4xl md:text-5xl font-extrabold text-green-500 -mt-2 z-20">$55/Month</span>
+        </div>
+
+        <p class="text-gray-500 text-lg mt-2">Everything you need to scale</p>
+
+        <!-- Features -->
+        <ul class="text-left my-6 space-y-3 text-lg sm:px-4">
+          <li class="flex items-start">
+            <span class="text-green-600 mr-2 mt-1">✔</span>
+            <span>Attach unlimited email accounts</span>
+          </li>
+          <li class="flex items-start">
+            <span class="text-green-600 mr-2 mt-1">✔</span>
+            <span>Send bulk emails using multiple accounts simultaneously</span>
+          </li>
+          <li class="flex items-start">
+            <span class="text-green-600 mr-2 mt-1">✔</span>
+            <span>Access a built-in carrier database updated weekly</span>
+          </li>
+          <li class="flex items-start">
+            <span class="text-green-600 mr-2 mt-1">✔</span>
+            <span>Daily MC sheets in Excel format</span>
+          </li>
+          <li class="flex items-start">
+            <span class="text-green-600 mr-2 mt-1">✔</span>
+            <span>Leads data on demand (Excel files)</span>
+          </li>
+          <li class="flex items-start">
+            <span class="text-green-600 mr-2 mt-1">✔</span>
+            <span>Verified email addresses with zero bounce rate</span>
+          </li>
+          <li class="flex items-start">
+            <span class="text-green-600 mr-2 mt-1">✔</span>
+            <span>Priority Support</span>
+          </li>
+          <li class="flex items-start">
+            <span class="text-green-600 mr-2 mt-1">✔</span>
+            <span>Ready-to-use cold email templates</span>
+          </li>
+        </ul>
+
+        <!-- CTA Button -->
+        <a href="{% url 'main:price_page' %}" class="mt-10 inline-block bg-gray-900 hover:bg-gray-800 text-white text-lg font-semibold py-3 px-10 md:px-24 rounded-xl">
+          Get Started
+        </a>
+
+      </div>
+
       
 		</div>
 

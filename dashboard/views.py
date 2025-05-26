@@ -14,6 +14,9 @@ from django.core.cache import cache
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 import re
+from django.utils.timezone import now
+
+
 
 ######################################## Campaign sending views
 
@@ -23,7 +26,8 @@ email_regex = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
 def send_emails(email_account, leads, subject, body, delay):
     """Sends multiple personalized emails using Django's `EmailMultiAlternatives` in a separate thread."""
 
-    async_task('dashboard.tasks.send_emails_task', email_account.id, leads, subject, body, delay)
+    task_id = async_task('dashboard.tasks.send_emails_task', email_account.id, leads, subject, body, delay)
+    print(f"Task Queued: {task_id}")
 
     # --- Legacy threading code (commented out for reference) ---
     # def _send():
@@ -201,6 +205,7 @@ def campaign(request, email_account_id):
     
     email_account = get_object_or_404(EmailAccount, id=email_account_id, user=request.user)
     form = CampaignForm(user=request.user)
+    MAX_DELAY = 30
 
     if request.method == 'POST':
         form = CampaignForm(request.POST, request.FILES, user=request.user)
@@ -217,6 +222,9 @@ def campaign(request, email_account_id):
             if delay_unit == 'minutes':
                 delay *= 60
 
+            # Cap delay to max 30 seconds
+            delay = min(delay, MAX_DELAY)
+
             leads = []
             if file_upload:
                 leads = process_excel_file(file_upload)
@@ -226,9 +234,23 @@ def campaign(request, email_account_id):
             if not leads:
                 messages.error(request, "No valid leads found.")
                 return redirect('dashboard:index')
+            
+            seen_emails = set()
+            unique_leads = []
+            for lead in leads:
+                email = lead.get("email")
+                if email and email not in seen_emails:
+                    unique_leads.append(lead)
+                    seen_emails.add(email)
+
+            leads = unique_leads
 
             # Call send_emails function which already uses threading
+            print(f"[DEBUG] Queuing email campaign to {len(leads)} leads for {email_account.email_address}")
             send_emails(email_account, leads, email_subject, email_body, delay)
+
+            email_account.last_used_at = now()
+            email_account.save(update_fields=["last_used_at"])
 
             messages.success(request, f"Success! Emails are being sent for {email_account.email_address}. Thank you for your patience.")
             return redirect('dashboard:index')
@@ -319,6 +341,7 @@ def bulk_campaign(request):
     elif request.method == 'POST' and 'submit_allocation' in request.POST:
 
         cached_data = cache.get(cache_key)
+        MAX_DELAY = 30
         total_leads = cached_data['leads_available'] if cached_data and 'leads_available' in cached_data else 0
         form = BulkCampaignForm(request.POST, request.FILES, user=request.user, total_leads=total_leads)
         if not cached_data:
@@ -334,6 +357,9 @@ def bulk_campaign(request):
             delay_unit = form.cleaned_data.get('delay_unit')
             if delay_unit == 'minutes':
                 delay *= 60
+
+            # Cap delay to max 30 seconds
+            delay = min(delay, MAX_DELAY)
 
             selected_account_ids = request.POST.getlist('selected_accounts')
             account_lead_map = {}
@@ -418,7 +444,7 @@ def bulk_campaign(request):
 
                 for account, assigned_leads in account_lead_map.items():
                     if assigned_leads:
-                        async_task(
+                        task_id = async_task(
                             'dashboard.tasks.send_emails_task',
                             account.id,
                             assigned_leads,
@@ -426,6 +452,10 @@ def bulk_campaign(request):
                             email_body,
                             delay
                         )
+                        account.last_used_at = now()
+                        account.save(update_fields=["last_used_at"])
+                        print(f"Task Queued: {task_id}")
+
 
             # Thread(target=start_campaign).start()
             start_campaign()
@@ -443,6 +473,7 @@ def bulk_campaign(request):
     if request.method == 'GET':
         form = BulkCampaignForm(user=request.user)
 
+
     cached_data = cache.get(cache_key)
     leads_available = len(cached_data['leads']) if cached_data else 0
 
@@ -452,76 +483,8 @@ def bulk_campaign(request):
         'email_accounts_count': email_accounts_count,
         'leads_ready': bool(cached_data),
         'total_leads': leads_available,
+        'can_launch_bulk_campaign': (request.user.subscription.status == "active" or request.user.on_free_trial)
     })
-
-
-
-# def send_bulk_emails(email_account, leads, subject, body, delay):
-#     """Sends personalized emails using the given email account."""
-
-#     try:
-#         decrypted_password = email_account.get_password()
-
-#         use_tls = email_account.server_type == "TLS"
-#         use_ssl = email_account.server_type == "SSL"
-
-#         if use_tls and use_ssl:
-#             print("Invalid configuration: Cannot enable both TLS and SSL.")
-#             return
-
-#         connection = get_connection(
-#             backend="django.core.mail.backends.smtp.EmailBackend",
-#             host=email_account.host,
-#             port=email_account.port_number,
-#             username=email_account.email_address,
-#             password=decrypted_password,
-#             use_tls=use_tls,
-#             use_ssl=use_ssl,
-#         )
-
-#         try:
-#             connection.open()
-#         except Exception as e:
-#             # If connection fails to open, none will be sent for this account.
-#             print(f"Exception while opening connection for {email_account.email_address}: {e}")
-#             return # Exit this function's execution if connection fails
-
-#         sent_count = 0
-#         for lead in leads:
-            
-#             # --- CRITICAL NEW CHECK HERE ---
-#             if not lead.get('email') or not re.match(email_regex, lead['email']):
-#                 print(f"Skipping lead due to invalid or empty email: {lead.get('email', 'N/A')}")
-#                 continue # Skip this lead and proceed to the next
-
-#             personalized_subject = subject.replace("[name]", str(lead['name'])).replace("[mc_number]", str(lead['mc_number']))
-#             personalized_body = body.replace("[name]", str(lead['name'])).replace("[mc_number]", str(lead['mc_number']))
-
-#             try:
-#                 msg = EmailMultiAlternatives(
-#                     subject=personalized_subject,
-#                     body=personalized_body,
-#                     from_email=email_account.email_address,
-#                     to=[lead['email']],
-#                     connection=connection
-#                 )
-#                 msg.attach_alternative(personalized_body, "text/html")
-#                 msg.send()
-#                 sent_count += 1
-#                 time.sleep(delay)
-#             except Exception as e: # Catch any specific error for this email and continue
-#                 print(f"Error sending email to {lead['email']} from {email_account.email_address}: {e}")
-#                 # This email failed, but we continue to the next one
-#                 continue
-
-#         connection.close()
-#         email_account.last_used_at = now()
-#         email_account.save(update_fields=["last_used_at"])
-
-#         print(f"✅ Emails sent successfully to {sent_count} of {len(leads)} recipients using {email_account.email_address}")
-
-#     except Exception as e:
-#         print(f"❌ Error in sending emails for account {email_account.email_address}: {e}")
 
 
 
