@@ -23,11 +23,36 @@ from django.utils.timezone import now
 # Basic email regex for quick pre-validation (can be more robust if needed)
 email_regex = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
 
-def send_emails(email_account, leads, subject, body, delay):
-    """Sends multiple personalized emails using Django's `EmailMultiAlternatives` in a separate thread."""
+# Distributing the leads list in smaller chunks
+def chunk_list(data, chunk_size):
+    """Yield successive chunks of given size from the list."""
+    for i in range(0, len(data), chunk_size):
+        yield data[i:i + chunk_size]
 
-    task_id = async_task('dashboard.tasks.send_emails_task', email_account.id, leads, subject, body, delay)
-    print(f"Task Queued: {task_id}")
+
+def send_emails(email_account, leads, subject, body, delay, chunk_size=20):
+    
+    """
+    Sends campaign emails in parallel chunks.
+    Each task handles a small portion of the leads to avoid blocking workers.
+    """
+    total_chunks = 0
+    total_leads = 0
+    for chunk in chunk_list(leads, chunk_size):
+        async_task(
+            'dashboard.tasks.send_emails_task',
+            email_account.id,
+            chunk, # 👈 Only this chunk of leads
+            subject,
+            body,
+            delay
+        )
+        print(f"Chunk of {len(chunk)} leads queued.")
+        total_chunks += 1
+        total_leads += len(chunk)
+
+    print(f"Total chunks queued: {total_chunks}")
+    print(f"Total leads in all chunks: {total_leads}")
 
     # --- Legacy threading code (commented out for reference) ---
     # def _send():
@@ -430,31 +455,32 @@ def bulk_campaign(request):
 
 
             def start_campaign():
-                # with ThreadPoolExecutor(max_workers=min(5, len(account_lead_map))) as executor:
-                #     for account, assigned_leads in account_lead_map.items():
-                #         if assigned_leads:
-                #             executor.submit(
-                #                 send_bulk_emails,
-                #                 account,
-                #                 assigned_leads,
-                #                 email_subject,
-                #                 email_body,
-                #                 delay
-                #             )
+                chunk_size = 20  # or any preferred size
 
                 for account, assigned_leads in account_lead_map.items():
                     if assigned_leads:
-                        task_id = async_task(
-                            'dashboard.tasks.send_emails_task',
-                            account.id,
-                            assigned_leads,
-                            email_subject,
-                            email_body,
-                            delay
-                        )
+                        total_chunks = 0
+                        total_leads = 0
+
+                        for chunk in chunk_list(assigned_leads, chunk_size):
+                            task_id = async_task(
+                                'dashboard.tasks.send_emails_task',
+                                account.id,
+                                chunk,          # 👈 chunked leads
+                                email_subject,
+                                email_body,
+                                delay
+                            )
+                            print(f"Task Queued: {task_id} for chunk of {len(chunk)} leads.")
+                            total_chunks += 1
+                            total_leads += len(chunk)
+
                         account.last_used_at = now()
                         account.save(update_fields=["last_used_at"])
-                        print(f"Task Queued: {task_id}")
+
+                        print(f"Account {account.email_address}: Total chunks queued: {total_chunks}")
+                        print(f"Account {account.email_address}: Total leads in all chunks: {total_leads}")
+
 
 
             # Thread(target=start_campaign).start()

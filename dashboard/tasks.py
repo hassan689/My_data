@@ -10,10 +10,11 @@ email_regex = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"  # Make sure t
 
 def send_emails_task(email_account_id, leads, subject, body, delay):
     try:
-        print(f"[{timezone.now()}] Started task for {email_account_id}, {len(leads)} leads")
 
         email_account = EmailAccount.objects.get(id=email_account_id)
         decrypted_password = email_account.get_password()
+        
+        print(f"[{timezone.now()}] Started task for {email_account.email_address}, {len(leads)} leads")
 
         use_tls = email_account.server_type == "TLS"
         use_ssl = email_account.server_type == "SSL"

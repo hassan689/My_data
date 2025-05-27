@@ -51,17 +51,19 @@ INSTALLED_APPS = [
 		'django_ckeditor_5',
 ]
 
+
 Q_CLUSTER = {
     'name': 'pdm',
-    'workers': 5,
+    'workers': 12,
+    'max_workers': 36,  # For bulk campaign ..... simultaneous sendings
     'recycle': 500,
     'timeout': 14400, # 4 hours ......... for campaign sends
     'retry': 16000,
     'max_attempts': 1,
     'compress': True,
     'save_limit': 250,
-    'queue_limit': 500,
-    'cpu_affinity': 1,
+    'queue_limit': 1000,
+    # 'cpu_affinity': 1, # ⚠️ Caution: binds workers to **core 1 only** — can bottleneck performance
     'label': 'Django Q',
     'daemonize_workers': False,
     'orm': 'default',
