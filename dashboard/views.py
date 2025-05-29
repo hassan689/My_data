@@ -17,7 +17,6 @@ import re
 from django.utils.timezone import now
 
 
-
 ######################################## Campaign sending views
 
 # Basic email regex for quick pre-validation (can be more robust if needed)
@@ -30,7 +29,7 @@ def chunk_list(data, chunk_size):
         yield data[i:i + chunk_size]
 
 
-def send_emails(email_account, leads, subject, body, delay, chunk_size=20):
+def send_emails(email_account, leads, subject, body, min_delay, max_delay, chunk_size=20):
     
     """
     Sends campaign emails in parallel chunks.
@@ -45,7 +44,8 @@ def send_emails(email_account, leads, subject, body, delay, chunk_size=20):
             chunk, # 👈 Only this chunk of leads
             subject,
             body,
-            delay
+            min_delay, 
+            max_delay
         )
         print(f"Chunk of {len(chunk)} leads queued.")
         total_chunks += 1
@@ -230,7 +230,6 @@ def campaign(request, email_account_id):
     
     email_account = get_object_or_404(EmailAccount, id=email_account_id, user=request.user)
     form = CampaignForm(user=request.user)
-    MAX_DELAY = 30
 
     if request.method == 'POST':
         form = CampaignForm(request.POST, request.FILES, user=request.user)
@@ -240,15 +239,8 @@ def campaign(request, email_account_id):
             file_upload = form.cleaned_data['file_upload']
             mc_number = form.cleaned_data['mc_number']
             targets_count = form.cleaned_data['targets_count']
-            delay = form.cleaned_data.get('delay') or 0  # default to 0 if not provided
-            delay_unit = form.cleaned_data.get('delay_unit')
-
-            # Convert delay to seconds if unit is in minutes
-            if delay_unit == 'minutes':
-                delay *= 60
-
-            # Cap delay to max 30 seconds
-            delay = min(delay, MAX_DELAY)
+            min_delay = form.cleaned_data.get('min_delay')
+            max_delay = form.cleaned_data.get('max_delay')
 
             leads = []
             if file_upload:
@@ -272,7 +264,7 @@ def campaign(request, email_account_id):
 
             # Call send_emails function which already uses threading
             print(f"[DEBUG] Queuing email campaign to {len(leads)} leads for {email_account.email_address}")
-            send_emails(email_account, leads, email_subject, email_body, delay)
+            send_emails(email_account, leads, email_subject, email_body, min_delay, max_delay)
 
             email_account.last_used_at = now()
             email_account.save(update_fields=["last_used_at"])
@@ -366,7 +358,6 @@ def bulk_campaign(request):
     elif request.method == 'POST' and 'submit_allocation' in request.POST:
 
         cached_data = cache.get(cache_key)
-        MAX_DELAY = 30
         total_leads = cached_data['leads_available'] if cached_data and 'leads_available' in cached_data else 0
         form = BulkCampaignForm(request.POST, request.FILES, user=request.user, total_leads=total_leads)
         if not cached_data:
@@ -378,13 +369,8 @@ def bulk_campaign(request):
             email_subject = form.cleaned_data.get('email_subject')
             email_body = form.cleaned_data.get('email_body')
             select_all = form.cleaned_data.get('select_all')
-            delay = form.cleaned_data.get('delay') or 0
-            delay_unit = form.cleaned_data.get('delay_unit')
-            if delay_unit == 'minutes':
-                delay *= 60
-
-            # Cap delay to max 30 seconds
-            delay = min(delay, MAX_DELAY)
+            min_delay = form.cleaned_data.get('min_delay')
+            max_delay = form.cleaned_data.get('max_delay')
 
             selected_account_ids = request.POST.getlist('selected_accounts')
             account_lead_map = {}
@@ -469,7 +455,8 @@ def bulk_campaign(request):
                                 chunk,          # 👈 chunked leads
                                 email_subject,
                                 email_body,
-                                delay
+                                min_delay, 
+                                max_delay
                             )
                             print(f"Task Queued: {task_id} for chunk of {len(chunk)} leads.")
                             total_chunks += 1

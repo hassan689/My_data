@@ -137,7 +137,7 @@
 					</div>
 				</div>
 
-        <section class="flex flex-col items-center text-center px-4 md:px-4 lg:px-5 py-6 mt-20">
+        <section class="flex flex-col max-w-2xl mx-auto items-center text-center px-4 md:px-4 lg:px-5 py-6 mt-20">
 					<span class="text-md font-medium text-gray-700 bg-slate-200 px-4 py-1 rounded-full">
 						Step 2
 					</span>
@@ -145,24 +145,31 @@
 						Set Delay
 					</h2>
 					<p class="text-gray-500 text-base mt-2">
-						Number of seconds or minutes you would want to gap/delay between each email send
+						Number of seconds to wait between each email send.  
+            The system will select a <span class="font-bold">random value between</span> the minimum and maximum range you specify.  
+            This is done to <span class="font-bold">mimic natural human behavior</span> when sending campaigns.
 					</p>
 				</section>
 
         <div class="container mx-auto px-4 max-w-2xl mb-20">
           <div class="bg-white border border-gray-300 rounded-lg shadow-md">
         
-            <div class="grid grid-cols-1 gap-4 p-6">  <!-- Removed md:grid-cols-2 -->
+            <div class="grid grid-cols-1 gap-4 p-6">
               <div>
-                {% render_field form.delay class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none" %}
-                {% if form.delay.errors %}
+                {% render_field form.min_delay class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none" %}
+                {% if form.min_delay.errors %}
                   <div class="bg-red-200 p-5 my-3 rounded-xl border-2 border-solid border-red-700">
-                    <p class="text-red-700 text-sm">{{ form.delay.errors|first }}</p>
+                    <p class="text-red-700 text-sm">{{ form.min_delay.errors|first }}</p>
                   </div>
                 {% endif %}
               </div>
               <div>
-                {% render_field form.delay_unit class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none" %}
+                {% render_field form.max_delay class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none" %}
+                {% if form.max_delay.errors %}
+                  <div class="bg-red-200 p-5 my-3 rounded-xl border-2 border-solid border-red-700">
+                    <p class="text-red-700 text-sm">{{ form.max_delay.errors|first }}</p>
+                  </div>
+                {% endif %}
               </div>
             </div>
           </div>

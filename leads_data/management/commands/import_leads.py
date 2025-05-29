@@ -4,7 +4,7 @@ from django.core.management.base import BaseCommand
 from leads_data.models import Lead
 from tqdm import tqdm
 
-# python manage.py import_leads ../../../data/complete_data.xlsx
+# python manage.py import_leads data/file.xlsx
 
 class Command(BaseCommand):
     help = "Import leads from a specified Excel file using bulk create"

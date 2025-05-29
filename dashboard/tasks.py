@@ -3,12 +3,13 @@ import re
 from django.core.mail import EmailMultiAlternatives, get_connection
 from users.models import EmailAccount
 from django.utils import timezone
+import random
 
 
 
 email_regex = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"  # Make sure this is defined globally
 
-def send_emails_task(email_account_id, leads, subject, body, delay):
+def send_emails_task(email_account_id, leads, subject, body, min_delay, max_delay):
     try:
 
         email_account = EmailAccount.objects.get(id=email_account_id)
@@ -48,9 +49,10 @@ def send_emails_task(email_account_id, leads, subject, body, delay):
 
             personalized_subject = subject.replace("[name]", str(lead['name'])).replace("[mc_number]", str(lead['mc_number']))
             personalized_body = body.replace("[name]", str(lead['name'])).replace("[mc_number]", str(lead['mc_number']))
+            delay = random.randint(min_delay, max_delay)
 
             try:
-                print(f"[{timezone.now()}] Sent email to {lead['email']}")
+                print(f"[{timezone.now()}] Sent email to {lead['email']} with delay: {delay}")
 
                 personalized_subject = subject.replace("[name]", str(lead['name'])).replace("[mc_number]", str(lead['mc_number']))
                 personalized_body = body.replace("[name]", str(lead['name'])).replace("[mc_number]", str(lead['mc_number']))

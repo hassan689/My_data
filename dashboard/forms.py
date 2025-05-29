@@ -44,7 +44,6 @@ class EmailAccountForm(forms.ModelForm):
             email_account.save()
         return email_account
 
-
 class CampaignForm(forms.Form):
     email_subject = forms.CharField(
         max_length=255,
@@ -68,21 +67,14 @@ class CampaignForm(forms.Form):
         required=False,
         widget=forms.NumberInput(attrs={'placeholder': 'Number of targets you want to select'})
 		)
-    delay = forms.IntegerField(
+    min_delay = forms.IntegerField(
         required=False,
         min_value=0,
-        widget=forms.NumberInput(attrs={'placeholder': '30 or 60 or xyz seconds / minutes'}),
-        help_text='Enter a positive number for delay'
+        widget=forms.NumberInput(attrs={'placeholder': 'Minimum Delay'}),
     )
-    TIME_UNITS = [
-        ('seconds', 'Seconds'),
-        ('minutes', 'Minutes'),
-    ]
-    delay_unit = forms.ChoiceField(
-        choices=TIME_UNITS,
-        initial='seconds',
-        widget=forms.Select(),
-        help_text='Choose the time unit for delay'
+    max_delay = forms.IntegerField(
+        required=False,
+        widget=forms.NumberInput(attrs={'placeholder': 'Maximum Delay'}),
     )
 
     def __init__(self, *args, **kwargs):
@@ -97,7 +89,8 @@ class CampaignForm(forms.Form):
         file_upload = cleaned_data.get('file_upload')
         mc_number = cleaned_data.get('mc_number')
         targets_count = cleaned_data.get('targets_count')
-        delay = cleaned_data.get('delay')
+        min_delay = cleaned_data.get('min_delay')
+        max_delay = cleaned_data.get('max_delay')
 
         if self.user and self.user.on_free_trial:
             if not file_upload:
@@ -109,8 +102,11 @@ class CampaignForm(forms.Form):
         if targets_count is not None and targets_count < 1:
             self.add_error('targets_count', "Targets count cannot be less than 1.")
 
-        if delay is not None and delay < 0:
-            self.add_error('delay', "Delay must be 0 or a number greater than 0.")
+        if min_delay is not None and min_delay < 5:
+            self.add_error('min_delay', "Lower limit delay must be 5 or a number greater than 0.")
+
+        if max_delay is not None and max_delay < min_delay:
+            self.add_error('max_delay', "Upper limit delay must be greater than lower limit.")
 
         return cleaned_data
 
@@ -124,7 +120,7 @@ class BulkCampaignForm(CampaignForm):
         super().__init__(*args, user=self.user, **kwargs)
 
         # Set all fields as not required for Step 2
-        for field_name in ['file_upload', 'mc_number', 'targets_count', 'email_subject', 'email_body', 'delay', 'delay_unit', 'select_all']:
+        for field_name in ['file_upload', 'mc_number', 'targets_count', 'email_subject', 'email_body', 'min_delay', 'max_delay', 'select_all']:
             if field_name in self.fields:
                 self.fields[field_name].required = False
 
@@ -132,9 +128,14 @@ class BulkCampaignForm(CampaignForm):
         cleaned_data = self.cleaned_data  # get initial cleaned_data without triggering parent clean
 
         # Manual validation for delay field
-        delay = cleaned_data.get('delay')
-        if delay is not None and delay < 0:
-            self.add_error('delay', "Delay must be 0 or a number greater than 0.")
+        min_delay = cleaned_data.get('min_delay')
+        max_delay = cleaned_data.get('max_delay')
+
+        if min_delay is not None and min_delay < 5:
+            self.add_error('min_delay', "Lower limit delay must be 5 or a number greater than 0.")
+
+        if max_delay is not None and max_delay < min_delay:
+            self.add_error('max_delay', "Upper limit delay must be greater than lower limit.")
 
         # Bypass account allocation check if 'select_all' is true
         is_select_all = self.data.get('select_all') in ['true', 'on', '1']

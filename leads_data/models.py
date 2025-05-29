@@ -1,11 +1,5 @@
 from django.db import models
 import pandas as pd
-# from django.core.mail import EmailMessage
-# from django.conf import settings
-# from users.models import CustomUser
-# from django.db.models import Q
-# from concurrent.futures import ThreadPoolExecutor
-# from datetime import date
 
 
 # Should also have a date set to auto, cause we need to have the record of on what date was this mc number's data was added
@@ -63,36 +57,4 @@ class DailySheet(models.Model):
 
         super().save(*args, **kwargs)
 
-
-    
-    # def save(self, *args, **kwargs):
-    #     # Save first to ensure file is accessible
-    #     super().save(*args, **kwargs)
-
-    #     # Get relevant users
-    #     users = CustomUser.objects.filter(
-    #         Q(on_free_trial=True) | Q(subscription__status="active")
-    #     )
-    #     recipient_list = list(users.values_list("email", flat=True))
-
-    #     if recipient_list:
-    #         today_str = date.today().strftime("%B %d, %Y")  # Example: April 10, 2025
-    #         subject = f"New daily sheet from FMCSA for {today_str}"
-    #         body = "Please find the attached daily sheet."
-    #         from_email = settings.EMAIL_HOST_USER
-    #         file_path = self.file.path
-
-    #         # Send email in background
-    #         executor = ThreadPoolExecutor(max_workers=5)
-    #         executor.submit(self.send_email_with_file, subject, body, from_email, recipient_list, file_path)
-
-    # def send_email_with_file(self, subject, body, from_email, to_list, file_path):
-    #     email = EmailMessage(
-    #         subject=subject,
-    #         body=body,
-    #         from_email=from_email,
-    #         to=to_list,
-    #     )
-    #     email.attach_file(file_path)
-    #     email.send()
 
