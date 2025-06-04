@@ -127,7 +127,7 @@
         </div>
 
         <!-- Use Database Box -->
-        <div class="w-full md:w-1/2 p-6 bg-white border border-gray-300 rounded-lg shadow-md focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500">
+        <div class="w-full md:w-1/2 p-6 bg-white border border-gray-300 rounded-lg shadow-md">
             <!-- Centered Icon -->
             <div class="flex justify-center">
                 <div class="w-12 h-12 flex items-center justify-center rounded-full bg-blue-100 text-blue-500">
@@ -142,27 +142,134 @@
                 <p class="text-sm text-gray-500 mt-5">Simply select the starting MC Number to filter your target carriers. Our system will automatically gather the neighboring leads required, as per you entered into the targets count. Ensuring precise and efficient campaign delivery.</p>
             </div>
 
-            <!-- Input Fields -->
-            <div class="mt-6 space-y-4">
-                <div>
-                  {% if not request.user.on_free_trial %}
-                    <label class="block text-sm font-medium text-gray-700">MC Number</label>
-                    {{ form.mc_number|add_class:"mt-1 block w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none" }}
-
-                    <label class="block text-sm font-medium text-gray-700 mt-5">Targets Count</label>
-                    {{ form.targets_count|add_class:"mt-1 block w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none" }}
-                    {% if form.targets_count.errors %}
-                        <div class="bg-red-200 p-5 my-3 rounded-xl border-2 border-solid border-red-700"><p class="text-red-700 text-sm">{{ form.targets_count.errors.0 }}</p></div>
-                    {% endif %}
-
-                  {% else %}
-                    <p class="text-sm text-red-600"><strong>Exclusive to active subscribers</strong> — unlock this powerful feature and stay ahead, while free trial users remain limited</p>
-                  {% endif %}
-
-                  {% if form.mc_number.errors %}
-                      <div class="bg-red-200 p-5 my-3 rounded-xl border-2 border-solid border-red-700"><p class="text-red-700 text-sm">{{ form.mc_number.errors.0 }}</p></div>
-                  {% endif %}
+            <button 
+                id="open-modal-btn" 
+                type="button" 
+                class="mt-4 flex flex-col items-center justify-center w-full border-2 border-dashed border-gray-300 rounded-lg py-14 cursor-pointer hover:border-gray-400"
+                aria-controls="selectFromDbModal" aria-haspopup="dialog"
+            >
+                <div class="flex flex-col items-center space-y-20">
+                    <p class="text-sm font-medium text-gray-600">Select from DB</p>
                 </div>
+            </button>
+
+            <!-- Modal backdrop and container -->
+            <div
+                id="selectFromDbModal" 
+                tabindex="-1" 
+                aria-hidden="true" 
+                class="fixed inset-0 z-50 hidden overflow-y-auto bg-black bg-opacity-50 flex items-center justify-center">
+              <div 
+                  class="relative w-full max-w-4xl p-6 mx-auto bg-white rounded-lg shadow-lg"
+                  role="dialog" aria-modal="true" aria-labelledby="modal-title"
+                  style="max-height: 90vh; overflow-y: auto;">
+                <!-- Close button -->
+                <button 
+                    type="button" 
+                    class="absolute top-3 right-3 text-gray-400 hover:text-gray-900 focus:outline-none"
+                    id="modal-close-btn"
+                    aria-label="Close modal">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+                      <line x1="18" y1="6" x2="6" y2="18"></line>
+                      <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+
+                <!-- Modal content (form fields) -->
+                <div>
+                  <!-- Input Fields -->
+                  <div class="py-4">
+                    <div>
+                      {% if not request.user.on_free_trial %}
+
+                        <div class="grid md:grid-cols-2 md:gap-x-6">
+                          <div>
+                            <label class="block text-sm font-medium text-gray-700">MC Number</label>
+                            {{ form.mc_number|add_class:"mt-1 block w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none" }}
+                          </div>
+
+                          <div>
+                            <label class="block text-sm font-medium text-gray-700">Targets Count</label>
+                            {{ form.targets_count|add_class:"mt-1 block w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none" }}
+                            {% if form.targets_count.errors %}
+                              <div class="bg-red-200 p-5 my-3 rounded-xl border-2 border-solid border-red-700"><p class="text-red-700 text-sm">{{ form.targets_count.errors.0 }}</p></div>
+                            {% endif %}
+                          </div>
+                        </div>
+
+                        <div class="relative inline-flex items-center justify-center w-full">
+                          <h2 class="text-base md:text-lg font-semibold my-6">
+                            Available Filters
+                          </h2>
+                        </div>
+
+
+                        <div class="grid md:grid-cols-2 md:gap-x-6">
+                          <div>
+                            <label class="block text-sm font-medium text-gray-700">Power Units (Comparison)</label>
+                            {{ form.power_units_comparison|add_class:"mt-1 block w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none" }}
+                          </div>
+                          <div>
+                            <label class="block text-sm font-medium text-gray-700">Power Units (Value)</label>
+                            {{ form.power_units_value|add_class:"mt-1 block w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none" }}
+                            {% if form.power_units_value.errors %}
+                              <div class="bg-red-200 p-5 my-3 rounded-xl border-2 border-solid border-red-700">
+                                <p class="text-red-700 text-sm">{{ form.power_units_value.errors.0 }}</p>
+                              </div>
+                            {% endif %}
+                          </div>
+
+                          <div>
+                            <label class="block text-sm font-medium text-gray-700 mt-5">Drivers (Comparison)</label>
+                            {{ form.drivers_comparison|add_class:"mt-1 block w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none" }}
+                          </div>
+                          <div>
+                            <label class="block text-sm font-medium text-gray-700 mt-5">Drivers (Value)</label>
+                            {{ form.drivers_value|add_class:"mt-1 block w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none" }}
+                            {% if form.drivers_value.errors %}
+                              <div class="bg-red-200 p-5 my-3 rounded-xl border-2 border-solid border-red-700">
+                                <p class="text-red-700 text-sm">{{ form.drivers_value.errors.0 }}</p>
+                              </div>
+                            {% endif %}
+                          </div>
+
+                          <div>
+                            <label class="block text-sm font-medium text-gray-700 mt-5">Status</label>
+                            {{ form.status|add_class:"mt-1 block w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none" }}
+                          </div>
+                          <div>
+                            <label class="block text-sm font-medium text-gray-700 mt-5">Carrier Operation</label>
+                            {{ form.carrier_operation|add_class:"mt-1 block w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none" }}
+                          </div></div>
+
+                          <div class="grid md:grid-cols-3 md:gap-x-6">
+                          <div>
+                            <label class="block text-sm font-medium text-gray-700 mt-5">Handles Hazardous Materials (HM)</label>
+                            {{ form.hm }}
+                          </div>
+                          <div>
+                            <label class="block text-sm font-medium text-gray-700 mt-5">Handles Household Goods (HHG)</label>
+                            {{ form.hhg }}
+                          </div>
+
+                          <div>
+                            <label class="block text-sm font-medium text-gray-700 mt-5">New Entrant</label>
+                            {{ form.new_entrant }}
+                          </div>
+                          <div></div> <!-- empty div to keep grid layout consistent -->
+                        </div>
+
+                      {% else %}
+                        <p class="text-sm text-red-600"><strong>Exclusive to active subscribers</strong> — unlock this powerful feature and stay ahead, while free trial users remain limited</p>
+                      {% endif %}
+
+                      {% if form.mc_number.errors %}
+                        <div class="bg-red-200 p-5 my-3 rounded-xl border-2 border-solid border-red-700"><p class="text-red-700 text-sm">{{ form.mc_number.errors.0 }}</p></div>
+                      {% endif %}
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
         </div>
       </div>
@@ -527,6 +634,7 @@
 	
 </div>
 
+<!-- Assign accounts and leads checkboxes -->
 <script>
   function toggleLeadInput(accountId, forceChecked = null) {
     var checkbox = document.getElementById('checkbox_' + accountId);
@@ -556,7 +664,6 @@
   }
 </script>
 
-
 <!-- Forms transition -->
 <script>
   document.getElementById('campaign-form').addEventListener('submit', async function (e) {
@@ -582,15 +689,17 @@
       console.log('Response Data:', data);
 
       if (data.status === 'success') {
-        alert(data.message);  // Optional: replace with toast
+        const proceed = confirm(data.message);  // Show confirm box
 
-        // Hide Step 1 form and show the reset button
-        document.getElementById('campaign-form').classList.add('hidden');  // Hide the form
-        document.getElementById('reset-button').classList.remove('hidden'); // Show reset button
+        if (proceed) {
+            // Hide Step 1 form and show the reset button
+            document.getElementById('campaign-form').classList.add('hidden');
+            document.getElementById('reset-button').classList.remove('hidden');
 
-        // Show Step 2 and scroll to it
-        document.getElementById('step-2-wrapper').classList.remove('hidden');
-        document.getElementById('step-2-wrapper').scrollIntoView({ behavior: 'smooth' });
+            // Show Step 2 and scroll to it
+            document.getElementById('step-2-wrapper').classList.remove('hidden');
+            document.getElementById('step-2-wrapper').scrollIntoView({ behavior: 'smooth' });
+        }
 
       } else {
         // Show errors
@@ -608,6 +717,38 @@
     }
   });
 </script>
+
+<!-- Select from DB -->
+<script>
+  const openModalBtn = document.getElementById('open-modal-btn');
+  const modal = document.getElementById('selectFromDbModal');
+  const closeModalBtn = document.getElementById('modal-close-btn');
+
+  // Open modal on button click
+  openModalBtn.addEventListener('click', () => {
+    modal.classList.remove('hidden');
+  });
+
+  // Close modal on close button click
+  closeModalBtn.addEventListener('click', () => {
+    modal.classList.add('hidden');
+  });
+
+  // Close modal on click outside modal content
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) {
+      modal.classList.add('hidden');
+    }
+  });
+
+  // Optional: close modal on ESC key press
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
+      modal.classList.add('hidden');
+    }
+  });
+</script>
+
 
 
 {% endblock %}

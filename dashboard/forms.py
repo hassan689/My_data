@@ -77,6 +77,97 @@ class CampaignForm(forms.Form):
         widget=forms.NumberInput(attrs={'placeholder': 'Maximum Delay'}),
     )
 
+    # Power Units Filter
+    power_units_comparison = forms.ChoiceField(
+        choices=[
+            ('lt', 'Less than'),
+            ('eq', 'Equal to'),
+            ('gt', 'Greater than')
+        ],
+        required=False,
+        label="Power Units (Comparison)"
+    )
+    power_units_value = forms.IntegerField(
+        required=False,
+        label="Power Units (Value)",
+        widget=forms.NumberInput(attrs={'placeholder': 'Enter number of power units'})
+    )
+
+    # Drivers Filter
+    drivers_comparison = forms.ChoiceField(
+        choices=[
+            ('lt', 'Less than'),
+            ('eq', 'Equal to'),
+            ('gt', 'Greater than')
+        ],
+        required=False,
+        label="Drivers (Comparison)"
+    )
+    drivers_value = forms.IntegerField(
+        required=False,
+        label="Drivers (Value)",
+        widget=forms.NumberInput(attrs={'placeholder': 'Enter number of drivers'})
+    )
+
+    # Status Filter
+    status = forms.ChoiceField(
+        choices=[
+            ('', '---------'), # Optional empty choice for "any"
+            ('ACTIVE', 'Active'),
+            ('OUT-OF-SERVICE', 'Out-of-Service'),
+        ],
+        required=False,
+        label="Status"
+    )
+
+    # Carrier Operation Filter
+    carrier_operation = forms.ChoiceField(
+        choices=[
+            ('', '---------'), # Optional empty choice for "any"
+            ('Interstate', 'Interstate'),
+            ('Intrastate Hazmat', 'Intrastate Hazmat'),
+            ('Intrastate Non-Hazmat', 'Intrastate Non-Hazmat'),
+        ],
+        required=False,
+        label="Carrier Operation"
+    )
+
+    # HM Filter (Yes/No Radio Buttons)
+    hm = forms.ChoiceField(
+        choices=[
+            ('', 'Any'), # Optional empty choice for "any"
+            ('Yes', 'Yes'),
+            ('No', 'No')
+        ],
+        widget=forms.RadioSelect,
+        required=False,
+        label="Handles Hazardous Materials (HM)"
+    )
+
+    # HHG Filter (Yes/No Radio Buttons)
+    hhg = forms.ChoiceField(
+        choices=[
+            ('', 'Any'), # Optional empty choice for "any"
+            ('Yes', 'Yes'),
+            ('No', 'No')
+        ],
+        widget=forms.RadioSelect,
+        required=False,
+        label="Handles Household Goods (HHG)"
+    )
+
+    # New Entrant Filter (Yes/No Radio Buttons)
+    new_entrant = forms.ChoiceField(
+        choices=[
+            ('', 'Any'), # Optional empty choice for "any"
+            ('Yes', 'Yes'),
+            ('No', 'No')
+        ],
+        widget=forms.RadioSelect,
+        required=False,
+        label="New Entrant"
+    )
+
     def __init__(self, *args, **kwargs):
         self.user = kwargs.pop('user', None)  # Get user instance
         super().__init__(*args, **kwargs)
@@ -102,8 +193,8 @@ class CampaignForm(forms.Form):
         if targets_count is not None and targets_count < 1:
             self.add_error('targets_count', "Targets count cannot be less than 1.")
 
-        if min_delay is not None and min_delay < 5:
-            self.add_error('min_delay', "Lower limit delay must be 5 or a number greater than 0.")
+        if min_delay is not None and min_delay < 0:
+            self.add_error('min_delay', "Lower limit delay must be greater than 0.")
 
         if max_delay is not None and max_delay < min_delay:
             self.add_error('max_delay', "Upper limit delay must be greater than lower limit.")
@@ -120,7 +211,9 @@ class BulkCampaignForm(CampaignForm):
         super().__init__(*args, user=self.user, **kwargs)
 
         # Set all fields as not required for Step 2
-        for field_name in ['file_upload', 'mc_number', 'targets_count', 'email_subject', 'email_body', 'min_delay', 'max_delay', 'select_all']:
+        for field_name in ['file_upload', 'mc_number', 'targets_count', 'email_subject', 'email_body', 'min_delay', 'max_delay', 'select_all',
+                          'power_units_comparison', 'power_units_value', 'drivers_comparison', 'drivers_value',
+                          'status', 'carrier_operation', 'hm', 'hhg', 'new_entrant']:
             if field_name in self.fields:
                 self.fields[field_name].required = False
 

@@ -15,6 +15,10 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 import re
 from django.utils.timezone import now
+import time
+import random
+from django.db.models import Q, F, Value, IntegerField
+from django.db.models.functions import Cast, Replace
 
 
 ######################################## Campaign sending views
@@ -29,7 +33,7 @@ def chunk_list(data, chunk_size):
         yield data[i:i + chunk_size]
 
 
-def send_emails(email_account, leads, subject, body, min_delay, max_delay, chunk_size=20):
+def send_emails(email_account, leads, subject, body, min_delay, max_delay, chunk_size=100):
     
     """
     Sends campaign emails in parallel chunks.
@@ -201,27 +205,119 @@ def process_excel_file(file):
         return []
 
 
-def get_leads_from_db(starting_mc_number, targets_count):
+
+def get_leads_from_db(starting_mc_number, targets_count,
+                      power_units_comparison=None, power_units_value=None,
+                      drivers_comparison=None, drivers_value=None,
+                      status=None, carrier_operation=None, hm=None, hhg=None,
+                      new_entrant=None):
+    
     try:
-        formatted_mc_number = f"MC {starting_mc_number}"
-        starting_lead = Lead.objects.filter(mc_number__gte=formatted_mc_number).order_by('mc_number').first()
-        
+        formatted_mc = f"MC {starting_mc_number}"
+
+        # Base filters
+        filters = (
+            Q(email__isnull=False) &
+            ~Q(email='') &
+            ~Q(power_units='') &
+            ~Q(drivers='')
+        )
+
+        if status and not status == '': # This correctly adds filter only if status is not an empty string
+            filters &= Q(status=status)
+        if carrier_operation and not carrier_operation == '': # This correctly adds filter only if carrier_operation is not an empty string
+            filters &= Q(carrier_operation=carrier_operation)
+
+        if hm == 'Yes':
+            filters &= Q(hm='Yes')
+        elif hm == 'No':
+            filters &= Q(hm='No')
+        # If hm is '' (or anything else that's not 'Yes' or 'No'), no filter is added for hm, meaning 'Any' is included.
+
+        if hhg == 'Yes':
+            filters &= Q(hhg='Yes')
+        elif hhg == 'No':
+            filters &= Q(hhg='No')
+
+        if new_entrant == 'Yes':
+            filters &= Q(new_entrant='Yes')
+        elif new_entrant == 'No':
+            filters &= Q(new_entrant='No')
+
+        # Casting string fields to integers before comparison
+        queryset = Lead.objects.annotate(
+            power_units_int=Cast(Replace(Replace(F('power_units'), Value(','), Value('')), Value(' '), Value('')), IntegerField()),
+            drivers_int=Cast(Replace(Replace(F('drivers'), Value(','), Value('')), Value(' '), Value('')), IntegerField()),
+        )
+
+        # Numerical filters will only apply if power_units_value / drivers_value is not None
+        if power_units_comparison and power_units_value is not None:
+            filters &= Q(power_units_int__isnull=False) # Ensure the cast was successful
+            if power_units_comparison == 'gt':
+                filters &= Q(power_units_int__gte=power_units_value)
+            elif power_units_comparison == 'lt':
+                filters &= Q(power_units_int__lte=power_units_value)
+            elif power_units_comparison == 'eq':
+                filters &= Q(power_units_int=power_units_value)
+
+        if drivers_comparison and drivers_value is not None:
+            filters &= Q(drivers_int__isnull=False) # Ensure the cast was successful
+            if drivers_comparison == 'gt':
+                filters &= Q(drivers_int__gte=drivers_value)
+            elif drivers_comparison == 'lt':
+                filters &= Q(drivers_int__lte=drivers_value)
+            elif drivers_comparison == 'eq':
+                filters &= Q(drivers_int=drivers_value)
+
+        # Find closest starting lead
+        starting_lead = (
+            queryset.filter(mc_number__gte=formatted_mc)
+            .filter(filters)
+            .order_by('mc_number')
+            .first()
+        )
+
         if not starting_lead:
-            starting_lead = Lead.objects.filter(mc_number__lte=formatted_mc_number).order_by('-mc_number').first()
-        
+            starting_lead = (
+                queryset.filter(mc_number__lte=formatted_mc)
+                .filter(filters)
+                .order_by('-mc_number')
+                .first()
+            )
+
         if not starting_lead:
             return []
 
         starting_mc = starting_lead.mc_number
-        leads_after = list(Lead.objects.filter(mc_number__gte=starting_mc, email__isnull=False).exclude(email='').order_by('mc_number')[:targets_count])
+
+        leads_after = list(
+            queryset.filter(mc_number__gte=starting_mc)
+            .filter(filters)
+            .order_by('mc_number')[:targets_count]
+        )
+
         remaining = targets_count - len(leads_after)
-        
+
         if remaining > 0:
-            leads_before = list(Lead.objects.filter(mc_number__lt=starting_mc, email__isnull=False).exclude(email='').order_by('-mc_number')[:remaining])
+            leads_before = list(
+                queryset.filter(mc_number__lt=starting_mc)
+                .filter(filters)
+                .order_by('-mc_number')[:remaining]
+            )
             leads_after.extend(leads_before)
 
-        return [{'mc_number': lead.mc_number, 'name': lead.legal_name, 'email': lead.email} for lead in leads_after if lead.email]
+        leads = [
+            {
+                'mc_number': lead.mc_number,
+                'name': lead.legal_name,
+                'email': lead.email
+            }
+            for lead in leads_after[:targets_count]
+        ]
+        return leads
+
     except Exception as e:
+        print(f"Exception: {e}")
         return []
 
 
@@ -242,11 +338,27 @@ def campaign(request, email_account_id):
             min_delay = form.cleaned_data.get('min_delay')
             max_delay = form.cleaned_data.get('max_delay')
 
+            # Extra filters from the form
+            power_units_comparison = form.cleaned_data.get('power_units_comparison')
+            power_units_value = form.cleaned_data.get('power_units_value')
+            drivers_comparison = form.cleaned_data.get('drivers_comparison')
+            drivers_value = form.cleaned_data.get('drivers_value')
+            status = form.cleaned_data.get('status')
+            carrier_operation = form.cleaned_data.get('carrier_operation')
+            hm = form.cleaned_data.get('hm')
+            hhg = form.cleaned_data.get('hhg')
+            new_entrant = form.cleaned_data.get('new_entrant')
+
             leads = []
             if file_upload:
                 leads = process_excel_file(file_upload)
             elif mc_number and not request.user.on_free_trial:
-                leads = get_leads_from_db(mc_number, targets_count)
+                leads = get_leads_from_db(
+                    mc_number, targets_count,
+                    power_units_comparison=power_units_comparison,
+                    power_units_value=power_units_value, drivers_comparison=drivers_comparison, drivers_value=drivers_value,
+                    status=status, carrier_operation=carrier_operation, hm=hm, hhg=hhg, new_entrant=new_entrant
+                )
 
             if not leads:
                 messages.error(request, "No valid leads found.")
@@ -261,9 +373,30 @@ def campaign(request, email_account_id):
                     seen_emails.add(email)
 
             leads = unique_leads
+            print(leads)
+
+            filter_data = {}
+            for key in ['mc_number', 'targets_count', 'power_units_comparison', 'power_units_value', 
+                        'drivers_comparison', 'drivers_value', 'status', 'carrier_operation', 
+                        'hm', 'hhg', 'new_entrant']:
+                val = locals().get(key)
+                if val not in [None, '', 'None']:
+                    filter_data[key] = val
+
+            # Handle AJAX pre-check
+            if request.headers.get('x-requested-with') == 'XMLHttpRequest' and not request.POST.get('confirm'):
+                res = JsonResponse({
+                    'lead_count': len(leads),
+                    'filters': filter_data,
+                    'confirmed': False
+                })
+                print(res)
+                return res
+            else:
+                print("\nThe post is not what you expecyted")
 
             # Call send_emails function which already uses threading
-            print(f"[DEBUG] Queuing email campaign to {len(leads)} leads for {email_account.email_address}")
+            print(f"Queuing email campaign to {len(leads)} leads for {email_account.email_address}")
             send_emails(email_account, leads, email_subject, email_body, min_delay, max_delay)
 
             email_account.last_used_at = now()
@@ -319,11 +452,27 @@ def bulk_campaign(request):
             mc_number = form.cleaned_data['mc_number']
             targets_count = form.cleaned_data['targets_count']
 
+            # Extra filters from the form
+            power_units_comparison = form.cleaned_data.get('power_units_comparison')
+            power_units_value = form.cleaned_data.get('power_units_value')
+            drivers_comparison = form.cleaned_data.get('drivers_comparison')
+            drivers_value = form.cleaned_data.get('drivers_value')
+            status = form.cleaned_data.get('status')
+            carrier_operation = form.cleaned_data.get('carrier_operation')
+            hm = form.cleaned_data.get('hm')
+            hhg = form.cleaned_data.get('hhg')
+            new_entrant = form.cleaned_data.get('new_entrant')
+
             leads = []
             if file_upload:
                 leads = process_excel_file(file_upload)
             elif mc_number and not request.user.on_free_trial:
-                leads = get_leads_from_db(mc_number, targets_count)
+                leads = get_leads_from_db(
+                    mc_number, targets_count,
+                    power_units_comparison=power_units_comparison,
+                    power_units_value=power_units_value, drivers_comparison=drivers_comparison, drivers_value=drivers_value,
+                    status=status, carrier_operation=carrier_operation, hm=hm, hhg=hhg, new_entrant=new_entrant
+                )
 
             if not leads:
                 if request.headers.get('x-requested-with') == 'XMLHttpRequest':
@@ -335,12 +484,19 @@ def bulk_campaign(request):
             cache.delete(cache_key)
             cache.set(cache_key, {'leads': leads, 'leads_available': len(leads)}, timeout=300)
 
+            filter_data = {}
+            for key in ['mc_number', 'targets_count', 'power_units_comparison', 'power_units_value', 
+                        'drivers_comparison', 'drivers_value', 'status', 'carrier_operation', 
+                        'hm', 'hhg', 'new_entrant']:
+                val = locals().get(key)
+                if val not in [None, '', 'None']:
+                    filter_data[key] = val
 
             if request.headers.get('x-requested-with') == 'XMLHttpRequest':
                 return JsonResponse({
                     'status': 'success',
-                    'message': f'{len(leads)} leads submitted successfully.',
-                    'leads': leads  # Include leads data here
+                    'message': f'{len(leads)} leads found and submitted successfully. Do you wish to proceed?',
+                    'leads': leads,  # Include leads data here
                 })
 
             messages.success(request, f"{len(leads)} leads submitted successfully.")
@@ -441,7 +597,7 @@ def bulk_campaign(request):
 
 
             def start_campaign():
-                chunk_size = 20  # or any preferred size
+                chunk_size = 100  # or any preferred size
 
                 for account, assigned_leads in account_lead_map.items():
                     if assigned_leads:
@@ -461,6 +617,11 @@ def bulk_campaign(request):
                             print(f"Task Queued: {task_id} for chunk of {len(chunk)} leads.")
                             total_chunks += 1
                             total_leads += len(chunk)
+                            
+                            # Since each chunk gets deployed at the same time, so the first email for each chunk gets sent simultaneously ... not good
+                            # Hence, we need to delay even the init of each chunk, so they dont get deployed simultaneously
+                            task_iniit_delay = random.randint(min_delay, max_delay)
+                            time.sleep(task_iniit_delay)
 
                         account.last_used_at = now()
                         account.save(update_fields=["last_used_at"])
