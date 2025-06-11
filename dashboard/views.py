@@ -15,8 +15,6 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 import re
 from django.utils.timezone import now
-import time
-import random
 from django.db.models import Q, F, Value, IntegerField
 from django.db.models.functions import Cast, Replace
 
@@ -26,114 +24,25 @@ from django.db.models.functions import Cast, Replace
 # Basic email regex for quick pre-validation (can be more robust if needed)
 email_regex = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
 
-# Distributing the leads list in smaller chunks
-def chunk_list(data, chunk_size):
-    """Yield successive chunks of given size from the list."""
-    for i in range(0, len(data), chunk_size):
-        yield data[i:i + chunk_size]
 
-
-def send_emails(email_account, leads, subject, body, min_delay, max_delay, chunk_size=100):
+def send_emails(email_account, leads, subject, body, min_delay, max_delay):
+    """
+    Sends campaign emails by submitting a single task to Django Q,
+    which then manages the chunking and distribution to Celery.
+    """
     
-    """
-    Sends campaign emails in parallel chunks.
-    Each task handles a small portion of the leads to avoid blocking workers.
-    """
-    total_chunks = 0
-    total_leads = 0
-    for chunk in chunk_list(leads, chunk_size):
-        async_task(
-            'dashboard.tasks.send_emails_task',
-            email_account.id,
-            chunk, # 👈 Only this chunk of leads
-            subject,
-            body,
-            min_delay, 
-            max_delay
-        )
-        print(f"Chunk of {len(chunk)} leads queued.")
-        total_chunks += 1
-        total_leads += len(chunk)
+    async_task(
+        'dashboard.tasks.send_emails_task',
+        email_account.id,
+        leads, # Pass the entire leads list here
+        subject,
+        body,
+        min_delay, 
+        max_delay
+    )
+    
+    print(f"Campaign for {email_account.email_address} submitted to Django Q.")
 
-    print(f"Total chunks queued: {total_chunks}")
-    print(f"Total leads in all chunks: {total_leads}")
-
-    # --- Legacy threading code (commented out for reference) ---
-    # def _send():
-    #     try:
-    #         # Decrypt the stored password before using it
-    #         decrypted_password = email_account.get_password()
-
-    #         # Determine the SMTP security type
-    #         use_tls = email_account.server_type == "TLS"
-    #         use_ssl = email_account.server_type == "SSL"
-
-    #         if use_tls and use_ssl:
-    #             print("Invalid configuration: Cannot enable both TLS and SSL.")
-    #             return
-
-    #         # Create a custom SMTP connection using Django's EmailBackend
-    #         connection = get_connection(
-    #             backend="django.core.mail.backends.smtp.EmailBackend",
-    #             host=email_account.host,
-    #             port=email_account.port_number,
-    #             username=email_account.email_address,
-    #             password=decrypted_password,
-    #             use_tls=use_tls,
-    #             use_ssl=use_ssl,
-    #         )
-
-    #         # Open the SMTP connection
-    #         try:
-    #             connection.open()
-    #         except Exception as e:
-    #             # If connection fails to open, none will be sent for this account.
-    #             print(f"Exception while opening connection for {email_account.email_address}: {e}")
-    #             return # Exit this thread's execution if connection fails
-
-    #         # Send personalized emails
-    #         sent_count = 0
-    #         for lead in leads:
-    #             # --- CRITICAL NEW CHECK HERE ---
-    #             if not lead.get('email') or not re.match(email_regex, lead['email']):
-    #                 print(f"Skipping lead due to invalid or empty email: {lead.get('email', 'N/A')}")
-    #                 continue # Skip this lead and proceed to the next
-                
-    #             personalized_subject = subject.replace("[name]", str(lead['name'])).replace("[mc_number]", str(lead['mc_number']))
-    #             personalized_body = body.replace("[name]", str(lead['name'])).replace("[mc_number]", str(lead['mc_number']))
-
-    #             try:
-    #                 msg = EmailMultiAlternatives(
-    #                     subject=personalized_subject,
-    #                     body=personalized_body,
-    #                     from_email=email_account.email_address,
-    #                     to=[lead['email']],
-    #                     connection=connection
-    #                 )
-    #                 msg.attach_alternative(personalized_body, "text/html")  # Attach the HTML version
-    #                 msg.send()
-    #                 sent_count += 1
-    #                 time.sleep(delay)
-    #             except Exception as e: # Catch any specific error for this email and continue
-    #                 print(f"Error sending email to {lead['email']} from {email_account.email_address}: {e}")
-    #                 # This email failed, but we continue to the next one
-    #                 continue
-
-    #         print(f"Emails sent successfully to {sent_count} out of {len(leads)} recipients using {email_account.email_address}.")
-
-    #         # Close the SMTP connection after sending
-    #         connection.close()
-
-    #         # Update last used timestamp
-    #         email_account.last_used_at = now()
-    #         email_account.save(update_fields=["last_used_at"])
-
-    #     except Exception as e:
-    #         print(f"Error in sending emails: {e}")
-
-    # # Execute the email sending process in a separate thread
-    # executor = ThreadPoolExecutor(max_workers=5)
-    # executor.submit(_send)
 
 
 def process_excel_file(file):
@@ -390,7 +299,6 @@ def campaign(request, email_account_id):
                     'filters': filter_data,
                     'confirmed': False
                 })
-                print(res)
                 return res
             else:
                 print("\nThe post is not what you expecyted")
@@ -597,38 +505,23 @@ def bulk_campaign(request):
 
 
             def start_campaign():
-                chunk_size = 100  # or any preferred size
-
+                
                 for account, assigned_leads in account_lead_map.items():
-                    if assigned_leads:
-                        total_chunks = 0
-                        total_leads = 0
-
-                        for chunk in chunk_list(assigned_leads, chunk_size):
-                            task_id = async_task(
-                                'dashboard.tasks.send_emails_task',
-                                account.id,
-                                chunk,          # 👈 chunked leads
-                                email_subject,
-                                email_body,
-                                min_delay, 
-                                max_delay
-                            )
-                            print(f"Task Queued: {task_id} for chunk of {len(chunk)} leads.")
-                            total_chunks += 1
-                            total_leads += len(chunk)
+            
+                    # Call async_task only ONCE for each account
+                    async_task(
+                        'dashboard.tasks.send_emails_task',
+                        account.id,
+                        assigned_leads, # Pass the entire list of leads for this account
+                        email_subject,
+                        email_body,
+                        min_delay, 
+                        max_delay
+                    )
+                    print(f"Campaign for Account {account.email_address} submitted to campaign manager.")
                             
-                            # Since each chunk gets deployed at the same time, so the first email for each chunk gets sent simultaneously ... not good
-                            # Hence, we need to delay even the init of each chunk, so they dont get deployed simultaneously
-                            task_iniit_delay = random.randint(min_delay, max_delay)
-                            time.sleep(task_iniit_delay)
-
-                        account.last_used_at = now()
-                        account.save(update_fields=["last_used_at"])
-
-                        print(f"Account {account.email_address}: Total chunks queued: {total_chunks}")
-                        print(f"Account {account.email_address}: Total leads in all chunks: {total_leads}")
-
+                    account.last_used_at = now()
+                    account.save(update_fields=["last_used_at"])
 
 
             # Thread(target=start_campaign).start()

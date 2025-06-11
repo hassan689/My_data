@@ -49,7 +49,19 @@ INSTALLED_APPS = [
 		'widget_tweaks',
 		'django_q',
 		'django_ckeditor_5',
+    'celery',
 ]
+
+
+# Celery Configuration
+CELERY_BROKER_URL = 'amqp://guest:guest@localhost:5672//'
+CELERY_RESULT_BACKEND = 'rpc://'
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'UTC' # Keep this consistent with your Django TIME_ZONE
+CELERY_TASK_TRACK_STARTED = True # Useful for monitoring task states
+CELERY_TASK_CREATE_DIRS = False # Prevent Celery from creating directories for logs if you're not using file logging for tasks
 
 
 Q_CLUSTER = {
@@ -63,7 +75,6 @@ Q_CLUSTER = {
     'compress': True,
     'save_limit': 250,
     'queue_limit': 1000,
-    # 'cpu_affinity': 1, # ⚠️ Caution: binds workers to **core 1 only** — can bottleneck performance
     'label': 'Django Q',
     'daemonize_workers': False,
     'orm': 'default',
@@ -118,8 +129,8 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-
 import os
+
 ROOT_URLCONF = 'growth_skool.urls'
 
 TEMPLATES = [

@@ -224,8 +224,8 @@ class BulkCampaignForm(CampaignForm):
         min_delay = cleaned_data.get('min_delay')
         max_delay = cleaned_data.get('max_delay')
 
-        if min_delay is not None and min_delay < 5:
-            self.add_error('min_delay', "Lower limit delay must be 5 or a number greater than 0.")
+        if min_delay is not None and min_delay < 0:
+            self.add_error('min_delay', "Lower limit delay must be a number greater than 0.")
 
         if max_delay is not None and max_delay < min_delay:
             self.add_error('max_delay', "Upper limit delay must be greater than lower limit.")
