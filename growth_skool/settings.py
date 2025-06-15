@@ -49,7 +49,6 @@ INSTALLED_APPS = [
 		'widget_tweaks',
 		'django_q',
 		'django_ckeditor_5',
-    'celery',
 ]
 
 
@@ -66,11 +65,11 @@ CELERY_TASK_CREATE_DIRS = False # Prevent Celery from creating directories for l
 
 Q_CLUSTER = {
     'name': 'pdm',
-    'workers': 12,
-    'max_workers': 36,  # For bulk campaign ..... simultaneous sendings
+    'workers': 3,
+    'max_workers': 10,
     'recycle': 500,
-    'timeout': 14400, # 4 hours ......... for campaign sends
-    'retry': 16000,
+    'timeout': 120,
+    'retry': 180,
     'max_attempts': 1,
     'compress': True,
     'save_limit': 250,

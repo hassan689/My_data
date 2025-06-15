@@ -8,12 +8,6 @@ from growth_skool.celery import app
 
 email_regex = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
 
-def chunk_list(data, chunk_size):
-    """Yield successive chunks of given size from the list."""
-    for i in range(0, len(data), chunk_size):
-        yield data[i:i + chunk_size]
-
-
 # ----------------------------------------------------
 # NEW CELERY TASK for processing a chunk of leads
 # This task will be consumed by Celery workers
@@ -93,25 +87,4 @@ def send_emails_chunk_celery_task(email_account_id, leads_chunk, subject, body, 
         print(f"[{timezone.now()}] Celery Task Error: EmailAccount with ID {email_account_id} does not exist.")
     except Exception as e:
         print(f"[{timezone.now()}] Celery Task Error: An unexpected error occurred in send_emails_chunk_celery_task: {e}")
-
-
-# ----------------------------------------------------
-# MODIFIED Django Q Task (Campaign Manager)
-# This task will be called by Django Q
-# ----------------------------------------------------
-def send_emails_task(email_account_id, leads, subject, body, min_delay, max_delay):
-    chunk_size = 150 # 150 leads per worker
-
-    try:
-        print(f"[{timezone.now()}] Django Q Task: Campaign Manager started for email_account_id: {email_account_id}, total leads: {len(leads)}")
-
-        for i, leads_chunk in enumerate(chunk_list(leads, chunk_size)):
-            print(f"[{timezone.now()}] Django Q Task: Submitting chunk {i+1} ({len(leads_chunk)} leads) to Celery...")
-            # Call the Celery task here using .delay()
-            send_emails_chunk_celery_task.delay(email_account_id, leads_chunk, subject, body, min_delay, max_delay)
-            
-        print(f"[{timezone.now()}] Django Q Task: All chunks submitted to Celery for email_account_id: {email_account_id}.")
-
-    except Exception as e:
-        print(f"[{timezone.now()}] Django Q Task Error: An error occurred in Campaign Manager: {e}")
 
