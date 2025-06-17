@@ -4,13 +4,12 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.shortcuts import render
 
-# update later to add the company name before the url and after the domain name
-
 urlpatterns = [
     path('admin/', admin.site.urls),
 		path('', include('main.urls')),
     path('users/', include('users.urls')),
     path('dashboard/', include('dashboard.urls')),
+    path('dashboard/unibox/', include('unibox.urls')),
     
 		path("ckeditor5/", include('django_ckeditor_5.urls')),
 ]

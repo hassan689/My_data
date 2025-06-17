@@ -45,6 +45,7 @@ INSTALLED_APPS = [
 		'subscriptions.apps.SubscriptionsConfig',
 		'leads_data.apps.LeadsDataConfig',
 		'dashboard.apps.DashboardConfig',
+    'unibox.apps.UniboxConfig',
 
 		'widget_tweaks',
 		'django_q',
