@@ -60,33 +60,14 @@ def send_emails(email_account, leads, subject, body, min_delay, max_delay, chunk
 
 
 def process_excel_file(file):
+    
     if not file.name.endswith('.xlsx'):
         return []
 
-    # Basic email regex for quick pre-validation (can be more robust if needed)
     email_regex = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
 
     try:
         df = pd.read_excel(file)
-
-        normalized_columns = {col: col.strip().lower().replace(" ", "") for col in df.columns}
-        column_mapping = {}
-        expected_columns = {
-            'mc_number': ['mc', 'mcnumber', 'mc_number', 'number'],
-            'name': ['name', 'legalname'],
-            'email': ['email', 'emailaddress']
-        }
-
-        for key, aliases in expected_columns.items():
-            for col, norm_col in normalized_columns.items():
-                if norm_col in aliases:
-                    column_mapping[key] = col
-                    break
-
-        if 'email' not in column_mapping or 'mc_number' not in column_mapping:
-            # If essential columns are missing, return empty list
-            print("Required 'email' or 'mc_number' column not found in the Excel file.")
-            return []
 
         def clean_value(val):
             if pd.isnull(val):
@@ -95,38 +76,39 @@ def process_excel_file(file):
                 return str(int(val))
             return str(val).strip()
 
-        def normalize_mc_number(val):
-            val = clean_value(val)
-            if not val.lower().startswith('mc'):
-                return f"MC {val}"
-            return val
+        # Normalize column names for internal lookup (finding 'email' column)
+        normalized_columns = {col: col.strip().lower().replace(" ", "") for col in df.columns}
+
+        # Find the original column name for email
+        email_col = next((col for col, norm in normalized_columns.items() if 'email' in norm), None)
+
+        if not email_col:
+            print("Required 'email' column not found in the Excel file.")
+            return []
 
         leads = []
         for _, row in df.iterrows():
-            # Get and clean/normalize all relevant values first
-            mc_number_val = normalize_mc_number(row.get(column_mapping.get('mc_number', ''), ''))
-            name_val = clean_value(row.get(column_mapping.get('name', ''), ''))
-            email_val = clean_value(row.get(column_mapping.get('email', ''), ''))
+            lead = {}
 
-            # Filter out leads if any of the required fields are empty
-            # or if the email format is invalid
-            if (mc_number_val and name_val and email_val and
-                re.match(email_regex, email_val)):
-                leads.append({
-                    'mc_number': mc_number_val,
-                    'name': name_val,
-                    'email': email_val
-                })
-            else:
-                # Optional: Print a message for leads that were skipped
-                print(f"Skipping lead due to missing/invalid data: MC: '{mc_number_val}', Name: '{name_val}', Email: '{email_val}'")
+            # Process email: This is the only column strictly necessary for a lead
+            email_val = clean_value(row[email_col])
+            if not email_val or not re.match(email_regex, email_val):
+                # print(f"Skipping row: invalid or missing email: '{email_val}'") # Can uncomment for debugging
+                continue
+            lead['email'] = email_val
 
+            # Process all other columns without hardcoding their names
+            for col in df.columns:
+                if col != email_col: # Include all columns except the email column
+                    lead[col] = clean_value(row[col])
+
+            leads.append(lead)
 
         return leads
+
     except Exception as e:
         print(f"Error in process_excel_file: {e}")
         return []
-
 
 
 def get_leads_from_db(starting_mc_number, targets_count,
@@ -314,8 +296,6 @@ def campaign(request, email_account_id):
                     'confirmed': False
                 })
                 return res
-            else:
-                print("\nThe post is not what you expecyted")
 
             # Call send_emails function which already uses threading
             print(f"Queuing email campaign to {len(leads)} leads for {email_account.email_address}")

@@ -8,6 +8,19 @@ from growth_skool.celery import app
 
 email_regex = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
 
+
+def personalize_template(template, lead):
+    
+    # Find all placeholders like [Some Column]
+    placeholders = re.findall(r'\[([^\]]+)\]', template)
+    
+    for ph in placeholders:
+        value = str(lead.get(ph, ph))  # Use the column name as fallback if missing
+        template = template.replace(f"[{ph}]", value)
+    
+    return template
+
+
 # ----------------------------------------------------
 # NEW CELERY TASK for processing a chunk of leads
 # This task will be consumed by Celery workers
@@ -56,8 +69,8 @@ def send_emails_chunk_celery_task(email_account_id, leads_chunk, subject, body, 
                 continue
             
             # Personalize subject and body (only once per lead)
-            personalized_subject = subject.replace("[name]", str(lead.get('name', ''))).replace("[mc_number]", str(lead.get('mc_number', '')))
-            personalized_body = body.replace("[name]", str(lead.get('name', '')).replace("[mc_number]", str(lead.get('mc_number', ''))))
+            personalized_subject = personalize_template(subject, lead)
+            personalized_body = personalize_template(body, lead)
 
             delay = random.randint(min_delay, max_delay) 
             time.sleep(delay) 
