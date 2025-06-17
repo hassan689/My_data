@@ -17,7 +17,9 @@ from django.utils.timezone import now
 from django.db.models import Q, F, Value, IntegerField
 from django.db.models.functions import Cast, Replace
 from .tasks import send_emails_chunk_celery_task
-
+import requests
+from google_secrets import *
+from .models import GmailToken
 
 ######################################## Campaign sending views
 
@@ -581,11 +583,14 @@ def bulk_campaign(request):
 
 @login_required
 def index(request):
-	email_accounts = EmailAccount.objects.filter(user=request.user).order_by('-last_used_at')
-	context = {
+	
+  email_accounts = EmailAccount.objects.filter(user=request.user).order_by('-last_used_at')
+  for account in email_accounts:
+        account.is_gmail = account.email_address.lower().endswith('@gmail.com')
+  context = {
 		"email_accounts": email_accounts
 	}
-	return render(request, 'dashboard/index.html', context)
+  return render(request, 'dashboard/index.html', context)
 
 
 # Email account successfully added confirmation email
@@ -706,8 +711,6 @@ def add_email_account(request):
     return render(request, "dashboard/add_email_account.html", {"form": form})
 
 
-
-
 # Update Email Account
 @login_required
 def email_account_update(request, id):
@@ -752,4 +755,99 @@ def daily_sheets_view(request):
 @login_required
 def coming_soon(request):
     return render(request, 'dashboard/coming_soon.html')
+
+
+
+######################################## Views to connect to Gmail API
+
+def oauth_start(request, email_account_id):
+    # Store in session for use after OAuth completes
+    request.session['connect_email_account_id'] = email_account_id
+
+    auth_url = (
+        "https://accounts.google.com/o/oauth2/v2/auth?"
+        f"client_id={GOOGLE_CLIENT_ID}"
+        f"&redirect_uri={GOOGLE_REDIRECT_URI}"
+        f"&response_type=code"
+        f"&scope={GOOGLE_SCOPE}"
+        f"&access_type=offline"
+        f"&prompt=consent"
+    )
+    return redirect(auth_url)
+
+
+def oauth_callback(request):
+    code = request.GET.get('code')
+    if not code:
+        messages.error(request, "No code provided by Google.")
+        return redirect("dashboard:index")
+
+    email_account_id = request.session.pop('connect_email_account_id', None)
+    if not email_account_id:
+        messages.error(request, "No email account info found. Please try again.")
+        return redirect("dashboard:index")
+
+    try:
+        email_account = EmailAccount.objects.get(id=email_account_id, user=request.user)
+    except EmailAccount.DoesNotExist:
+        messages.error(request, "Selected email account does not exist.")
+        return redirect("dashboard:index")
+
+    # Exchange code for tokens
+    token_url = "https://oauth2.googleapis.com/token"
+    data = {
+        'code': code,
+        'client_id': GOOGLE_CLIENT_ID,
+        'client_secret': GOOGLE_CLIENT_SECRET,
+        'redirect_uri': GOOGLE_REDIRECT_URI,
+        'grant_type': 'authorization_code',
+    }
+
+    response = requests.post(token_url, data=data)
+    if response.status_code != 200:
+        messages.error(request, f"Token exchange failed: {response.json().get('error_description', 'Unknown error')}")
+        return redirect("dashboard:index")
+
+    tokens = response.json()
+    access_token = tokens['access_token']
+
+    # Get Gmail profile
+    profile_response = requests.get(
+        "https://gmail.googleapis.com/gmail/v1/users/me/profile",
+        headers={"Authorization": f"Bearer {access_token}"}
+    )
+    if profile_response.status_code != 200:
+        messages.error(request, f"Failed to retrieve Gmail profile: {profile_response.json().get('error', 'Unknown error')}")
+        return redirect("dashboard:index")
+
+    profile = profile_response.json()
+    gmail_address = profile.get("emailAddress", "").lower()
+
+    # Check if account matches
+    if gmail_address != email_account.email_address.lower():
+        messages.error(
+            request,
+            f"Connected Gmail account ({gmail_address}) does not match the selected account ({email_account.email_address})."
+        )
+        return redirect("dashboard:index")
+
+    # Enforce Gmail domain
+    if not gmail_address.endswith("@gmail.com"):
+        messages.error(request, "Please connect a valid Gmail account (not a non-Gmail Google account).")
+        return redirect("dashboard:index")
+
+    # Save or update GmailToken
+    GmailToken.objects.update_or_create(
+        email_account=email_account,
+        defaults={
+            'access_token': access_token,
+            'refresh_token': tokens.get('refresh_token', ''),
+            'expires_in': tokens.get('expires_in', 0),
+            'token_type': tokens.get('token_type', ''),
+            'scope': tokens.get('scope', ''),
+        }
+    )
+
+    messages.success(request, "Gmail connected successfully!")
+    return redirect("dashboard:index")
 

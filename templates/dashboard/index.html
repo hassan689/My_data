@@ -104,6 +104,12 @@
                       class="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600 text-center">
                       Launch Campaign
                     </a>
+                    {% if account.is_gmail %}
+                        <a href="{% url 'dashboard:oauth_start' account.id %}" 
+                          class="bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600 text-center">
+                          Connect Gmail
+                        </a>
+                    {% endif %}
                   </div>
                 </td>
                 

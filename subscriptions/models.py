@@ -31,7 +31,7 @@ class Subscription(models.Model):
         super().save(*args, **kwargs)
 
         # Check if status transitioned from expired to active
-        if old_status == "expired" and self.status == "active":
+        if (old_status == "expired" or old_status == "canceled") and self.status == "active":
             self.renew_subscription()
 
     def renew_subscription(self, additional_days=30):
