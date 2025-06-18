@@ -26,18 +26,13 @@ def personalize_template(template, lead):
 # This task will be consumed by Celery workers
 # ----------------------------------------------------
 @app.task(name="dashboard.send_emails_chunk_celery_task")
-def send_emails_chunk_celery_task(email_account_id, leads_chunk, subject, body, min_delay, max_delay):
+def send_emails_chunk_celery_task(email_account_id, leads, subject, body, min_delay, max_delay):
     
-    print(f"[{timezone.now()}] Celery Task Debug: Task received. Trying to get EmailAccount ID: {email_account_id}...")
     try:
         email_account = EmailAccount.objects.get(id=email_account_id)
         print(f"[{timezone.now()}] Celery Task Debug: Successfully retrieved EmailAccount: {email_account.email_address}.")
         
         decrypted_password = email_account.get_password()
-        print(f"[{timezone.now()}] Celery Task Debug: Successfully decrypted password.")
-        
-        # Original logic continues from here
-        print(f"[{timezone.now()}] Celery Task: Started processing chunk for {email_account.email_address}, {len(leads_chunk)} leads")
 
         use_tls = email_account.server_type == "TLS"
         use_ssl = email_account.server_type == "SSL"
@@ -56,10 +51,9 @@ def send_emails_chunk_celery_task(email_account_id, leads_chunk, subject, body, 
             use_ssl=use_ssl,
         )
         connection.open()
-        print(f"[{timezone.now()}] Celery Task: SMTP Connection opened.") # New debug print
         sent_count = 0
 
-        for lead in leads_chunk:
+        for lead in leads:
             if not isinstance(lead, dict) or 'email' not in lead:
                 print(f"Skipping invalid lead: {lead}")
                 continue
@@ -87,14 +81,12 @@ def send_emails_chunk_celery_task(email_account_id, leads_chunk, subject, body, 
                 
                 msg.send()
                 sent_count += 1
-                print(f"[{timezone.now()}] Celery Task: Sent email to {lead['email']} (via {email_account.email_address})")
-
 
             except Exception as e:
                 print(f"[{timezone.now()}] Celery Task: Failed to send to {lead['email']} (via {email_account.email_address}): {e}")
 
         connection.close()
-        print(f"[{timezone.now()}] Celery Task: {sent_count}/{len(leads_chunk)} emails sent for chunk using {email_account.email_address}.")
+        print(f"[{timezone.now()}] Celery Task: {sent_count}/{len(leads)} emails sent for chunk using {email_account.email_address}.")
 
     except EmailAccount.DoesNotExist:
         print(f"[{timezone.now()}] Celery Task Error: EmailAccount with ID {email_account_id} does not exist.")

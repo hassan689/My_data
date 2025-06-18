@@ -119,7 +119,8 @@ CKEDITOR_5_CONFIGS = {
 }
 
 
-MAINTENANCE_MODE = True
+MAINTENANCE_MODE = False
+
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',

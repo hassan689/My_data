@@ -26,37 +26,37 @@ from .models import GmailToken
 # Basic email regex for quick pre-validation (can be more robust if needed)
 email_regex = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
 
-def chunk_list(data, chunk_size):
-    """Yield successive chunks of given size from the list."""
-    for i in range(0, len(data), chunk_size):
-        yield data[i:i + chunk_size]
+# def chunk_list(data, chunk_size):
+#     """Yield successive chunks of given size from the list."""
+#     for i in range(0, len(data), chunk_size):
+#         yield data[i:i + chunk_size]
 
 
-def send_emails(email_account, leads, subject, body, min_delay, max_delay, chunk_size=150):
+# def send_emails(email_account, leads, subject, body, min_delay, max_delay, chunk_size=150):
     
-    """
-    Sends campaign emails in parallel chunks.
-    Each task handles a small portion of the leads to avoid blocking workers.
-    """
-    total_chunks = 0
-    total_leads = 0
-    for chunk in chunk_list(leads, chunk_size):
-        # Call the Celery task directly using .delay()
+#     """
+#     Sends campaign emails in parallel chunks.
+#     Each task handles a small portion of the leads to avoid blocking workers.
+#     """
+#     total_chunks = 0
+#     total_leads = 0
+#     for chunk in chunk_list(leads, chunk_size):
+#         # Call the Celery task directly using .delay()
         
-        send_emails_chunk_celery_task.delay(
-            email_account.id,
-            chunk, # 👈 Only this chunk of leads
-            subject,
-            body,
-            min_delay,
-            max_delay
-        )
-        print(f"Chunk of {len(chunk)} leads queued to Celery.")
-        total_chunks += 1
-        total_leads += len(chunk)
+#         send_emails_chunk_celery_task.delay(
+#             email_account.id,
+#             chunk, # 👈 Only this chunk of leads
+#             subject,
+#             body,
+#             min_delay,
+#             max_delay
+#         )
+#         print(f"Chunk of {len(chunk)} leads queued to Celery.")
+#         total_chunks += 1
+#         total_leads += len(chunk)
 
-    print(f"Total chunks queued: {total_chunks}")
-    print(f"Total leads in all chunks: {total_leads}")
+#     print(f"Total chunks queued: {total_chunks}")
+#     print(f"Total leads in all chunks: {total_leads}")
 
 
 def process_excel_file(file):
@@ -297,9 +297,11 @@ def campaign(request, email_account_id):
                 })
                 return res
 
-            # Call send_emails function which already uses threading
             print(f"Queuing email campaign to {len(leads)} leads for {email_account.email_address}")
-            send_emails(email_account, leads, email_subject, email_body, min_delay, max_delay)
+            # send_emails(email_account, leads, email_subject, email_body, min_delay, max_delay)
+
+            # Skip the chunking and directly feed the entire list to the celery worker
+            send_emails_chunk_celery_task.delay(email_account.id, leads, email_subject, email_body, min_delay, max_delay)
 
             email_account.last_used_at = now()
             email_account.save(update_fields=["last_used_at"])
@@ -499,34 +501,36 @@ def bulk_campaign(request):
 
 
             def start_campaign():
-                chunk_size = 150 # 100 leads per chunk
+                # chunk_size = 150 # 100 leads per chunk
 
                 for account, assigned_leads in account_lead_map.items():
                     if assigned_leads:
-                        total_chunks = 0
-                        total_leads = 0
-                        print(f"Starting campaign for account {account.email_address} with {len(assigned_leads)} leads")
+                        # total_chunks = 0
+                        # total_leads = 0
 
-                        for chunk in chunk_list(assigned_leads, chunk_size):
-                            # Call the Celery task directly using .delay()
-                            task_id = send_emails_chunk_celery_task.delay(
-                                account.id,
-                                chunk,          # 👈 chunked leads
-                                email_subject,
-                                email_body,
-                                min_delay,
-                                max_delay
-                            )
-                            print(f"Celery Task Queued: {task_id} for chunk of {len(chunk)} leads.")
-                            print(f"Queued Celery task {task_id} with chunk of {len(chunk)} leads")
-                            total_chunks += 1
-                            total_leads += len(chunk)
+                        print(f"Queuing bulk email campaign to {len(assigned_leads)} leads for {account.email_address}")
+                        send_emails_chunk_celery_task.delay(account.id, assigned_leads, email_subject, email_body, min_delay, max_delay)
+
+                        # for chunk in chunk_list(assigned_leads, chunk_size):
+                        #     # Call the Celery task directly using .delay()
+                        #     task_id = send_emails_chunk_celery_task.delay(
+                        #         account.id,
+                        #         chunk,          # 👈 chunked leads
+                        #         email_subject,
+                        #         email_body,
+                        #         min_delay,
+                        #         max_delay
+                        #     )
+                        #     print(f"Celery Task Queued: {task_id} for chunk of {len(chunk)} leads.")
+                        #     print(f"Queued Celery task {task_id} with chunk of {len(chunk)} leads")
+                        #     total_chunks += 1
+                        #     total_leads += len(chunk)
 
                         account.last_used_at = now()
                         account.save(update_fields=["last_used_at"])
-                        print(f"Finished campaign for {account.email_address} — {total_chunks} chunks, ")
+                        # print(f"Finished campaign for {account.email_address} — {total_chunks} chunks, ")
 
-                        print(f"Account {account.email_address}: Total chunks queued to Celery: {total_chunks}")
+                        # print(f"Account {account.email_address}: Total chunks queued to Celery: {total_chunks}")
                         print(f"Account {account.email_address}: Total leads in all chunks: {total_leads}")
 
             start_campaign()
