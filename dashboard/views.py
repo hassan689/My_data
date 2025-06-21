@@ -278,7 +278,6 @@ def campaign(request, email_account_id):
                     seen_emails.add(email)
 
             leads = unique_leads
-            print(leads)
 
             filter_data = {}
             for key in ['mc_number', 'targets_count', 'power_units_comparison', 'power_units_value', 
@@ -301,7 +300,7 @@ def campaign(request, email_account_id):
             # send_emails(email_account, leads, email_subject, email_body, min_delay, max_delay)
 
             # Skip the chunking and directly feed the entire list to the celery worker
-            send_emails_chunk_celery_task.delay(email_account.id, leads, email_subject, email_body, min_delay, max_delay)
+            send_emails_chunk_celery_task.delay(email_account.id, request.user.id, leads, email_subject, email_body, min_delay, max_delay)
 
             email_account.last_used_at = now()
             email_account.save(update_fields=["last_used_at"])
@@ -509,7 +508,7 @@ def bulk_campaign(request):
                         # total_leads = 0
 
                         print(f"Queuing bulk email campaign to {len(assigned_leads)} leads for {account.email_address}")
-                        send_emails_chunk_celery_task.delay(account.id, assigned_leads, email_subject, email_body, min_delay, max_delay)
+                        send_emails_chunk_celery_task.delay(account.id, request.user.id, assigned_leads, email_subject, email_body, min_delay, max_delay)
 
                         # for chunk in chunk_list(assigned_leads, chunk_size):
                         #     # Call the Celery task directly using .delay()
