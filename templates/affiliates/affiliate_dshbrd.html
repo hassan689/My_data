@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+
+{% load static %}
+{% block 'title' %}Dispatch Skool - Affiliate Dashboard{% endblock %}
+
+{% block 'content' %}
+
+
+<div class="p-10 m-10">
+
+  <div class="text-left max-w-6xl mx-auto px-4 md:px-2 pb-5">
+
+    <div class="text-center max-w-4xl mx-auto px-4 py-5">
+        <h2 class="text-2xl md:text-3xl font-bold">
+          Your Affiliate Performance Hub - Welcome <span class="text-blue-500">{{ affiliate.name }}</span>
+        </h2>
+        <p class="text-gray-500 text-lg mt-5">
+          Welcome to your dedicated dashboard! Here, you can easily track the users you've referred, monitor your earned commissions, 
+          and view your overall lifetime earnings. Get a clear overview of your impact and watch your success grow.
+        </p>
+    </div>
+
+    {% if messages %}
+      {% for message in messages %}
+          <div class="p-5 my-3 rounded-xl border-2 border-solid 
+              {% if message.tags == 'success' %} bg-green-200 border-green-700 text-green-800 
+              {% elif message.tags == 'error' %} bg-red-200 border-red-700 text-red-700
+              {% elif message.tags == 'warning' %} bg-yellow-200 border-yellow-700 text-red-700
+              {% endif %}">
+              <p class="text-sm">{{ message }}</p>
+          </div>
+      {% endfor %}
+    {% endif %}
+
+  </div>
+
+
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    <div class="bg-white p-6 rounded-lg shadow-md">
+        <h3 class="text-xl font-semibold mb-2">Your Referral Code</h3>
+        <p class="text-2xl text-blue-600 font-mono font-bold">{{ affiliate.referral_code }}</p>
+        <p class="text-gray-600 mt-2">Share this code for sign-ups.</p>
+    </div>
+
+    <div class="bg-white p-6 rounded-lg shadow-md">
+        <h3 class="text-xl font-semibold mb-2">Commission Rate</h3>
+        <p class="text-2xl text-purple-600 font-bold">{{ affiliate.commission_percentage|default:"0.00"|floatformat:2 }}%</p>
+        <p class="text-gray-600 mt-2">Your cut from referred subscriptions.</p>
+    </div>
+
+    <div class="bg-white p-6 rounded-lg shadow-md">
+        <h3 class="text-xl font-semibold mb-2">This Month's Earnings</h3>
+        <p class="text-3xl text-green-600 font-bold">Rs {{ monthly_earnings|floatformat:2 }}</p>
+        <p class="text-gray-600 mt-2">Earned from subscriptions this month.</p>
+    </div>
+
+    <div class="bg-white p-6 rounded-lg shadow-md">
+        <h3 class="text-xl font-semibold mb-2">Lifetime Earnings</h3>
+        <p class="text-3xl text-green-700 font-bold">Rs {{ lifetime_earnings|floatformat:2 }}</p>
+        <p class="text-gray-600 mt-2">Total earnings since you joined.</p>
+    </div>
+  </div>
+
+
+	<div class="flex flex-col md:flex-row gap-6">
+		<!-- Email Campaigns Table -->
+		<div class="flex-1 p-6 bg-white shadow-md rounded-lg">
+			<div class="flex flex-col md:flex-row md:justify-between md:items-center gap-3 mb-5 text-center">
+        <h2 class="text-3xl font-semibold">Your Affiliated Users</h2>
+      </div>
+			<div class="overflow-auto max-w-full">
+        {% if referred_users_data %}
+				<table class="w-full min-w-[600px] border-collapse">
+                <thead>
+                    <tr class="bg-gray-200">
+                        <th class="text-left p-3">Company Name</th>
+                        <th class="text-left p-3">Date Joined</th>
+                        <th class="text-left p-3">Subscription Start Date</th>
+                        <th class="text-left p-3">Subscription End Date</th>
+                        <th class="text-left p-3">Status</th>
+                        <th class="text-left p-3">Renewal Count</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user_data in referred_users_data %}
+                    <tr class="border-b hover:bg-gray-100">
+                        <td class="p-3">{{ user_data.company_name }}</td>
+                        <td class="p-3">{{ user_data.date_joined }}</td>
+                        <td class="p-3">{{ user_data.subscription_start_date }}</td>
+                        <td class="p-3">{{ user_data.subscription_end_date }}</td>
+                        <td class="p-3">
+                            <span class="px-2 py-1 rounded text-xs font-semibold
+                                {% if user_data.status == 'Active' %}bg-green-200 text-green-800
+                                {% elif user_data.status == 'Expired' %}bg-red-200 text-red-800
+                                {% elif user_data.status == 'Canceled' %}bg-orange-200 text-orange-800
+                                {% else %}bg-blue-200 text-blue-800{% endif %}">
+                                {{ user_data.status }}
+                            </span>
+                        </td>
+                        <td class="p-3">{{ user_data.renewal_count }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr class="border-t bg-gray-50">
+                        <td colspan="4" class="p-3 text-gray-700 font-bold">Total Referred Users: {{ referred_users_data|length }}</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-gray-600">No users have been referred by this affiliate yet.</p>
+        {% endif %}
+				
+			</div>
+		</div>
+	</div>
+
+</div>	
+
+{% endblock %}

@@ -5,6 +5,7 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 import base64
 from django.utils.timezone import now, timedelta
+from decimal import Decimal
 
 
 
@@ -28,15 +29,19 @@ def decrypt_password(encrypted_password: str) -> str:
 
 
 
-# set the status to free trial on creation, then auto check it to false once 7 days are over and also send an email to the user to pay
-# for the subscription ...... DONE
 class CustomUser(AbstractUser):
     phone_number = models.CharField(max_length=20, unique=True)
     company_name = models.CharField(max_length=255)
     website_link = models.URLField(null=True, blank=True)
     mc_number = models.CharField(max_length=50, null=True, blank=True, verbose_name="MC Number")
-
     on_free_trial = models.BooleanField(default=True, verbose_name="On Free Trial")
+
+    # Field to track which affiliate referred this user
+    # A user can be referred by an affiliate, or not (null=True, blank=True)
+    referred_by = models.ForeignKey(
+        'users.Affiliate', on_delete=models.SET_NULL, # If an affiliate is deleted, referred users remain, but their 'referred_by' becomes NULL
+        null=True, blank=True, related_name="referred_users", # affiliate_instance.referred_users.all()
+    )
 
     groups = models.ManyToManyField("auth.Group", related_name="customuser_set", blank=True)
     user_permissions = models.ManyToManyField("auth.Permission", related_name="customuser_set", blank=True)
@@ -50,6 +55,22 @@ class CustomUser(AbstractUser):
 
     def __str__(self):
         return self.username
+
+
+
+class Affiliate(models.Model):
+    
+    # This identifies the CustomUser who IS this affiliate
+    user = models.OneToOneField(CustomUser, on_delete=models.CASCADE, related_name="affiliate_profile")
+    name = models.CharField(max_length=100, null=True, blank=True)
+    joining_date = models.DateTimeField(auto_now_add=True)
+    referral_code = models.CharField(max_length=50, unique=True,)
+    is_active = models.BooleanField(default=True)
+    commission_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('20'))
+    lifetime_earnings = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
+
+    def __str__(self):
+        return f"Affiliate: {self.name})"
 
 
 

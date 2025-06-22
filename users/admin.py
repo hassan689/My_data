@@ -1,6 +1,7 @@
 from django.contrib import admin, messages
 from django.contrib.auth.admin import UserAdmin
-from .models import CustomUser, EmailAccount
+from .models import CustomUser, EmailAccount, Affiliate
+from django.db.models import Count
 from django.forms import PasswordInput
 from django import forms
 from django.core.exceptions import ValidationError
@@ -9,18 +10,19 @@ from django.core.exceptions import ValidationError
 @admin.register(CustomUser)
 class CustomUserAdmin(UserAdmin):
     list_display = (
-        "username", "email",
+        "username",
         "company_name",
         "date_joined", 
         "on_free_trial",
+        "referred_by",
     )
-    search_fields = ("username", "email", "first_name", "last_name", "company_name")
-    list_filter = ("on_free_trial",)
+    search_fields = ("username", "first_name", "last_name", "company_name")
+    list_filter = ("on_free_trial", "date_joined",)
     list_editable = ("on_free_trial",)
     ordering = ("-date_joined",)
 
     fieldsets = (
-        ("Personal Information", {"fields": ("username", "first_name", "last_name", "email", "phone_number")}),
+        ("Personal Information", {"fields": ("username", "first_name", "last_name", "email", "phone_number", "referred_by")}),
         ("Company Details", {"fields": ("company_name", "website_link", "mc_number")}),
         ("Subscription Info", {"fields": ("on_free_trial", )}),
         ("Permissions", {"fields": ("is_active", "is_staff", "is_superuser", "groups", "user_permissions")}),
@@ -31,7 +33,7 @@ class CustomUserAdmin(UserAdmin):
         ("Create User", {
             "classes": ("wide",),
             "fields": (
-                "username", "email", "first_name", "last_name", "phone_number",
+                "username", "email", "first_name", "last_name", "phone_number", "referred_by",
                 "password1", "password2", "company_name", "website_link", "mc_number",
                 "on_free_trial", "is_active", "is_staff", "is_superuser", "groups", "user_permissions"
             ),
@@ -39,8 +41,31 @@ class CustomUserAdmin(UserAdmin):
     )
 
 
+@admin.register(Affiliate)
+class AffiliateAdmin(admin.ModelAdmin):
+    
+    list_display = ("user", "joining_date", "referral_code", "display_commission_percentage", "lifetime_earnings", "referred_users_count",)
+    list_filter = ("joining_date",)
+    search_fields = ("user",)
+    ordering = ("-joining_date",)
+    readonly_fields = ('joining_date', 'lifetime_earnings',)
 
-# ✅ Customizing EmailAccount Admin
+    @admin.display(description='Referred Users Count', ordering='referred_users_count')
+    def referred_users_count(self, obj):
+        return obj.referred_users_count
+
+    def get_queryset(self, request):
+        queryset = super().get_queryset(request)
+        queryset = queryset.annotate(referred_users_count=Count('referred_users'))
+        return queryset
+    
+    @admin.display(description='Commission %', ordering='commission_percentage') # Sort by the raw field
+    def display_commission_percentage(self, obj):
+        if obj.commission_percentage is not None:
+            return f"{obj.commission_percentage}%"
+        return "N/A"
+
+
 class EmailAccountForm(forms.ModelForm):
     decrypted_password = forms.CharField(
         required=False, 

@@ -8,19 +8,19 @@ from django.contrib import messages
 
 
 def signup_view(request):
+    
+    form = CustomUserSignupForm()
     if request.method == "POST":
         form = CustomUserSignupForm(request.POST)
         if form.is_valid():
             user = form.save()
-            login(request, user)  # Auto-login after signup
-            messages.success(request, "Signup successful! Welcome aboard.")  # ✅ Success message
+            login(request, user)
+            messages.success(request, "Signup successful! Welcome aboard.")
             return redirect("dashboard:index")
         else:
-            # Loop through form errors and add them as messages
             for field, errors in form.errors.items():
                 for error in errors:
                     messages.error(request, f"{field.capitalize()}: {error}")
-
     else:
         form = CustomUserSignupForm()
 

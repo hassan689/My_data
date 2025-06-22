@@ -3,7 +3,6 @@ from users.models import CustomUser
 from django.utils.timezone import now
 from datetime import timedelta
 
-
 class Subscription(models.Model):
     user = models.OneToOneField(CustomUser, on_delete=models.CASCADE, related_name="subscription")
     start_date = models.DateTimeField(auto_now_add=True)
@@ -13,6 +12,10 @@ class Subscription(models.Model):
         max_length=50,
         choices=[("active", "Active"), ("expired", "Expired"), ("canceled", "Canceled")],
         default="active",
+    )
+
+    paid_amount = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True,
     )
 
     def save(self, *args, **kwargs):

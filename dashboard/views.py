@@ -1,25 +1,29 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
+from django.http import JsonResponse
+from django.views.decorators.http import require_http_methods
+
 from users.models import EmailAccount
-from .forms import EmailAccountForm, CampaignForm, BulkCampaignForm
 from leads_data.models import Lead, DailySheet
-import pandas as pd
+from .models import GmailToken
+from .forms import EmailAccountForm, CampaignForm, BulkCampaignForm
+from .tasks import send_emails_chunk_celery_task
+from django.db.models import Q, F, Value, IntegerField
+from django.db.models.functions import Cast, Replace
+
 from django.contrib import messages
 from django.core.mail import get_connection, EmailMessage
-from concurrent.futures import ThreadPoolExecutor
 from django.core.exceptions import ValidationError
 from django.conf import settings
 from django.core.cache import cache
-from django.http import JsonResponse
-from django.views.decorators.http import require_http_methods
-import re
 from django.utils.timezone import now
-from django.db.models import Q, F, Value, IntegerField
-from django.db.models.functions import Cast, Replace
-from .tasks import send_emails_chunk_celery_task
-import requests
+
+from concurrent.futures import ThreadPoolExecutor
 from google_secrets import *
-from .models import GmailToken
+
+import pandas as pd
+import requests
+import re
 
 ######################################## Campaign sending views
 

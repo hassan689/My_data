@@ -1,15 +1,15 @@
 from django.contrib import admin
 from .models import Subscription
 
-# ✅ Customizing Subscription Admin
+
 @admin.register(Subscription)
 class SubscriptionAdmin(admin.ModelAdmin):
-    list_display = ("user", "company_name", "start_date", "end_date", "status", "renewal_count")
+    list_display = ("user", "company_name", "start_date", "end_date", "status", "renewal_count", "paid_amount",)
     search_fields = ("user__username", "user__email")
     list_filter = ("status",)
     ordering = ("-start_date",)
     readonly_fields = ("renewal_count",)
-    list_editable = ("status",)
+    list_editable = ("status", "paid_amount",)
     
     def company_name(self, obj):
         return obj.user.company_name  # Accessing company_name from related CustomUser model
