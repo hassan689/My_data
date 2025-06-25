@@ -81,13 +81,10 @@ def send_emails_chunk_celery_task(email_account_id, user_id, leads, subject, bod
                 continue
             
             if sent_count > 0 and sent_count % 10 == 0:
-                print(f"Celery Task: Reconnecting after {sent_count} emails for {email_account.email_address}.")
                 try:
-                    if connection and connection.is_open(): # Check if connection exists and is open before closing
-                        connection.close()
-                except Exception as close_e:
-                    print(f"Celery Task: Error closing connection before re-opening: {close_e}")
-                
+                    connection.close()
+                except Exception:
+                    pass
                 connection = get_email_connection(email_account, decrypted_password)
             
             # Personalize subject and body (only once per lead)
@@ -109,7 +106,17 @@ def send_emails_chunk_celery_task(email_account_id, user_id, leads, subject, bod
                 msg.extra_headers = {'Message-ID': message_id}
                 msg.attach_alternative(personalized_body, "text/html")
                 
-                msg.send()
+                try:
+                    msg.send()
+                except Exception as e:
+                    if "please run connect() first" in str(e).lower():
+                        print("SMTP connection lost, reconnecting...")
+                        connection = get_email_connection(email_account, decrypted_password)
+                        msg.connection = connection
+                        msg.send()
+                    else:
+                        raise e
+
                 sent_count += 1
 
                 if mailbox_instance: # Reason explained above

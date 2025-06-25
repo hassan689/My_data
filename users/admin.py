@@ -14,6 +14,7 @@ class CustomUserAdmin(UserAdmin):
         "company_name",
         "date_joined", 
         "on_free_trial",
+        "attached_accounts_count",
         "referred_by",
     )
     search_fields = ("username", "first_name", "last_name", "company_name")
@@ -39,6 +40,23 @@ class CustomUserAdmin(UserAdmin):
             ),
         }),
     )
+
+    @admin.display(description='Accounts', ordering='attached_accounts_count_annotated')
+    def attached_accounts_count(self, obj):
+        """
+        Calculates and returns the number of email accounts associated with the user.
+        """
+        if hasattr(obj, 'attached_accounts_count_annotated'):
+            return obj.attached_accounts_count_annotated
+        return obj.email_accounts.count() 
+
+    def get_queryset(self, request):
+        queryset = super().get_queryset(request)
+        queryset = queryset.annotate(
+            attached_accounts_count_annotated=Count('email_accounts')
+        )
+        return queryset
+
 
 
 @admin.register(Affiliate)

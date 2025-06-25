@@ -12,6 +12,7 @@ class GmailToken(models.Model):
     token_type = models.CharField(max_length=50)
     scope = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
+    last_history_id = models.CharField(max_length=255, blank=True, null=True)
 
     def __str__(self):
         return f"{self.email_account} - {self.created_at}"

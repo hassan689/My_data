@@ -9,7 +9,7 @@ class GmailTokenAdmin(admin.ModelAdmin):
 
 @admin.register(CampaignRecord)
 class CampaignRecordAdmin(admin.ModelAdmin):
-    list_display = ('launched_by', 'sender_account', 'launch_time', 'total_recipients')
+    list_display = ('launched_by', 'sender_account', 'launch_time', 'total_recipients', 'sent_count')
     list_filter = ("launch_time",)
     search_fields = ("launched_by",)
 

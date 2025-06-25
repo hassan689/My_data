@@ -51,6 +51,7 @@ INSTALLED_APPS = [
 		'widget_tweaks',
 		'django_q',
 		'django_ckeditor_5',
+    'django_celery_beat',
 ]
 
 
@@ -64,34 +65,8 @@ CELERY_TIMEZONE = 'UTC' # Keep this consistent with your Django TIME_ZONE
 CELERY_TASK_TRACK_STARTED = True # Useful for monitoring task states
 CELERY_TASK_CREATE_DIRS = False # Prevent Celery from creating directories for logs if you're not using file logging for tasks
 
-# import datetime
+CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
 
-# # Define Celery Queues
-# CELERY_TASK_QUEUES = {
-#     # Default queue (for general tasks)
-#     'default': {
-#         'exchange': 'default',
-#         'exchange_type': 'direct',
-#         'binding_key': 'default',
-#     },
-#     # Dedicated queue for unibox sync tasks
-#     'unibox_sync_queue': {
-#         'exchange': 'unibox_sync_queue',
-#         'exchange_type': 'direct',
-#         'binding_key': 'unibox_sync_queue',
-#     },
-# }
-
-
-# # CELERY BEAT SETTINGS
-# CELERY_BEAT_SCHEDULE = {
-#     'sync-gmail-every-2-minutes': {
-#         'task': 'unibox.tasks.fetch_gmail_messages_for_all_accounts',
-#         'schedule': datetime.timedelta(minutes=2),
-#         'args': (),
-#         'options': {'queue': 'unibox_sync_queue'} # <-- Assign to the dedicated queue
-#     },
-# }
 
 
 Q_CLUSTER = {

@@ -1,23 +1,27 @@
+# Celery & Google
 from celery import shared_task
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
+
+# Django
 from django.conf import settings
 from django.utils import timezone
-import datetime
+from django.contrib.postgres.search import TrigramSimilarity
 import base64
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+import re
+from datetime import datetime, timedelta, timezone as dt_timezone
+
+# Email handling
 from email.header import decode_header
 from email.utils import parseaddr
 from email import message_from_bytes
-import re
-from google_secrets import *
 
+# Project modules
+from google_secrets import *
 from dashboard.models import GmailToken
 from unibox.models import EmailThread, OutgoingEmailMessage, IncomingEmailMessage
-from django.contrib.postgres.search import TrigramSimilarity
 
 
 
@@ -69,10 +73,11 @@ class MessageWrapper:
         self.subject = self._email_object.get('Subject')
         # You might need to adjust based on how your `processed` field is set for incoming messages
         # For Gmail API messages, we use internalDate as received_at
-        self.processed = datetime.datetime.fromtimestamp(
+        self.processed = datetime.fromtimestamp(
             int(self._gmail_api_message['internalDate']) / 1000,
-            tz=timezone.utc # Assuming internalDate is UTC
+            tz=dt_timezone.utc
         ) if 'internalDate' in self._gmail_api_message else timezone.now()
+
 
 
     def get_email_object(self):
@@ -339,7 +344,7 @@ def fetch_gmail_messages_for_all_accounts(self):
     Celery task to fetch and process new Gmail messages for all connected accounts.
     """
     gmail_tokens = GmailToken.objects.all()
-    print(f"Starting Gmail message sync for {len(gmail_tokens)} accounts...")
+    print(f"\\n Starting Gmail message sync for {len(gmail_tokens)} accounts... \\n")
 
     for gmail_token_instance in gmail_tokens:
         user_email_address = gmail_token_instance.email_account.email_address
@@ -356,7 +361,7 @@ def fetch_gmail_messages_for_all_accounts(self):
 
             if not gmail_token_instance.last_history_id:
                 print(f"Performing initial sync (last 30 days) for {user_email_address}...")
-                thirty_days_ago = (timezone.now() - datetime.timedelta(days=30)).strftime('%Y/%m/%d')
+                thirty_days_ago = (timezone.now() - timedelta(days=30)).strftime('%Y/%m/%d')
                 query = f"after:{thirty_days_ago}"
 
                 messages_list_response = service.users().messages().list(
@@ -373,7 +378,7 @@ def fetch_gmail_messages_for_all_accounts(self):
                         full_message_data = service.users().messages().get(
                             userId=user_id,
                             id=msg_item['id'],
-                            format='RAW'
+                            format='raw'
                         ).execute()
                         msg_wrapper = MessageWrapper(full_message_data)
                         process_single_message(msg_wrapper, gmail_token_instance, user_email_address)
@@ -391,7 +396,7 @@ def fetch_gmail_messages_for_all_accounts(self):
                 history_response = service.users().history().list(
                     userId=user_id,
                     startHistoryId=gmail_token_instance.last_history_id,
-                    historyTypes=['messageAdded', 'messagesDeleted', 'labelAdded', 'labelRemoved'] # Added 'messagesDeleted'
+                    historyTypes=['messageAdded', 'messageDeleted', 'labelAdded', 'labelRemoved'] # Added 'messagesDeleted'
                 ).execute()
 
                 histories = history_response.get('history', [])
@@ -406,7 +411,7 @@ def fetch_gmail_messages_for_all_accounts(self):
                                 full_message_data = service.users().messages().get(
                                     userId=user_id,
                                     id=message_id,
-                                    format='RAW'
+                                    format='raw'
                                 ).execute()
                                 msg_wrapper = MessageWrapper(full_message_data)
                                 process_single_message(msg_wrapper, gmail_token_instance, user_email_address)

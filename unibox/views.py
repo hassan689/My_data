@@ -9,6 +9,8 @@ from django.db.models import Count, Max
 from django.views.decorators.http import require_POST
 from django.core.mail import get_connection, EmailMultiAlternatives
 from email.utils import make_msgid
+import uuid
+from django.core.paginator import Paginator
 
 
 @login_required
@@ -27,6 +29,8 @@ def index(request):
         email_address__in=mailbox_addresses
     )
     account_id = request.GET.get('account_id')
+    page_number = request.GET.get('page', 1)
+    threads_per_page = 20
 
     # Step 3: Get all mailbox instances corresponding to the user’s email accounts
     user_mailboxes = GmailToken.objects.filter(email_account__in=email_accounts.values_list('id', flat=True))
@@ -62,6 +66,8 @@ def index(request):
         'outgoing_messages'
     )
 
+    paginator = Paginator(threads, threads_per_page)
+    page_obj = paginator.get_page(page_number)
 
     # Step 8: Unread counts for each mailbox
     unread_counts = EmailThread.objects.filter(
@@ -89,7 +95,7 @@ def index(request):
 
     # Step 10: Build threads list
     threads_data = []
-    for thread in threads:
+    for thread in page_obj.object_list:
         messages = thread.get_ordered_messages()
         messages_data = []
 
@@ -121,7 +127,13 @@ def index(request):
     # Final JSON response
     data = {
         "email_accounts": email_accounts_data,
-        "threads": threads_data
+        "threads": threads_data,
+        "pagination": {
+            "current_page": page_obj.number,
+            "num_pages": paginator.num_pages,
+            "has_previous": page_obj.has_previous(),
+            "has_next": page_obj.has_next(),
+        }
     }
 
     return JsonResponse(data, safe=False)
@@ -144,11 +156,15 @@ def toggle_read_status(request, thread_id):
 
 @login_required
 def get_thread_messages(request, thread_id):
-    # Get all email addresses the user owns
-    user_email_addresses = EmailAccount.objects.filter(user=request.user).values_list('email_address', flat=True)
+    # Get all email address ids the user owns
+    user_email_account_ids = EmailAccount.objects.filter(user=request.user).values_list('id', flat=True)
 
     # Make sure the thread belongs to one of the user's mailboxes
-    thread = get_object_or_404(EmailThread, id=thread_id, mailbox__email_account__in=user_email_addresses)
+    thread = get_object_or_404(
+        EmailThread, 
+        id=thread_id, 
+        mailbox__email_account__id__in=user_email_account_ids
+    )
 
     messages = thread.get_ordered_messages()
     serialized_messages = []
@@ -212,13 +228,12 @@ def delete_thread(request, thread_id):
 
 @login_required
 def reply(request):
-    
     if request.method == 'POST':
         thread_id = request.POST.get('thread_id')
         body = request.POST.get('body')
-        recipient_email = request.POST.get('recipient_email')
+        recipient_email = request.POST.get('recipient_email')  # May be missing from frontend now
 
-        if not thread_id or not body or not recipient_email:
+        if not thread_id or not body:
             return JsonResponse({'status': 'error', 'message': 'Missing required data.'}, status=400)
 
         try:
@@ -231,6 +246,18 @@ def reply(request):
 
             # Determine the sender of the reply
             email_account = thread.mailbox.email_account
+            sender_email = email_account.email_address
+
+            last_incoming = thread.incoming_messages.order_by('-received_at').first()
+
+            print("=== DEBUGGING REPLY ===")
+            print("Sender:", sender_email)
+            print("Thread.email1:", thread.email1)
+            print("Thread.email2:", thread.email2)
+            print("Last incoming sender:", last_incoming.sender if last_incoming else "None")
+
+            if not recipient_email or recipient_email == sender_email:
+                return JsonResponse({'status': 'error', 'message': 'This thread does not have a valid recipient.'}, status=400)
 
             # SMTP credentials and connection
             decrypted_password = email_account.get_password()
@@ -241,7 +268,7 @@ def reply(request):
                 backend="django.core.mail.backends.smtp.EmailBackend",
                 host=email_account.host,
                 port=email_account.port_number,
-                username=email_account.email_address,
+                username=sender_email,
                 password=decrypted_password,
                 use_tls=use_tls,
                 use_ssl=use_ssl,
@@ -253,14 +280,19 @@ def reply(request):
                 return JsonResponse({'status': 'error', 'message': f'Could not connect to SMTP server: {e}'}, status=500)
 
             subject = f"{thread.subject}"
-            from_email = email_account.email_address
             to_email = [recipient_email]
-            message_id = make_msgid(domain='dispatchskool.com/')
+            message_id = make_msgid(idstring=uuid.uuid4().hex, domain='dispatchskool.com')
 
             latest_incoming = thread.incoming_messages.order_by('-received_at').first()
             in_reply_to = latest_incoming.message_id if latest_incoming else None
 
-            msg = EmailMultiAlternatives(subject=subject, body=body, from_email=from_email, to=to_email, connection=connection)
+            msg = EmailMultiAlternatives(
+                subject=subject,
+                body=body,
+                from_email=sender_email,
+                to=to_email,
+                connection=connection
+            )
             msg.attach_alternative(body, "text/html")
             msg.extra_headers = {'Message-ID': message_id}
             if in_reply_to:
@@ -276,7 +308,7 @@ def reply(request):
                 subject=subject,
                 body=body,
                 recipient=recipient_email,
-                sender=from_email,
+                sender=sender_email,
                 message_id=message_id,
                 in_reply_to=in_reply_to
             )

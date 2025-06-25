@@ -109,6 +109,12 @@ def price_page(request):
     return render(request, 'main/price_page.html', {'form': form})
 
 
+def privacy_policy(request):
+    return render(request, 'main/privacy_policy.html')
+
+def terms_of_service(request):
+    return render(request, 'main/terms_of_service.html')
+
 
 # def price_page(request):
 #     if request.method == 'POST':

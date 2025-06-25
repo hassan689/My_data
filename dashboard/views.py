@@ -20,6 +20,7 @@ from django.utils.timezone import now
 
 from concurrent.futures import ThreadPoolExecutor
 from google_secrets import *
+from urllib.parse import quote_plus
 
 import pandas as pd
 import requests
@@ -574,6 +575,7 @@ def index(request):
   email_accounts = EmailAccount.objects.filter(user=request.user).order_by('-last_used_at')
   for account in email_accounts:
         account.is_gmail = account.email_address.lower().endswith('@gmail.com')
+        account.is_connected = hasattr(account, 'gmail_token') and account.gmail_token is not None
   context = {
 		"email_accounts": email_accounts
 	}
@@ -750,13 +752,14 @@ def coming_soon(request):
 def oauth_start(request, email_account_id):
     # Store in session for use after OAuth completes
     request.session['connect_email_account_id'] = email_account_id
+    scope_param = quote_plus(GOOGLE_SCOPE)
 
     auth_url = (
         "https://accounts.google.com/o/oauth2/v2/auth?"
         f"client_id={GOOGLE_CLIENT_ID}"
         f"&redirect_uri={GOOGLE_REDIRECT_URI}"
         f"&response_type=code"
-        f"&scope={GOOGLE_SCOPE}"
+        f"&scope={scope_param}"
         f"&access_type=offline"
         f"&prompt=consent"
     )
@@ -808,6 +811,7 @@ def oauth_callback(request):
         return redirect("dashboard:index")
 
     profile = profile_response.json()
+    history_id = profile.get("historyId")
     gmail_address = profile.get("emailAddress", "").lower()
 
     # Check if account matches
@@ -824,14 +828,21 @@ def oauth_callback(request):
         return redirect("dashboard:index")
 
     # Save or update GmailToken
+    existing_token = GmailToken.objects.filter(email_account=email_account).first()
+
+    refresh_token = tokens.get('refresh_token')
+    if not refresh_token and existing_token:
+        refresh_token = existing_token.refresh_token
+
     GmailToken.objects.update_or_create(
         email_account=email_account,
         defaults={
             'access_token': access_token,
-            'refresh_token': tokens.get('refresh_token', ''),
+            'refresh_token': refresh_token,
             'expires_in': tokens.get('expires_in', 0),
             'token_type': tokens.get('token_type', ''),
             'scope': tokens.get('scope', ''),
+            'last_history_id': history_id
         }
     )
 
