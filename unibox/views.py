@@ -30,7 +30,7 @@ def index(request):
     )
     account_id = request.GET.get('account_id')
     page_number = request.GET.get('page', 1)
-    threads_per_page = 20
+    threads_per_page = 10
 
     # Step 3: Get all mailbox instances corresponding to the user’s email accounts
     user_mailboxes = GmailToken.objects.filter(email_account__in=email_accounts.values_list('id', flat=True))

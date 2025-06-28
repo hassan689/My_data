@@ -12,10 +12,10 @@
 	<p class="text-gray-500 text-lg md:text-xl my-5">
 			Welcome {{ request.user.first_name }} {{ request.user.last_name }}
 	</p>
-  {% if request.user.on_free_trial %}
+  {% if request.user.subscription.status != "active" %}
     <div class="p-5 my-3 rounded-xl border-2 border-solid bg-blue-200 border-blue-700 text-blue-800 w-fit mx-auto">
       <p class="text-base">
-        <p class="font-bold text-lg mb-3">Pre-launch offer: Get up to 64% OFF now. The earlier you join, the more you save.</p>
+        <p class="font-bold text-lg mb-3">Unlock full access to our services by Subscribing.</p>
         Those who find value in Dispatch Skool are already using it.
         <span class="font-bold">We'll never push anyone to subscribe, because if you don't, other dispatchers will</span> — and they'll have the ability to reach more carriers.
         For example, if you send 1,000 emails per day, but another dispatch company is <span class="font-bold">sending upto 10,000 emails per day using Dispatch Skool</span>, they'll simply have more resources and more opportunities.
@@ -90,12 +90,10 @@
                       class="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 text-center">
                       Update
                     </a>
-                    {% if not request.user.on_free_trial and request.user.subscription.status == "active" %}
                     <a href="{% url 'dashboard:email_account_delete' account.id %}" 
                       class="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 text-center">
                       Delete
                     </a>
-                    {% endif %}
                     <a href="{% url 'dashboard:campaign' email_account_id=account.id %}" 
                       class="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600 text-center">
                       Launch Campaign

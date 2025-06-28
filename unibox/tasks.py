@@ -94,8 +94,8 @@ def get_gmail_service(gmail_token_instance):
     Handles token refreshing if needed.
     """
     credentials = Credentials(
-        token=gmail_token_instance.access_token,
-        refresh_token=gmail_token_instance.refresh_token,
+        token=gmail_token_instance.get_access_token(),
+        refresh_token=gmail_token_instance.get_refresh_token(),
         token_uri="https://oauth2.googleapis.com/token",
         client_id=GOOGLE_CLIENT_ID,
         client_secret=GOOGLE_CLIENT_SECRET,
@@ -109,11 +109,11 @@ def get_gmail_service(gmail_token_instance):
             print(f"Attempting to refresh token for {gmail_token_instance.email_account.email_address}...")
             credentials.refresh(Request())
             # Update the database with the new token details
-            gmail_token_instance.access_token = credentials.token
+            gmail_token_instance.set_access_token(credentials.token)  # Use set_access_token()
             gmail_token_instance.expires_in = credentials.expires_in # Update this too
             # Refresh token *might* change after refresh, save it if it does
             if credentials.refresh_token:
-                gmail_token_instance.refresh_token = credentials.refresh_token
+                gmail_token_instance.set_refresh_token(credentials.refresh_token)
             gmail_token_instance.save()
             print(f"Token refreshed successfully for {gmail_token_instance.email_account.email_address}.")
         except Exception as e:

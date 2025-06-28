@@ -562,7 +562,7 @@ def bulk_campaign(request):
         'email_accounts_count': email_accounts_count,
         'leads_ready': bool(cached_data),
         'total_leads': leads_available,
-        'can_launch_bulk_campaign': (request.user.subscription.status == "active" or request.user.on_free_trial)
+        # 'can_launch_bulk_campaign': (request.user.subscription.status == "active" or request.user.on_free_trial)
     })
 
 
@@ -832,19 +832,23 @@ def oauth_callback(request):
 
     refresh_token = tokens.get('refresh_token')
     if not refresh_token and existing_token:
-        refresh_token = existing_token.refresh_token
+        refresh_token = existing_token.get_refresh_token()
 
-    GmailToken.objects.update_or_create(
+    # Create a temporary instance to set encrypted values
+    gmail_token_instance, created = GmailToken.objects.get_or_create(
         email_account=email_account,
         defaults={
-            'access_token': access_token,
-            'refresh_token': refresh_token,
             'expires_in': tokens.get('expires_in', 0),
             'token_type': tokens.get('token_type', ''),
             'scope': tokens.get('scope', ''),
             'last_history_id': history_id
         }
     )
+
+    # Set encrypted tokens using the new methods
+    gmail_token_instance.set_access_token(access_token)
+    gmail_token_instance.set_refresh_token(refresh_token)
+    gmail_token_instance.save() # Save the instance after setting encrypted fields
 
     messages.success(request, "Gmail connected successfully!")
     return redirect("dashboard:index")

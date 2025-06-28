@@ -34,7 +34,7 @@ class CustomUser(AbstractUser):
     company_name = models.CharField(max_length=255)
     website_link = models.URLField(null=True, blank=True)
     mc_number = models.CharField(max_length=50, null=True, blank=True, verbose_name="MC Number")
-    on_free_trial = models.BooleanField(default=True, verbose_name="On Free Trial")
+    on_free_trial = models.BooleanField(default=False, verbose_name="On Free Trial")
 
     # Field to track which affiliate referred this user
     # A user can be referred by an affiliate, or not (null=True, blank=True)
@@ -118,10 +118,6 @@ class EmailAccount(models.Model):
 
             if self.user.on_free_trial and email_account_count >= 3:
                 raise ValidationError("Cannot add more than 3 email accounts on free trial.")
-            
-            # Allowing unlimited versions
-            # elif not self.user.on_free_trial and email_account_count >= 20:
-            #     raise ValidationError("Cannot add more than 20 email accounts.")
 
         # Proceed with saving
         super().save(*args, **kwargs)
