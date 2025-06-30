@@ -193,10 +193,18 @@ class CampaignForm(forms.Form):
         if targets_count is not None and targets_count < 1:
             self.add_error('targets_count', "Targets count cannot be less than 1.")
 
-        if min_delay is not None and min_delay < 0:
-            self.add_error('min_delay', "Lower limit delay must be greater than 0.")
+        # Set defaults if left blank
+        if min_delay is None:
+            min_delay = 30
+            cleaned_data['min_delay'] = min_delay
+        if max_delay is None:
+            max_delay = 60
+            cleaned_data['max_delay'] = max_delay
 
-        if max_delay is not None and max_delay < min_delay:
+        # Validation rules
+        if min_delay < 0:
+            self.add_error('min_delay', "Lower limit delay must be greater than 0.")
+        if max_delay < min_delay:
             self.add_error('max_delay', "Upper limit delay must be greater than lower limit.")
 
         return cleaned_data
@@ -224,10 +232,18 @@ class BulkCampaignForm(CampaignForm):
         min_delay = cleaned_data.get('min_delay')
         max_delay = cleaned_data.get('max_delay')
 
-        if min_delay is not None and min_delay < 0:
-            self.add_error('min_delay', "Lower limit delay must be a number greater than 0.")
+        # Set defaults if left blank
+        if min_delay is None:
+            min_delay = 30
+            cleaned_data['min_delay'] = min_delay
+        if max_delay is None:
+            max_delay = 60
+            cleaned_data['max_delay'] = max_delay
 
-        if max_delay is not None and max_delay < min_delay:
+        # Validation rules
+        if min_delay < 0:
+            self.add_error('min_delay', "Lower limit delay must be greater than 0.")
+        if max_delay < min_delay:
             self.add_error('max_delay', "Upper limit delay must be greater than lower limit.")
 
         # Bypass account allocation check if 'select_all' is true
