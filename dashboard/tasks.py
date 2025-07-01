@@ -1,6 +1,6 @@
 import time
 import re
-from django.core.mail import EmailMultiAlternatives, get_connection
+from django.core.mail import EmailMultiAlternatives, get_connection, send_mail
 from users.models import EmailAccount, CustomUser
 from unibox.models import EmailThread, OutgoingEmailMessage
 from dashboard.models import GmailToken, CampaignRecord
@@ -8,6 +8,7 @@ import random
 from growth_skool.celery import app
 from email.utils import make_msgid
 import uuid
+from django.conf import settings
 
 
 # Celery Task: Failed to send to GUILLERMOCABRE64@GMAIL.COM (via onboarding.freightwise38@gmail.com): 
@@ -146,6 +147,37 @@ def send_emails_chunk_celery_task(email_account_id, user_id, leads, subject, bod
 
             except Exception as e:
                 print(f"Celery Task: Failed to send to {lead['Email']} (via {email_account.email_address}): {e}")
+
+                error_message = str(e)
+                if "Daily user sending limit exceeded" in error_message:
+                    email_limit_exceeded = True
+                    
+                    # Send notification email to the affected account
+                    notification_subject = f"⚠️ Campaign Halted: Daily Sending Limit Exceeded for {email_account.email_address}"
+                    notification_body = (
+                        f"Dear user,\n\n"
+                        f"Your email campaign using the account '{email_account.email_address}' has been halted "
+                        f"because the daily sending limit for this email account has been exceeded.\n\n"
+                        f"For more information on Gmail sending limits, please visit: "
+                        f"https://support.google.com/a/answer/166852\n\n"
+                        f"Please wait 24 hours before trying to send new campaigns from this account.\n\n"
+                        f"Regards,\nThe DispatchSkool Team"
+                    )
+                    
+                    try:
+                        send_mail(
+                            notification_subject,
+                            notification_body,
+                            settings.EMAIL_HOST_USER, # Sender: Your system's configured email host user
+                            [email_account.email_address], # Recipient: The email account that hit the limit
+                            fail_silently=False,
+                        )
+                        print(f"Celery Task: Sent daily limit exceeded notification to {email_account.email_address}")
+                    except Exception as notify_e:
+                        print(f"Celery Task: Failed to send limit exceeded notification: {notify_e}")
+                    
+                    # Stop processing this chunk for the current email_account
+                    break # This will break the loop and halt the campaign, freeing the celry worker
 
 
         sending_user = CustomUser.objects.get(id=user_id)
