@@ -39,7 +39,7 @@ def affiliate_dshbrd(request, aff_name, aff_id):
         # Default values for subscription data if no subscription exists
         sub_start_date = "--/--"
         sub_end_date = "--/--"
-        status_display = "On Free Trial"
+        status_display = "--/--"
         renewal_count = "--/--"
 
         try:

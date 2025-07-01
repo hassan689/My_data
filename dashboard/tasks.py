@@ -10,6 +10,9 @@ from email.utils import make_msgid
 import uuid
 
 
+# Celery Task: Failed to send to GUILLERMOCABRE64@GMAIL.COM (via onboarding.freightwise38@gmail.com): 
+# (550, b'5.4.5 Daily user sending limit exceeded.
+
 email_regex = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
 
 def personalize_template(template, lead):
@@ -72,12 +75,12 @@ def send_emails_chunk_celery_task(email_account_id, user_id, leads, subject, bod
         connection = get_email_connection(email_account, decrypted_password)
 
         for lead in leads:
-            if not isinstance(lead, dict) or 'email' not in lead:
+            if not isinstance(lead, dict) or 'Email' not in lead:
                 print(f"Skipping invalid lead: {lead}")
                 continue
 
-            if not re.fullmatch(email_regex, lead['email']):
-                print(f"Skipping invalid email format: {lead['email']}")
+            if not re.fullmatch(email_regex, lead['Email']):
+                print(f"Skipping invalid email format: {lead['Email']}")
                 continue
             
             if sent_count > 0 and sent_count % 10 == 0:
@@ -100,7 +103,7 @@ def send_emails_chunk_celery_task(email_account_id, user_id, leads, subject, bod
                     subject=personalized_subject,
                     body=personalized_body,
                     from_email=email_account.email_address,
-                    to=[lead['email']],
+                    to=[lead['Email']],
                     connection=connection
                 )
                 msg.extra_headers = {'Message-ID': message_id}
@@ -124,7 +127,7 @@ def send_emails_chunk_celery_task(email_account_id, user_id, leads, subject, bod
                     thread, created  = EmailThread.objects.get_or_create(
                         mailbox=mailbox_instance, 
                         email1=email_account.email_address,
-                        email2=lead['email'],
+                        email2=lead['Email'],
                         subject=personalized_subject,
                         defaults={
                             'is_read': True,
@@ -135,14 +138,14 @@ def send_emails_chunk_celery_task(email_account_id, user_id, leads, subject, bod
                         thread=thread,  # Attach to the new thread
                         subject=personalized_subject,
                         body=personalized_body,
-                        recipient=lead['email'],
+                        recipient=lead['Email'],
                         sender=email_account.email_address,
                         message_id=message_id,
                         in_reply_to=None,  # It's not a reply, it's a first message
                     )
 
             except Exception as e:
-                print(f"Celery Task: Failed to send to {lead['email']} (via {email_account.email_address}): {e}")
+                print(f"Celery Task: Failed to send to {lead['Email']} (via {email_account.email_address}): {e}")
 
 
         sending_user = CustomUser.objects.get(id=user_id)

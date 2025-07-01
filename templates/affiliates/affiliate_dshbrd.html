@@ -90,9 +90,9 @@
                         <td class="p-3">{{ user_data.subscription_end_date }}</td>
                         <td class="p-3">
                             <span class="px-2 py-1 rounded text-xs font-semibold
-                                {% if user_data.status == 'Active' %}bg-green-200 text-green-800
-                                {% elif user_data.status == 'Expired' %}bg-red-200 text-red-800
-                                {% elif user_data.status == 'Canceled' %}bg-orange-200 text-orange-800
+                                {% if user_data.status == 'active' %}bg-green-200 text-green-800
+                                {% elif user_data.status == 'expired' %}bg-red-200 text-red-800
+                                {% elif user_data.status == 'canceled' %}bg-orange-200 text-orange-800
                                 {% else %}bg-blue-200 text-blue-800{% endif %}">
                                 {{ user_data.status }}
                             </span>

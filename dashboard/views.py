@@ -31,38 +31,6 @@ import re
 # Basic email regex for quick pre-validation (can be more robust if needed)
 email_regex = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
 
-# def chunk_list(data, chunk_size):
-#     """Yield successive chunks of given size from the list."""
-#     for i in range(0, len(data), chunk_size):
-#         yield data[i:i + chunk_size]
-
-
-# def send_emails(email_account, leads, subject, body, min_delay, max_delay, chunk_size=150):
-    
-#     """
-#     Sends campaign emails in parallel chunks.
-#     Each task handles a small portion of the leads to avoid blocking workers.
-#     """
-#     total_chunks = 0
-#     total_leads = 0
-#     for chunk in chunk_list(leads, chunk_size):
-#         # Call the Celery task directly using .delay()
-        
-#         send_emails_chunk_celery_task.delay(
-#             email_account.id,
-#             chunk, # 👈 Only this chunk of leads
-#             subject,
-#             body,
-#             min_delay,
-#             max_delay
-#         )
-#         print(f"Chunk of {len(chunk)} leads queued to Celery.")
-#         total_chunks += 1
-#         total_leads += len(chunk)
-
-#     print(f"Total chunks queued: {total_chunks}")
-#     print(f"Total leads in all chunks: {total_leads}")
-
 
 def process_excel_file(file):
     
@@ -82,13 +50,19 @@ def process_excel_file(file):
             return str(val).strip()
 
         # Normalize column names for internal lookup (finding 'email' column)
-        normalized_columns = {col: col.strip().lower().replace(" ", "") for col in df.columns}
+        normalized_columns_map = {col: col.strip().lower().replace(" ", "") for col in df.columns}
 
-        # Find the original column name for email
-        email_col = next((col for col, norm in normalized_columns.items() if 'email' in norm), None)
+        # Find the original column name for email using common variations
+        # This will find the first column whose normalized name contains 'email'
+        email_col = None
+        for col, norm_col in normalized_columns_map.items():
+            # Search for 'email' (lowercase) in the normalized column name
+            if 'email' in norm_col: 
+                email_col = col
+                break 
 
         if not email_col:
-            print("Required 'email' column not found in the Excel file.")
+            print("Required 'Email' column not found in the Excel file.")
             return []
 
         leads = []
@@ -98,13 +72,12 @@ def process_excel_file(file):
             # Process email: This is the only column strictly necessary for a lead
             email_val = clean_value(row[email_col])
             if not email_val or not re.match(email_regex, email_val):
-                # print(f"Skipping row: invalid or missing email: '{email_val}'") # Can uncomment for debugging
                 continue
-            lead['email'] = email_val
+            lead['Email'] = email_val
 
             # Process all other columns without hardcoding their names
             for col in df.columns:
-                if col != email_col: # Include all columns except the email column
+                if col != email_col: 
                     lead[col] = clean_value(row[col])
 
             leads.append(lead)
@@ -283,7 +256,7 @@ def campaign(request, email_account_id):
             seen_emails = set()
             unique_leads = []
             for lead in leads:
-                email = lead.get("email")
+                email = lead.get("Email")
                 if email and email not in seen_emails:
                     unique_leads.append(lead)
                     seen_emails.add(email)
