@@ -157,7 +157,8 @@ def send_emails_chunk_celery_task(email_account_id, user_id, leads, subject, bod
                     notification_body = (
                         f"Dear user,\n\n"
                         f"Your email campaign using the account '{email_account.email_address}' has been halted "
-                        f"because the daily sending limit for this email account has been exceeded.\n\n"
+                        f"because **Gmail has indicated that the daily sending limit for this email account has been exceeded.**\n\n"
+                        f"**This limit is imposed by Gmail, not by DispatchSkool.**\n\n"
                         f"For more information on Gmail sending limits, please visit: "
                         f"https://support.google.com/a/answer/166852\n\n"
                         f"Please wait 24 hours before trying to send new campaigns from this account.\n\n"

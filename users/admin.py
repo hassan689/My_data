@@ -66,7 +66,7 @@ class AffiliateAdmin(admin.ModelAdmin):
     list_filter = ("joining_date",)
     search_fields = ("user",)
     ordering = ("-joining_date",)
-    readonly_fields = ('joining_date', 'lifetime_earnings',)
+    readonly_fields = ('joining_date',)
 
     @admin.display(description='Referred Users Count', ordering='referred_users_count')
     def referred_users_count(self, obj):
