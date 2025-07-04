@@ -220,10 +220,10 @@ EMAIL_HOST = 'smtp.hostinger.com'
 EMAIL_USE_TLS = False  # Enable TLS
 EMAIL_USE_SSL = True  # Disable SSL
 EMAIL_PORT = 465  # TLS requires port 587
-EMAIL_HOST_USER = "jordan@truckingstory.com"
+EMAIL_HOST_USER = "jacob@truckingstory.com"
 EMAIL_HOST_PASSWORD = "Ahmad@2134"
 
-DEFAULT_FROM_EMAIL = "jordan@truckingstory.com"
+DEFAULT_FROM_EMAIL = "jacob@truckingstory.com"
 
 LOGGING = {
     "version": 1,

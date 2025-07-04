@@ -32,11 +32,11 @@ def get_email_connection(email_account, decrypted_password):
     """
     Establishes and opens an SMTP connection for sending emails.
     """
-    use_tls = email_account.server_type == "TLS"
+    use_tls = email_account.server_type == "STARTTLS" or email_account.server_type == "TLS"
     use_ssl = email_account.server_type == "SSL"
 
     if use_tls and use_ssl:
-        print("Invalid configuration: Cannot enable both TLS and SSL.")
+        print("Invalid configuration: Cannot enable all TLS, SSL and STARTTLS.")
         return
 
     connection = get_connection(

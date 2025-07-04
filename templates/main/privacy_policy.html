@@ -38,6 +38,7 @@
   <ul class="list-disc list-inside my-2 ml-3">
     <li>Personal information we collect</li>
     <li>How we use your personal information</li>
+    <li>Google account integration</li>
     <li>How we share your personal information</li>
     <li>Your choices</li>
     <li>Security</li>
@@ -127,6 +128,15 @@
 
   <p class="my-2 ml-3">When we no longer require the personal information we have collected about you, we may either delete it, anonymize it, or isolate it from further processing.</p>
 
+  <p class="my-5 font-bold text-3xl">Google account integration</p>
+
+  <p class="my-2 ml-3">
+    <span class="font-bold">Gmail API access (read-only)</span>. With your explicit consent, we use Google’s Gmail API to access your Gmail inbox and sent mail data (including message metadata, threads, and email content) strictly in read-only mode. This access allows <span class="font-bold">Dispatch Skool</span> to provide a unified inbox experience, enabling you to view and manage multiple Gmail accounts in one place without switching between tabs. To support this functionality, we securely store necessary email data (such as message summaries, threads, and statuses) in our database to allow you to access and manage your communications through our platform.
+  </p>
+
+  <p class="my-2 ml-3">
+    <span class="font-bold">Security & compliance</span>. We only request the Gmail API scope <code class="bg-gray-100 px-1 py-0.5 rounded text-sm">https://www.googleapis.com/auth/gmail.readonly</code>, which is classified as a sensitive scope by Google and requires app verification and clear privacy disclosures. All OAuth tokens are securely stored using strong encryption and are only decrypted at runtime to establish a connection with Google services. The email data we store is used solely for providing the stated unified inbox functionality and is never shared, sold, or used for any other purpose. We comply fully with Google’s <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" class="text-blue-600 hover:underline">API Services User Data Policy</a>, and users can revoke access at any time through their Google account settings.
+  </p>
 
   <p class="my-5 font-bold text-3xl">Your choices</p>
 

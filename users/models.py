@@ -84,7 +84,7 @@ class EmailAccount(models.Model):
     port_number = models.IntegerField(verbose_name="Port Number")  # SMTP/IMAP Port Number
     server_type = models.CharField(
         max_length=10,
-        choices=[("TLS", "TLS"), ("SSL", "SSL")],
+        choices=[("TLS", "TLS"), ("SSL", "SSL"), ("STARTTLS", "STARTTLS"),],
         verbose_name="SMTP Server Type",
     )
     host = models.CharField(max_length=100, verbose_name="Outgoing Servr Host")

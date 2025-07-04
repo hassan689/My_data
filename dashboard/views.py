@@ -548,11 +548,11 @@ def send_email_async(email_account, request):
             decrypted_password = email_account.get_password()
 
             # Determine the SMTP security type
-            use_tls = email_account.server_type == "TLS"
+            use_tls = email_account.server_type == "STARTTLS" or email_account.server_type == "TLS"
             use_ssl = email_account.server_type == "SSL"
 
             if use_tls and use_ssl:
-                print("Invalid configuration: Cannot enable both TLS and SSL.")
+                print("Invalid configuration: Cannot enable all TLS, SSL and STARTTLS.")
                 return
 
             # Correct credentials entered
@@ -588,7 +588,8 @@ def send_email_async(email_account, request):
                 connection.close()
 
             # Incorrect credentials entered
-            except:
+            except Exception as e:
+                print(f"SMTP connection failed: {e}")
                 subject = "Email account configuration failure"
                 body = (
                     f"Hello {request.user.first_name},\n\n"
@@ -634,6 +635,7 @@ def add_email_account(request):
                 email_account.full_clean()  # Run model-level validation after assigning user
                 email_account.save()  # Save only if validation passes
 
+                print(request.POST)
                 send_email_async(email_account, request)  # Send confirmation email
 
                 messages.warning(
