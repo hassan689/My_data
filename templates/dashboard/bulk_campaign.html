@@ -238,22 +238,20 @@
                             {{ form.carrier_operation|add_class:"mt-1 block w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none" }}
                           </div></div>
 
-                          <div class="grid md:grid-cols-3 md:gap-x-6">
-                          <div>
-                            <label class="block text-sm font-medium text-gray-700 mt-5">Handles Hazardous Materials (HM)</label>
-                            {{ form.hm }}
-                          </div>
-                          <div>
-                            <label class="block text-sm font-medium text-gray-700 mt-5">Handles Household Goods (HHG)</label>
-                            {{ form.hhg }}
-                          </div>
+                          <div class="grid md:grid-cols-2 md:gap-x-6 mt-5">
+                            <div>
+                              <label class="block text-sm font-medium text-gray-700">Cargo Classification</label>
+                              {{ form.cargo_classification_search|add_class:"mt-1 block w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none" }}
+                            </div>
 
-                          <div>
-                            <label class="block text-sm font-medium text-gray-700 mt-5">New Entrant</label>
-                            {{ form.new_entrant }}
+                            <div>
+                              <label class="block text-sm font-medium text-gray-700">Cargo Info</label>
+                              {{ form.cargo_info_search|add_class:"mt-1 block w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none" }}
+                              {% if form.targets_count.errors %}
+                                <div class="bg-red-200 p-5 my-3 rounded-xl border-2 border-solid border-red-700"><p class="text-red-700 text-sm">{{ form.targets_count.errors.0 }}</p></div>
+                              {% endif %}
+                            </div>
                           </div>
-                          <div></div> <!-- empty div to keep grid layout consistent -->
-                        </div>
 
                       {% else %}
                         <p class="text-sm text-red-600"><strong>Exclusive to active subscribers</strong> — unlock this powerful feature and stay ahead, while free trial users remain limited</p>

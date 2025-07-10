@@ -133,40 +133,18 @@ class CampaignForm(forms.Form):
         label="Carrier Operation"
     )
 
-    # HM Filter (Yes/No Radio Buttons)
-    hm = forms.ChoiceField(
-        choices=[
-            ('', 'Any'), # Optional empty choice for "any"
-            ('Yes', 'Yes'),
-            ('No', 'No')
-        ],
-        widget=forms.RadioSelect,
+    cargo_classification_search = forms.CharField(
+        max_length=255,
         required=False,
-        label="Handles Hazardous Materials (HM)"
+        label="Cargo Classification Search",
+        widget=forms.TextInput(attrs={'placeholder': 'e.g., General Freight, Refrigerated Food'})
     )
 
-    # HHG Filter (Yes/No Radio Buttons)
-    hhg = forms.ChoiceField(
-        choices=[
-            ('', 'Any'), # Optional empty choice for "any"
-            ('Yes', 'Yes'),
-            ('No', 'No')
-        ],
-        widget=forms.RadioSelect,
+    cargo_info_search = forms.CharField(
+        max_length=255,
         required=False,
-        label="Handles Household Goods (HHG)"
-    )
-
-    # New Entrant Filter (Yes/No Radio Buttons)
-    new_entrant = forms.ChoiceField(
-        choices=[
-            ('', 'Any'), # Optional empty choice for "any"
-            ('Yes', 'Yes'),
-            ('No', 'No')
-        ],
-        widget=forms.RadioSelect,
-        required=False,
-        label="New Entrant"
+        label="Cargo Info Search",
+        widget=forms.TextInput(attrs={'placeholder': 'e.g., Straight Trucks, Truck Tractors, Trailers etc.'})
     )
 
     def __init__(self, *args, **kwargs):
@@ -222,7 +200,7 @@ class BulkCampaignForm(CampaignForm):
         # Set all fields as not required for Step 2
         for field_name in ['file_upload', 'mc_number', 'targets_count', 'email_subject', 'email_body', 'min_delay', 'max_delay', 'select_all',
                           'power_units_comparison', 'power_units_value', 'drivers_comparison', 'drivers_value',
-                          'status', 'carrier_operation', 'hm', 'hhg', 'new_entrant']:
+                          'status', 'carrier_operation', 'hm', 'hhg', 'new_entrant', 'cargo_classification_search', 'cargo_info_search']:
             if field_name in self.fields:
                 self.fields[field_name].required = False
 

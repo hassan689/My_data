@@ -9,7 +9,8 @@ from .models import GmailToken
 from .forms import EmailAccountForm, CampaignForm, BulkCampaignForm
 from .tasks import send_emails_chunk_celery_task
 from django.db.models import Q, F, Value, IntegerField
-from django.db.models.functions import Cast, Replace
+from django.db.models.functions import Cast, Replace, Lower
+from django.contrib.postgres.search import TrigramSimilarity
 
 from django.contrib import messages
 from django.core.mail import get_connection, EmailMessage
@@ -92,13 +93,22 @@ def process_excel_file(file):
 def get_leads_from_db(starting_mc_number, targets_count,
                       power_units_comparison=None, power_units_value=None,
                       drivers_comparison=None, drivers_value=None,
-                      status=None, carrier_operation=None, hm=None, hhg=None,
-                      new_entrant=None):
+                      status=None, carrier_operation=None,
+                      cargo_classification_search_term=None, cargo_info_search_term=None):
     
     try:
         formatted_mc = f"MC {starting_mc_number}"
 
-        # Base filters
+        # Initialize queryset once at the beginning
+        queryset = Lead.objects.all()
+
+        # Apply numerical annotations to the existing queryset
+        queryset = queryset.annotate(
+            power_units_int=Cast(Replace(Replace(F('power_units'), Value(','), Value('')), Value(' '), Value('')), IntegerField()),
+            drivers_int=Cast(Replace(Replace(F('drivers'), Value(','), Value('')), Value(' '), Value('')), IntegerField()),
+        )
+
+        # Base filters (these will be combined with other Q objects later)
         filters = (
             Q(email__isnull=False) &
             ~Q(email='') &
@@ -106,36 +116,36 @@ def get_leads_from_db(starting_mc_number, targets_count,
             ~Q(drivers='')
         )
 
-        if status and not status == '': # This correctly adds filter only if status is not an empty string
+        if status and not status == '':
             filters &= Q(status=status)
-        if carrier_operation and not carrier_operation == '': # This correctly adds filter only if carrier_operation is not an empty string
+        if carrier_operation and not carrier_operation == '':
             filters &= Q(carrier_operation=carrier_operation)
 
-        if hm == 'Yes':
-            filters &= Q(hm='Yes')
-        elif hm == 'No':
-            filters &= Q(hm='No')
-        # If hm is '' (or anything else that's not 'Yes' or 'No'), no filter is added for hm, meaning 'Any' is included.
-
-        if hhg == 'Yes':
-            filters &= Q(hhg='Yes')
-        elif hhg == 'No':
-            filters &= Q(hhg='No')
-
-        if new_entrant == 'Yes':
-            filters &= Q(new_entrant='Yes')
-        elif new_entrant == 'No':
-            filters &= Q(new_entrant='No')
-
-        # Casting string fields to integers before comparison
-        queryset = Lead.objects.annotate(
-            power_units_int=Cast(Replace(Replace(F('power_units'), Value(','), Value('')), Value(' '), Value('')), IntegerField()),
-            drivers_int=Cast(Replace(Replace(F('drivers'), Value(','), Value('')), Value(' '), Value('')), IntegerField()),
-        )
+        if cargo_classification_search_term:
+            # Convert the search term to lowercase explicitly before passing to TrigramSimilarity
+            search_term_lower = cargo_classification_search_term.lower()
+            # Ensure cargo_classifications is not null or empty before applying similarity
+            queryset = queryset.filter(
+                Q(cargo_classifications__isnull=False) & ~Q(cargo_classifications='')
+            ).annotate(
+                # Use Lower() on the database field, but pass the pre-lowercased string for the search term
+                cargo_class_similarity=TrigramSimilarity(Lower('cargo_classifications'), search_term_lower)
+            ).filter(cargo_class_similarity__gt=0.3) # Keep the threshold at 0.3 for better flexibility
+            
+        if cargo_info_search_term:
+            # Convert the search term to lowercase explicitly before passing to TrigramSimilarity
+            search_term_lower = cargo_info_search_term.lower()
+            # Ensure cargo_info is not null or empty before applying similarity
+            queryset = queryset.filter(
+                Q(cargo_info__isnull=False) & ~Q(cargo_info='')
+            ).annotate(
+                # Use Lower() on the database field, but pass the pre-lowercased string for the search term
+                cargo_info_similarity=TrigramSimilarity(Lower('cargo_info'), search_term_lower)
+            ).filter(cargo_info_similarity__gt=0.3) # Keep the threshold at 0.3 for better flexibility
 
         # Numerical filters will only apply if power_units_value / drivers_value is not None
         if power_units_comparison and power_units_value is not None:
-            filters &= Q(power_units_int__isnull=False) # Ensure the cast was successful
+            filters &= Q(power_units_int__isnull=False) 
             if power_units_comparison == 'gt':
                 filters &= Q(power_units_int__gte=power_units_value)
             elif power_units_comparison == 'lt':
@@ -144,7 +154,7 @@ def get_leads_from_db(starting_mc_number, targets_count,
                 filters &= Q(power_units_int=power_units_value)
 
         if drivers_comparison and drivers_value is not None:
-            filters &= Q(drivers_int__isnull=False) # Ensure the cast was successful
+            filters &= Q(drivers_int__isnull=False) 
             if drivers_comparison == 'gt':
                 filters &= Q(drivers_int__gte=drivers_value)
             elif drivers_comparison == 'lt':
@@ -152,10 +162,12 @@ def get_leads_from_db(starting_mc_number, targets_count,
             elif drivers_comparison == 'eq':
                 filters &= Q(drivers_int=drivers_value)
 
+        # Finally, apply all accumulated Q object filters to the queryset
+        queryset = queryset.filter(filters)
+
         # Find closest starting lead
         starting_lead = (
             queryset.filter(mc_number__gte=formatted_mc)
-            .filter(filters)
             .order_by('mc_number')
             .first()
         )
@@ -163,7 +175,6 @@ def get_leads_from_db(starting_mc_number, targets_count,
         if not starting_lead:
             starting_lead = (
                 queryset.filter(mc_number__lte=formatted_mc)
-                .filter(filters)
                 .order_by('-mc_number')
                 .first()
             )
@@ -175,7 +186,6 @@ def get_leads_from_db(starting_mc_number, targets_count,
 
         leads_after = list(
             queryset.filter(mc_number__gte=starting_mc)
-            .filter(filters)
             .order_by('mc_number')[:targets_count]
         )
 
@@ -184,7 +194,6 @@ def get_leads_from_db(starting_mc_number, targets_count,
         if remaining > 0:
             leads_before = list(
                 queryset.filter(mc_number__lt=starting_mc)
-                .filter(filters)
                 .order_by('-mc_number')[:remaining]
             )
             leads_after.extend(leads_before)
@@ -200,6 +209,7 @@ def get_leads_from_db(starting_mc_number, targets_count,
                 'DUNS Number': lead.duns_number,
                 'Drivers': lead.drivers,
                 'Cargo Classifications': lead.cargo_classifications,
+                'Cargo Info': lead.cargo_info,
             }
             for lead in leads_after[:targets_count]
         ]
@@ -234,9 +244,8 @@ def campaign(request, email_account_id):
             drivers_value = form.cleaned_data.get('drivers_value')
             status = form.cleaned_data.get('status')
             carrier_operation = form.cleaned_data.get('carrier_operation')
-            hm = form.cleaned_data.get('hm')
-            hhg = form.cleaned_data.get('hhg')
-            new_entrant = form.cleaned_data.get('new_entrant')
+            cargo_classification_search = form.cleaned_data.get('cargo_classification_search')
+            cargo_info_search = form.cleaned_data.get('cargo_info_search')
 
             leads = []
             if file_upload:
@@ -244,9 +253,10 @@ def campaign(request, email_account_id):
             elif mc_number and not request.user.on_free_trial:
                 leads = get_leads_from_db(
                     mc_number, targets_count,
-                    power_units_comparison=power_units_comparison,
-                    power_units_value=power_units_value, drivers_comparison=drivers_comparison, drivers_value=drivers_value,
-                    status=status, carrier_operation=carrier_operation, hm=hm, hhg=hhg, new_entrant=new_entrant
+                    power_units_comparison=power_units_comparison, power_units_value=power_units_value, 
+                    drivers_comparison=drivers_comparison, drivers_value=drivers_value,
+                    status=status, carrier_operation=carrier_operation,
+                    cargo_classification_search_term=cargo_classification_search, cargo_info_search_term=cargo_info_search
                 )
 
             if not leads:
@@ -265,8 +275,8 @@ def campaign(request, email_account_id):
 
             filter_data = {}
             for key in ['mc_number', 'targets_count', 'power_units_comparison', 'power_units_value', 
-                        'drivers_comparison', 'drivers_value', 'status', 'carrier_operation', 
-                        'hm', 'hhg', 'new_entrant']:
+                        'drivers_comparison', 'drivers_value', 'status', 'carrier_operation',
+                        'cargo_classification_search', 'cargo_info_search']:
                 val = locals().get(key)
                 if val not in [None, '', 'None']:
                     filter_data[key] = val
@@ -346,9 +356,8 @@ def bulk_campaign(request):
             drivers_value = form.cleaned_data.get('drivers_value')
             status = form.cleaned_data.get('status')
             carrier_operation = form.cleaned_data.get('carrier_operation')
-            hm = form.cleaned_data.get('hm')
-            hhg = form.cleaned_data.get('hhg')
-            new_entrant = form.cleaned_data.get('new_entrant')
+            cargo_classification_search = form.cleaned_data.get('cargo_classification_search')
+            cargo_info_search = form.cleaned_data.get('cargo_info_search')
 
             leads = []
             if file_upload:
@@ -356,9 +365,10 @@ def bulk_campaign(request):
             elif mc_number and not request.user.on_free_trial:
                 leads = get_leads_from_db(
                     mc_number, targets_count,
-                    power_units_comparison=power_units_comparison,
-                    power_units_value=power_units_value, drivers_comparison=drivers_comparison, drivers_value=drivers_value,
-                    status=status, carrier_operation=carrier_operation, hm=hm, hhg=hhg, new_entrant=new_entrant
+                    power_units_comparison=power_units_comparison, power_units_value=power_units_value, 
+                    drivers_comparison=drivers_comparison, drivers_value=drivers_value,
+                    status=status, carrier_operation=carrier_operation,
+                    cargo_classification_search_term=cargo_classification_search, cargo_info_search_term=cargo_info_search
                 )
 
             if not leads:
@@ -373,8 +383,8 @@ def bulk_campaign(request):
 
             filter_data = {}
             for key in ['mc_number', 'targets_count', 'power_units_comparison', 'power_units_value', 
-                        'drivers_comparison', 'drivers_value', 'status', 'carrier_operation', 
-                        'hm', 'hhg', 'new_entrant']:
+                        'drivers_comparison', 'drivers_value', 'status', 'carrier_operation',
+                        'cargo_classification_search', 'cargo_info_search']:
                 val = locals().get(key)
                 if val not in [None, '', 'None']:
                     filter_data[key] = val
