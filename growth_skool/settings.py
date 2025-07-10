@@ -51,6 +51,8 @@ INSTALLED_APPS = [
 		'widget_tweaks',
 		'django_q',
 		'django_ckeditor_5',
+    # 'ckeditor',
+    # 'ckeditor_uploader',
     'django_celery_beat',
 ]
 
@@ -93,18 +95,40 @@ customColorPalette = [
         },
     ]
 
-
 CKEDITOR_5_CONFIGS = {
     "default": {
         "toolbar": {
             "items": [
                 "heading", "|", "bold", "italic", "underline", "strikethrough",
-                "highlight", "|", "link",
+                "highlight", "|", "link", "uploadImage", "fileUpload", # Changed "fileAttachment" to "fileUpload"
                 "bulletedList", "numberedList", "todoList", "outdent", "indent","|",
                 "fontSize", "fontFamily", "fontColor", "fontBackgroundColor",
                 "removeFormat", "insertTable",
             ],
             "shouldNotGroupWhenFull": True,
+        },
+        "image": {
+            "toolbar": [
+                "imageTextAlternative", "|", "imageStyle:alignLeft",
+                "imageStyle:block", # Changed "imageStyle:full" to "imageStyle:block"
+                "imageStyle:alignRight"
+            ],
+            "styles": [
+                "block", # Changed "full" to "block"
+                "alignLeft",
+                "alignRight"
+            ],
+            "upload": {
+                "url": "/ckeditor5/image_upload/",
+            }
+        },
+        "fileUpload": { # Changed "fileAttachment" to "fileUpload"
+            "toolbar": [
+                "fileUpload" # Changed "fileAttachment" to "fileUpload"
+            ],
+            "upload": {
+                "url": "/ckeditor5/file_upload/",
+            }
         },
         "table": {
             "contentToolbar": [
@@ -120,8 +144,13 @@ CKEDITOR_5_CONFIGS = {
                 {"model": "heading3", "view": "h3", "title": "Heading 3", "class": "ck-heading_heading3"},
             ]
         },
+        # You may also need these general file upload settings if not already present:
+        # "CKEDITOR_5_ALLOW_ALL_FILE_TYPES": True,
+        # "CKEDITOR_5_UPLOAD_FILE_TYPES": ['jpeg', 'pdf', 'png'], # optional, specify allowed types
     }
 }
+# # CKEDITOR_5_ALLOW_ALL_FILE_TYPES = True
+CKEDITOR_5_UPLOAD_FILE_TYPES = ['jpeg', 'pdf', 'png', 'docx']
 
 
 MAINTENANCE_MODE = False
@@ -255,6 +284,23 @@ STATICFILES_DIRS = [
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+# CKEDITOR_UPLOAD_PATH = "uploads/"
+# CKEDITOR_ALLOW_NONIMAGE_FILES = True
+
+# CKEDITOR_CONFIGS = {
+#     'default': {
+#         'toolbar': 'Full',  # or define your own toolbar
+#         'height': 300,
+#         'width': '100%',
+#         'extraPlugins': 'uploadimage',  # ✅ remove 'uploadfile'
+#         'filebrowserUploadUrl': '/ckeditor/upload/',
+#         'filebrowserBrowseUrl': '/ckeditor/browse/',
+#         'allowedContent': True,
+#     },
+# }
+
+
 
 LOGIN_REDIRECT_URL = 'dashboard:index'
 LOGIN_URL = 'users:login'

@@ -13,6 +13,7 @@ urlpatterns = [
     path('affiliates/', include('affiliates.urls')),
     
 		path("ckeditor5/", include('django_ckeditor_5.urls')),
+    # path('ckeditor/', include('ckeditor_uploader.urls')),
 ]
 
 def custom_404(request, exception):

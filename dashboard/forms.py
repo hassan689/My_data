@@ -1,7 +1,7 @@
 from django import forms
 from users.models import EmailAccount
-from django.core.cache import cache
 from django_ckeditor_5.widgets import CKEditor5Widget
+# from ckeditor_uploader.widgets import CKEditorUploadingWidget 
 
 class EmailAccountForm(forms.ModelForm):
     decrypted_password = forms.CharField(
@@ -52,6 +52,7 @@ class CampaignForm(forms.Form):
     )
     email_body = forms.CharField(
         widget=CKEditor5Widget(config_name='default'),  # Integrate CKEditor 5
+        # widget=CKEditorUploadingWidget(),
         required=True
     )
     file_upload = forms.FileField(

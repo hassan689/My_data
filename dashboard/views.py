@@ -800,8 +800,8 @@ def oauth_callback(request):
             'expires_in': tokens.get('expires_in', 0),
             'token_type': tokens.get('token_type', ''),
             'scope': tokens.get('scope', ''),
-            'last_history_id': history_id
-        }
+            # 'last_history_id': history_id             # Dont create history_id on integration bcz otherwise you wont know if the account is accessed for the first time or has it entered regular checks
+        }                                               # as of now, if it doesnt have a history_id, means its 1st time and the inbox scrape will be for last 30 days, if not then only it will ask for any new msg
     )
 
     # Set encrypted tokens using the new methods

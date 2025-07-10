@@ -13,6 +13,12 @@ import base64
 import re
 from datetime import datetime, timedelta, timezone as dt_timezone
 
+# FOR FILE HANDLING
+import io
+import uuid
+from django.core.files.base import ContentFile
+from django.core.files import File
+
 # Email handling
 from email.header import decode_header
 from email.utils import parseaddr
@@ -21,7 +27,7 @@ from email import message_from_bytes
 # Project modules
 from google_secrets import *
 from dashboard.models import GmailToken
-from unibox.models import EmailThread, OutgoingEmailMessage, IncomingEmailMessage
+from unibox.models import EmailThread, OutgoingEmailMessage, IncomingEmailMessage, Attachment
 
 
 
@@ -78,6 +84,34 @@ class MessageWrapper:
             tz=dt_timezone.utc
         ) if 'internalDate' in self._gmail_api_message else timezone.now()
 
+    def get_attachments(self):
+        """
+        Extracts attachment data from the email.message.Message object.
+        Returns a list of dictionaries, each containing filename, mime_type, and content.
+        """
+        attachments = []
+        if not self._email_object:
+            return attachments
+
+        for part in self._email_object.walk():
+            # Check if it's an attachment and not the main body
+            if part.get_filename() and not part.is_multipart():
+                filename = part.get_filename()
+                mime_type = part.get_content_type()
+                
+                # Decode the payload
+                try:
+                    payload = part.get_payload(decode=True)
+                    if payload:
+                        attachments.append({
+                            'filename': filename,
+                            'mime_type': mime_type,
+                            'content': payload, # Raw bytes of the attachment
+                            'size': len(payload)
+                        })
+                except Exception as e:
+                    print(f"Error decoding attachment payload for {filename}: {e}")
+        return attachments
 
 
     def get_email_object(self):
@@ -183,6 +217,9 @@ def process_single_message(msg_wrapper, mailbox, recipient_email_address):
         thread = None
         outgoing_msg = None
 
+        outgoing_msg_instance = None 
+        incoming_msg_instance = None
+
         # --- Self-loop / Outgoing Message Detection ---
         if sender.lower() == recipient.lower():
             print(f"Processing outgoing message {msg_wrapper.message_id} from {sender}.")
@@ -203,7 +240,7 @@ def process_single_message(msg_wrapper, mailbox, recipient_email_address):
             else:
                 print(f"Found existing thread {thread.id} for outgoing message {msg_wrapper.message_id}.")
 
-            OutgoingEmailMessage.objects.create(
+            outgoing_msg_instance = OutgoingEmailMessage.objects.create(
                 thread=thread,
                 subject=subject,
                 body=body,
@@ -214,6 +251,26 @@ def process_single_message(msg_wrapper, mailbox, recipient_email_address):
                 sent_at=received_at # Use received_at for timestamp consistency for sync
             )
             print(f"Saved outgoing message {msg_wrapper.message_id} to thread {thread.id}.")
+
+            attachments_data = msg_wrapper.get_attachments()
+            for attach_data in attachments_data:
+                try:
+                    # Generate a unique filename to prevent collisions
+                    unique_filename = f"{uuid.uuid4()}_{attach_data['filename']}"
+                    # Create a ContentFile from the raw bytes
+                    django_file = ContentFile(attach_data['content'], name=unique_filename)
+
+                    Attachment.objects.create(
+                        outgoing_message=outgoing_msg_instance, # Link to the newly created outgoing message
+                        file=django_file,
+                        filename=attach_data['filename'],
+                        mime_type=attach_data['mime_type'],
+                        size=attach_data['size']
+                    )
+                    print(f"Saved attachment '{attach_data['filename']}' for outgoing message {msg_wrapper.message_id}.")
+                except Exception as e:
+                    print(f"Error saving attachment '{attach_data['filename']}' for outgoing message {msg_wrapper.message_id}: {e}")
+
             return True # Processed as an outgoing message
 
         # --- Handle Self-loop Duplicates (Incoming Side) ---
@@ -237,7 +294,7 @@ def process_single_message(msg_wrapper, mailbox, recipient_email_address):
             else:
                 print(f"Found existing thread for self-loop (incoming side): {thread.id}")
 
-            IncomingEmailMessage.objects.create(
+            incoming_msg_instance = IncomingEmailMessage.objects.create( 
                 thread=thread,
                 subject=subject,
                 body=body,
@@ -248,6 +305,24 @@ def process_single_message(msg_wrapper, mailbox, recipient_email_address):
                 received_at=received_at
             )
             print(f"Saved incoming self-loop message {msg_wrapper.message_id} to thread {thread.id}.")
+            
+            attachments_data = msg_wrapper.get_attachments()
+            for attach_data in attachments_data:
+                try:
+                    unique_filename = f"{uuid.uuid4()}_{attach_data['filename']}"
+                    django_file = ContentFile(attach_data['content'], name=unique_filename)
+
+                    Attachment.objects.create(  
+                        incoming_message=incoming_msg_instance,
+                        file=django_file,
+                        filename=attach_data['filename'],
+                        mime_type=attach_data['mime_type'],
+                        size=attach_data['size']
+                    )
+                    print(f"Saved attachment '{attach_data['filename']}' for incoming self-loop message {msg_wrapper.message_id}.")
+                except Exception as e:
+                    print(f"Error saving attachment '{attach_data['filename']}' for incoming self-loop message {msg_wrapper.message_id}: {e}")
+            
             return True
 
         except OutgoingEmailMessage.DoesNotExist:
@@ -317,7 +392,7 @@ def process_single_message(msg_wrapper, mailbox, recipient_email_address):
                     )
 
         if thread:
-            IncomingEmailMessage.objects.create(
+            incoming_msg_instance = IncomingEmailMessage.objects.create(
                 thread=thread,
                 subject=subject,
                 body=body,
@@ -328,6 +403,24 @@ def process_single_message(msg_wrapper, mailbox, recipient_email_address):
                 received_at=received_at
             )
             print(f"Saved incoming message {msg_wrapper.message_id} to thread {thread.id}.")
+            
+            attachments_data = msg_wrapper.get_attachments()
+            for attach_data in attachments_data:
+                try:
+                    unique_filename = f"{uuid.uuid4()}_{attach_data['filename']}"
+                    django_file = ContentFile(attach_data['content'], name=unique_filename)
+
+                    Attachment.objects.create(
+                        incoming_message=incoming_msg_instance,
+                        file=django_file,
+                        filename=attach_data['filename'],
+                        mime_type=attach_data['mime_type'],
+                        size=attach_data['size']
+                    )
+                    print(f"Saved attachment '{attach_data['filename']}' for incoming message {msg_wrapper.message_id}.")
+                except Exception as e:
+                    print(f"Error saving attachment '{attach_data['filename']}' for incoming message {msg_wrapper.message_id}: {e}")
+            
             return True
         else:
             print(f"Could not find or create a thread for message {msg_wrapper.message_id}. Skipping.")

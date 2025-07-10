@@ -3,7 +3,7 @@ from users.models import EmailAccount
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from dashboard.models import GmailToken
-from unibox.models import EmailThread, OutgoingEmailMessage, IncomingEmailMessage
+from unibox.models import EmailThread, OutgoingEmailMessage, IncomingEmailMessage, Attachment
 import re
 from django.db.models import Count, Max
 from django.views.decorators.http import require_POST

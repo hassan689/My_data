@@ -60,7 +60,6 @@ class CustomUser(AbstractUser):
 
 class Affiliate(models.Model):
     
-    # This identifies the CustomUser who IS this affiliate
     user = models.OneToOneField(CustomUser, on_delete=models.CASCADE, related_name="affiliate_profile")
     name = models.CharField(max_length=100, null=True, blank=True)
     joining_date = models.DateTimeField(auto_now_add=True)
@@ -69,8 +68,14 @@ class Affiliate(models.Model):
     commission_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('20'))
     lifetime_earnings = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
 
+    has_been_paid = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
+
     def __str__(self):
         return f"Affiliate: {self.name})"
+
+    @property
+    def pending_amount(self):
+        return (self.lifetime_earnings - self.has_been_paid).quantize(Decimal('0.01'))
 
 
 

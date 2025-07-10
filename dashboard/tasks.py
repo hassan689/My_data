@@ -2,7 +2,7 @@ import time
 import re
 from django.core.mail import EmailMultiAlternatives, get_connection, send_mail
 from users.models import EmailAccount, CustomUser
-from unibox.models import EmailThread, OutgoingEmailMessage
+from unibox.models import EmailThread, OutgoingEmailMessage, Attachment
 from dashboard.models import GmailToken, CampaignRecord
 import random
 from growth_skool.celery import app
@@ -179,6 +179,27 @@ def send_emails_chunk_celery_task(email_account_id, user_id, leads, subject, bod
                     
                     # Stop processing this chunk for the current email_account
                     break # This will break the loop and halt the campaign, freeing the celry worker
+
+                elif "timeout exceeded" in error_message:
+                    
+                    try:
+                        connection.close()
+                    except Exception:
+                        pass
+                    connection = get_email_connection(email_account, decrypted_password)
+
+                    try:
+                        msg.send()
+                        sent_count += 1
+                    except Exception as e:
+                        if "please run connect() first" in str(e).lower():
+                            print("SMTP connection lost, reconnecting...")
+                            connection = get_email_connection(email_account, decrypted_password)
+                            msg.connection = connection
+                            msg.send()
+                            sent_count += 1
+                        else:
+                            raise e
 
 
         sending_user = CustomUser.objects.get(id=user_id)

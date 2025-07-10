@@ -62,7 +62,10 @@ class CustomUserAdmin(UserAdmin):
 @admin.register(Affiliate)
 class AffiliateAdmin(admin.ModelAdmin):
     
-    list_display = ("user", "joining_date", "referral_code", "display_commission_percentage", "lifetime_earnings", "referred_users_count",)
+    list_display = ("user", "display_commission_percentage", 
+                    "lifetime_earnings", "has_been_paid", "pending_amount_display",
+                    "referred_users_count",)
+    
     list_filter = ("joining_date",)
     search_fields = ("user",)
     ordering = ("-joining_date",)
@@ -82,6 +85,10 @@ class AffiliateAdmin(admin.ModelAdmin):
         if obj.commission_percentage is not None:
             return f"{obj.commission_percentage}%"
         return "N/A"
+
+    def pending_amount_display(self, obj):
+        return obj.pending_amount
+    pending_amount_display.short_description = 'Pending Amount'
 
 
 class EmailAccountForm(forms.ModelForm):

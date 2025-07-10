@@ -70,5 +70,33 @@ class IncomingEmailMessage(models.Model):
 
 
 
+class Attachment(models.Model):
+    
+    incoming_message = models.ForeignKey(
+        IncomingEmailMessage,
+        on_delete=models.CASCADE,
+        related_name='attachments',
+        null=True,
+        blank=True
+    )
+    outgoing_message = models.ForeignKey(
+        OutgoingEmailMessage,
+        on_delete=models.CASCADE,
+        related_name='attachments',
+        null=True,
+        blank=True
+    )
+
+    file = models.FileField(upload_to="unibox_chat_docs/attachments/")
+    filename = models.CharField(max_length=255)
+    mime_type = models.CharField(max_length=100)
+    size = models.IntegerField(help_text="Size in bytes")
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.filename} ({self.mime_type})"
+
+    class Meta:
+        verbose_name = "Attachment"
 
 
