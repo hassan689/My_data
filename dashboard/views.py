@@ -103,6 +103,11 @@ def get_leads_from_db(starting_mc_number, targets_count,
         queryset = Lead.objects.all()
 
         # Apply numerical annotations to the existing queryset
+        queryset = queryset.filter(
+            power_units__regex=r'^\s*\d+\s*$',
+            drivers__regex=r'^\s*\d+\s*$',
+        )
+
         queryset = queryset.annotate(
             power_units_int=Cast(Replace(Replace(F('power_units'), Value(','), Value('')), Value(' '), Value('')), IntegerField()),
             drivers_int=Cast(Replace(Replace(F('drivers'), Value(','), Value('')), Value(' '), Value('')), IntegerField()),

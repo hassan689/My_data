@@ -113,7 +113,7 @@ def send_emails_chunk_celery_task(email_account_id, user_id, leads, subject, bod
                 try:
                     msg.send()
                 except Exception as e:
-                    if "please run connect() first" in str(e).lower():
+                    if "please run connect() first" in str(e).lower() or "connection expired" in str(e).lower():
                         print("SMTP connection lost, reconnecting...")
                         connection = get_email_connection(email_account, decrypted_password)
                         msg.connection = connection
@@ -180,7 +180,7 @@ def send_emails_chunk_celery_task(email_account_id, user_id, leads, subject, bod
                     # Stop processing this chunk for the current email_account
                     break # This will break the loop and halt the campaign, freeing the celry worker
 
-                elif "timeout exceeded" in error_message:
+                elif "timeout exceeded" in str(error_message).lower() or "timed out" in str(error_message).lower():
                     
                     try:
                         connection.close()

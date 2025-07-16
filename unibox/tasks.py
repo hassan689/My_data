@@ -460,7 +460,7 @@ def fetch_gmail_messages_for_all_accounts(self):
                 messages_list_response = service.users().messages().list(
                     userId=user_id,
                     q=query,
-                    maxResults=500
+                    maxResults=50
                 ).execute()
 
                 messages = messages_list_response.get('messages', [])
