@@ -71,7 +71,7 @@ class Affiliate(models.Model):
     has_been_paid = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
 
     def __str__(self):
-        return f"Affiliate: {self.name})"
+        return f"Affiliate: {self.name}"
 
     @property
     def pending_amount(self):

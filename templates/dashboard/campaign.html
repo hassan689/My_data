@@ -19,7 +19,7 @@
 				Campaign Creator for <span class="text-blue-500">{{ email_account.email_address }}</span>
 			</h2>
 			<p class="text-gray-500 text-lg md:text-xl mt-5">
-				Reach your ideal customers in <strong>less than 5 minutes</strong> — our powerful tool <strong>delivers your campaign instantly</strong>,
+				Reach your ideal customers by <strong>directly landing in their inbox</strong> — our powerful tool delivers your campaign with <strong>utmost precision and accuracy</strong>,
 				maximizing impact while you focus on growing your business.
 			</p>
 
@@ -136,7 +136,7 @@
                 <div 
                     class="relative w-full max-w-4xl p-6 mx-auto bg-white rounded-lg shadow-lg"
                     role="dialog" aria-modal="true" aria-labelledby="modal-title"
-                    style="max-height: 90vh; overflow-y: auto;">
+                    style="max-height: 95vh; overflow-y: auto;">
                   <!-- Close button -->
                   <button 
                       type="button" 
@@ -216,20 +216,32 @@
                               {{ form.carrier_operation|add_class:"mt-1 block w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none" }}
                             </div></div>
 
-                          <div class="grid md:grid-cols-2 md:gap-x-6 mt-5">
-                            <div>
-                              <label class="block text-sm font-medium text-gray-700">Cargo Classification</label>
-                              {{ form.cargo_classification_search|add_class:"mt-1 block w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none" }}
+                            <div class="grid md:grid-cols-2 md:gap-x-6 mt-5">
+                              <div>
+                                <label class="block text-sm font-medium text-gray-700">Cargo Classification</label>
+                                {{ form.cargo_classification_search|add_class:"mt-1 block w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none" }}
+                              </div>
+
+                              <div>
+                                <label class="block text-sm font-medium text-gray-700">Cargo Info</label>
+                                {{ form.cargo_info_search|add_class:"mt-1 block w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none" }}
+                                {% if form.targets_count.errors %}
+                                  <div class="bg-red-200 p-5 my-3 rounded-xl border-2 border-solid border-red-700"><p class="text-red-700 text-sm">{{ form.targets_count.errors.0 }}</p></div>
+                                {% endif %}
+                              </div>
                             </div>
 
-                            <div>
-                              <label class="block text-sm font-medium text-gray-700">Cargo Info</label>
-                              {{ form.cargo_info_search|add_class:"mt-1 block w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none" }}
-                              {% if form.targets_count.errors %}
-                                <div class="bg-red-200 p-5 my-3 rounded-xl border-2 border-solid border-red-700"><p class="text-red-700 text-sm">{{ form.targets_count.errors.0 }}</p></div>
-                              {% endif %}
+                            <div class="mx-auto text-center max-w-full mt-5">
+                              <button 
+                                type="button"
+                                class="text-lg font-semibold bg-gray-900 hover:bg-gray-800 text-white py-2 px-4 rounded-full shadow-lg "
+                                onclick="document.getElementById('selectFromDbModal').classList.add('hidden')"
+                              >
+                                Confirm Selection
+                              </button>
                             </div>
-                          </div>
+
+
 
                         {% else %}
                           <p class="text-sm text-red-600"><strong>Exclusive to active subscribers</strong> — unlock this powerful feature and stay ahead, while free trial users remain limited</p>

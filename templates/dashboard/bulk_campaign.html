@@ -42,6 +42,10 @@
 			<h2 class="text-3xl md:text-4xl font-bold">
 				Create <span class="text-blue-500">One Click Launch Bulk Campaigns</span> seemlessly and deploy all your email accounts at once!
 			</h2>
+			<p class="text-gray-500 text-lg md:text-xl mt-5">
+				Reach your ideal customers by <strong>directly landing in their inbox</strong> — our powerful tool delivers your campaign with <strong>utmost precision and accuracy</strong>,
+				maximizing impact while you focus on growing your business.
+			</p>
 
 			<div class="p-6 bg-white border border-gray-300 rounded-lg shadow-md my-6 text-left">
 				<h2 class="text-xl font-semibold text-gray-800">How it Works</h2>
@@ -99,7 +103,7 @@
             <!-- Title & Description -->
             <div class="mt-4 text-center">
                 <h2 class="text-lg font-medium text-gray-700">Upload Excel File</h2>
-                <p class="text-sm text-yellow-700 py-2">It is recommended that your sheet has upto <strong>300 leads</strong> only, as it'll help you to <strong>avoid spam</strong>. It should be <strong>only XLSX file.</strong> Support for other formats will be provided later, thank you for cooperation.</p>
+                <p class="text-sm text-yellow-700 py-2">It is recommended that your sheet has upto <strong>300 leads per acccount</strong> only, as it'll help you to <strong>avoid spam</strong>. It should be <strong>only XLSX file.</strong> Support for other formats will be provided later, thank you for cooperation.</p>
                 <p class="text-sm text-red-700 py-2">
                     Your file <strong>MUST HAVE</strong> at least an <strong>Email</strong> column. 
                     All other columns (like <strong>Name</strong>, <strong>MC Number</strong>, etc.) 
@@ -158,7 +162,7 @@
               <div 
                   class="relative w-full max-w-4xl p-6 mx-auto bg-white rounded-lg shadow-lg"
                   role="dialog" aria-modal="true" aria-labelledby="modal-title"
-                  style="max-height: 90vh; overflow-y: auto;">
+                  style="max-height: 95vh; overflow-y: auto;">
                 <!-- Close button -->
                 <button 
                     type="button" 
@@ -251,6 +255,16 @@
                                 <div class="bg-red-200 p-5 my-3 rounded-xl border-2 border-solid border-red-700"><p class="text-red-700 text-sm">{{ form.targets_count.errors.0 }}</p></div>
                               {% endif %}
                             </div>
+                          </div>
+
+                          <div class="mx-auto text-center max-w-full mt-5">
+                            <button 
+                              type="button"
+                              class="text-lg font-semibold bg-gray-900 hover:bg-gray-800 text-white py-2 px-4 rounded-full shadow-lg "
+                              onclick="document.getElementById('selectFromDbModal').classList.add('hidden')"
+                            >
+                              Confirm Selection
+                            </button>
                           </div>
 
                       {% else %}
