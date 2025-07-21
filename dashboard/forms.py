@@ -48,7 +48,7 @@ class CampaignForm(forms.Form):
     email_subject = forms.CharField(
         max_length=255,
         required=True,
-        widget=forms.TextInput(attrs={'placeholder': 'Some Big Offer - Hello [name] - [mc_number]'})
+        widget=forms.TextInput(attrs={'placeholder': 'Hello [Legal Name] - [MC Number] - Some Big Offer'})
     )
     email_body = forms.CharField(
         widget=CKEditor5Widget(config_name='default'),  # Integrate CKEditor 5
@@ -58,6 +58,16 @@ class CampaignForm(forms.Form):
     file_upload = forms.FileField(
         required=False, 
         widget=forms.ClearableFileInput(attrs={'class': 'hidden'})
+    )
+    lower_limit_mc_number = forms.CharField(
+        max_length=10, 
+        required=False, 
+        widget=forms.TextInput(attrs={'placeholder': 'Lower Limit MC Number, e.g: 1600000'})
+    )
+    upper_limit_mc_number = forms.CharField(
+        max_length=10, 
+        required=False, 
+        widget=forms.TextInput(attrs={'placeholder': 'Upper Limit MC Number, e.g: 1600300'})
     )
     mc_number = forms.CharField(
         max_length=10, 
@@ -157,6 +167,8 @@ class CampaignForm(forms.Form):
     def clean(self):
         cleaned_data = super().clean()
         file_upload = cleaned_data.get('file_upload')
+        lower_limit_mc_number = cleaned_data.get('lower_limit_mc_number')
+        upper_limit_mc_number = cleaned_data.get('upper_limit_mc_number')
         mc_number = cleaned_data.get('mc_number')
         targets_count = cleaned_data.get('targets_count')
         min_delay = cleaned_data.get('min_delay')
@@ -166,7 +178,7 @@ class CampaignForm(forms.Form):
             if not file_upload:
                 self.add_error('file_upload', "Free trial users must upload an Excel file.")
         else:
-            if not file_upload and not mc_number:
+            if not file_upload and not mc_number and not (lower_limit_mc_number and upper_limit_mc_number):
                 raise forms.ValidationError("Either upload an Excel file or provide an MC number.")
 
         if targets_count is not None and targets_count < 1:
@@ -185,6 +197,9 @@ class CampaignForm(forms.Form):
             self.add_error('min_delay', "Lower limit delay must be greater than 0.")
         if max_delay < min_delay:
             self.add_error('max_delay', "Upper limit delay must be greater than lower limit.")
+        if lower_limit_mc_number > upper_limit_mc_number:
+            self.add_error('max_delay', "Upper limit MC Number must be greater than the lower limit.")
+
 
         return cleaned_data
 
@@ -198,7 +213,7 @@ class BulkCampaignForm(CampaignForm):
         super().__init__(*args, user=self.user, **kwargs)
 
         # Set all fields as not required for Step 2
-        for field_name in ['file_upload', 'mc_number', 'targets_count', 'email_subject', 'email_body', 'min_delay', 'max_delay', 'select_all',
+        for field_name in ['file_upload', 'mc_number', 'lower_limit_mc_number', 'upper_limit_mc_number', 'targets_count', 'email_subject', 'email_body', 'min_delay', 'max_delay', 'select_all',
                           'power_units_comparison', 'power_units_value', 'drivers_comparison', 'drivers_value',
                           'status', 'carrier_operation', 'hm', 'hhg', 'new_entrant', 'cargo_classification_search', 'cargo_info_search']:
             if field_name in self.fields:

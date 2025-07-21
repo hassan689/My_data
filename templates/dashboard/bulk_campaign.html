@@ -182,9 +182,15 @@
                     <div>
                       {% if not request.user.on_free_trial %}
 
+                        <div class="relative inline-flex items-center justify-center w-full">
+                          <h2 class="text-base md:text-lg font-semibold my-6 text-blue-600">
+                            Please select one of the two methods below
+                          </h2>
+                        </div>
+
                         <div class="grid md:grid-cols-2 md:gap-x-6">
                           <div>
-                            <label class="block text-sm font-medium text-gray-700">MC Number</label>
+                            <label class="block text-sm font-medium text-gray-700">Starting MC Number</label>
                             {{ form.mc_number|add_class:"mt-1 block w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none" }}
                           </div>
 
@@ -198,7 +204,25 @@
                         </div>
 
                         <div class="relative inline-flex items-center justify-center w-full">
-                          <h2 class="text-base md:text-lg font-semibold my-6">
+                          <h2 class="text-base md:text-base my-6">
+                            Or select a range of MC numbers so that the leads will be collected in that range
+                          </h2>
+                        </div>
+
+                        <div class="grid md:grid-cols-2 md:gap-x-6">
+                          <div>
+                            <label class="block text-sm font-medium text-gray-700">Lower Limit of MC Number</label>
+                            {{ form.lower_limit_mc_number|add_class:"mt-1 block w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none" }}
+                          </div>
+
+                          <div>
+                            <label class="block text-sm font-medium text-gray-700">Upper Limit of MC Number</label>
+                            {{ form.upper_limit_mc_number|add_class:"mt-1 block w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none" }}
+                          </div>
+                        </div>
+
+                        <div class="relative inline-flex items-center justify-center w-full">
+                          <h2 class="text-base md:text-lg font-semibold my-6 text-blue-600">
                             Available Filters
                           </h2>
                         </div>
@@ -242,18 +266,45 @@
                             {{ form.carrier_operation|add_class:"mt-1 block w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none" }}
                           </div></div>
 
-                          <div class="grid md:grid-cols-2 md:gap-x-6 mt-5">
+                          <div class="grid md:grid-cols-2 md:gap-x-6 my-5">
                             <div>
                               <label class="block text-sm font-medium text-gray-700">Cargo Classification</label>
                               {{ form.cargo_classification_search|add_class:"mt-1 block w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none" }}
+                              
+                              <p class="text-sm text-gray-600 my-4">
+                                You can simply <span class="font-bold">copy, paste</span> from the following examples:
+                              </p>
+                              <div class="mt-2 flex flex-wrap gap-2 text-xs font-medium">
+                                <span class="px-2 py-1 bg-white border border-gray-300 rounded-md">GENERAL FREIGHT</span>
+                                <span class="px-2 py-1 bg-white border border-gray-300 rounded-md">MOTOR VEHICLES</span>
+                                <span class="px-2 py-1 bg-white border border-gray-300 rounded-md">METAL; SHEETS, COILS, ROLLS</span>
+                                <span class="px-2 py-1 bg-white border border-gray-300 rounded-md">MACHINERY, LARGE OBJECTS</span>
+                                <span class="px-2 py-1 bg-white border border-gray-300 rounded-md">FRESH PRODUCE</span>
+                                <span class="px-2 py-1 bg-white border border-gray-300 rounded-md">REFRIGERATED FOOD</span>
+                                <span class="px-2 py-1">etc.</span>
+                              </div>
                             </div>
 
                             <div>
                               <label class="block text-sm font-medium text-gray-700">Cargo Info</label>
                               {{ form.cargo_info_search|add_class:"mt-1 block w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none" }}
-                              {% if form.targets_count.errors %}
-                                <div class="bg-red-200 p-5 my-3 rounded-xl border-2 border-solid border-red-700"><p class="text-red-700 text-sm">{{ form.targets_count.errors.0 }}</p></div>
-                              {% endif %}
+
+                              <p class="text-sm text-gray-600 my-4">
+                                You can simply <span class="font-bold">copy, paste</span> from the following examples:
+                              </p>
+                              <div class="mt-2 flex flex-wrap gap-2 text-xs font-medium">
+                                <span class="px-2 py-1 bg-white border border-gray-300 rounded-md">Straight Trucks</span>
+                                <span class="px-2 py-1 bg-white border border-gray-300 rounded-md">Trailers</span>
+                                <span class="px-2 py-1 bg-white border border-gray-300 rounded-md">Truck Tractors</span>
+                                <span class="px-2 py-1 bg-white border border-gray-300 rounded-md">Van</span>
+                                <span class="px-2 py-1 bg-white border border-gray-300 rounded-md">Limousine</span>
+                                <span class="px-2 py-1 bg-white border border-gray-300 rounded-md">Mini-Bus</span>
+                                <span class="px-2 py-1 bg-white border border-gray-300 rounded-md">Motor Coach</span>
+                                <span class="px-2 py-1 bg-white border border-gray-300 rounded-md">Hazmat Cargo Tank Trailers</span>
+                                <span class="px-2 py-1 bg-white border border-gray-300 rounded-md">Hazmat Cargo Tank Trucks</span>
+                                <span class="px-2 py-1">etc.</span>
+                              </div>
+
                             </div>
                           </div>
 
@@ -276,6 +327,7 @@
                       {% endif %}
                     </div>
                   </div>
+
                 </div>
               </div>
             </div>

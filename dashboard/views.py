@@ -90,19 +90,17 @@ def process_excel_file(file):
         return []
 
 
-def get_leads_from_db(starting_mc_number, targets_count,
+
+def get_leads_from_db(starting_mc_number=None, targets_count=None,
+                      lower_limit_mc_number=None, upper_limit_mc_number=None,  # <-- Added support for range
                       power_units_comparison=None, power_units_value=None,
                       drivers_comparison=None, drivers_value=None,
                       status=None, carrier_operation=None,
                       cargo_classification_search_term=None, cargo_info_search_term=None):
-    
     try:
-        formatted_mc = f"MC {starting_mc_number}"
-
-        # Initialize queryset once at the beginning
         queryset = Lead.objects.all()
 
-        # Apply numerical annotations to the existing queryset
+        # Apply numerical cleaning
         queryset = queryset.filter(
             power_units__regex=r'^\s*\d+\s*$',
             drivers__regex=r'^\s*\d+\s*$',
@@ -113,7 +111,6 @@ def get_leads_from_db(starting_mc_number, targets_count,
             drivers_int=Cast(Replace(Replace(F('drivers'), Value(','), Value('')), Value(' '), Value('')), IntegerField()),
         )
 
-        # Base filters (these will be combined with other Q objects later)
         filters = (
             Q(email__isnull=False) &
             ~Q(email='') &
@@ -127,30 +124,23 @@ def get_leads_from_db(starting_mc_number, targets_count,
             filters &= Q(carrier_operation=carrier_operation)
 
         if cargo_classification_search_term:
-            # Convert the search term to lowercase explicitly before passing to TrigramSimilarity
             search_term_lower = cargo_classification_search_term.lower()
-            # Ensure cargo_classifications is not null or empty before applying similarity
             queryset = queryset.filter(
                 Q(cargo_classifications__isnull=False) & ~Q(cargo_classifications='')
             ).annotate(
-                # Use Lower() on the database field, but pass the pre-lowercased string for the search term
                 cargo_class_similarity=TrigramSimilarity(Lower('cargo_classifications'), search_term_lower)
-            ).filter(cargo_class_similarity__gt=0.3) # Keep the threshold at 0.3 for better flexibility
-            
+            ).filter(cargo_class_similarity__gt=0.3)
+
         if cargo_info_search_term:
-            # Convert the search term to lowercase explicitly before passing to TrigramSimilarity
             search_term_lower = cargo_info_search_term.lower()
-            # Ensure cargo_info is not null or empty before applying similarity
             queryset = queryset.filter(
                 Q(cargo_info__isnull=False) & ~Q(cargo_info='')
             ).annotate(
-                # Use Lower() on the database field, but pass the pre-lowercased string for the search term
                 cargo_info_similarity=TrigramSimilarity(Lower('cargo_info'), search_term_lower)
-            ).filter(cargo_info_similarity__gt=0.3) # Keep the threshold at 0.3 for better flexibility
+            ).filter(cargo_info_similarity__gt=0.3)
 
-        # Numerical filters will only apply if power_units_value / drivers_value is not None
         if power_units_comparison and power_units_value is not None:
-            filters &= Q(power_units_int__isnull=False) 
+            filters &= Q(power_units_int__isnull=False)
             if power_units_comparison == 'gt':
                 filters &= Q(power_units_int__gte=power_units_value)
             elif power_units_comparison == 'lt':
@@ -159,7 +149,7 @@ def get_leads_from_db(starting_mc_number, targets_count,
                 filters &= Q(power_units_int=power_units_value)
 
         if drivers_comparison and drivers_value is not None:
-            filters &= Q(drivers_int__isnull=False) 
+            filters &= Q(drivers_int__isnull=False)
             if drivers_comparison == 'gt':
                 filters &= Q(drivers_int__gte=drivers_value)
             elif drivers_comparison == 'lt':
@@ -167,43 +157,81 @@ def get_leads_from_db(starting_mc_number, targets_count,
             elif drivers_comparison == 'eq':
                 filters &= Q(drivers_int=drivers_value)
 
-        # Finally, apply all accumulated Q object filters to the queryset
         queryset = queryset.filter(filters)
 
-        # Find closest starting lead
-        starting_lead = (
-            queryset.filter(mc_number__gte=formatted_mc)
-            .order_by('mc_number')
-            .first()
-        )
+        leads = []  # <-- Unified output container
 
-        if not starting_lead:
-            starting_lead = (
-                queryset.filter(mc_number__lte=formatted_mc)
+        # ---------- START OF NEW RANGE MODE SUPPORT ----------
+        if lower_limit_mc_number and upper_limit_mc_number and not starting_mc_number:
+            lower_mc = f"MC {lower_limit_mc_number}"
+            upper_mc = f"MC {upper_limit_mc_number}"
+
+            lower_bound = (
+                queryset.filter(mc_number__gte=lower_mc)
+                .order_by('mc_number')
+                .first()
+            )
+
+            upper_bound = (
+                queryset.filter(mc_number__lte=upper_mc)
                 .order_by('-mc_number')
                 .first()
             )
 
-        if not starting_lead:
+            if not lower_bound or not upper_bound:
+                return []
+
+            leads = list(
+                queryset.filter(mc_number__gte=lower_bound.mc_number,
+                                mc_number__lte=upper_bound.mc_number)
+                .order_by('mc_number')
+            )
+        # ---------- END OF RANGE MODE ----------
+
+        # ---------- DEFAULT STARTING MC + TARGET COUNT MODE ----------
+        elif starting_mc_number and targets_count:
+            formatted_mc = f"MC {starting_mc_number}"
+
+            starting_lead = (
+                queryset.filter(mc_number__gte=formatted_mc)
+                .order_by('mc_number')
+                .first()
+            )
+
+            if not starting_lead:
+                starting_lead = (
+                    queryset.filter(mc_number__lte=formatted_mc)
+                    .order_by('-mc_number')
+                    .first()
+                )
+
+            if not starting_lead:
+                return []
+
+            starting_mc = starting_lead.mc_number
+
+            leads_after = list(
+                queryset.filter(mc_number__gte=starting_mc)
+                .order_by('mc_number')[:targets_count]
+            )
+
+            remaining = targets_count - len(leads_after)
+
+            if remaining > 0:
+                leads_before = list(
+                    queryset.filter(mc_number__lt=starting_mc)
+                    .order_by('-mc_number')[:remaining]
+                )
+                leads_after.extend(leads_before)
+
+            leads = leads_after[:targets_count]
+        # ---------- END OF DEFAULT MODE ----------
+
+        else:
             return []
 
-        starting_mc = starting_lead.mc_number
-
-        leads_after = list(
-            queryset.filter(mc_number__gte=starting_mc)
-            .order_by('mc_number')[:targets_count]
-        )
-
-        remaining = targets_count - len(leads_after)
-
-        if remaining > 0:
-            leads_before = list(
-                queryset.filter(mc_number__lt=starting_mc)
-                .order_by('-mc_number')[:remaining]
-            )
-            leads_after.extend(leads_before)
-
-        leads = [
+        # ---------- UNIFIED FINAL OUTPUT FORMATTING ----------
+        formatted = [
             {
                 'MC Number': lead.mc_number,
                 'Legal Name': lead.legal_name,
@@ -216,9 +244,10 @@ def get_leads_from_db(starting_mc_number, targets_count,
                 'Cargo Classifications': lead.cargo_classifications,
                 'Cargo Info': lead.cargo_info,
             }
-            for lead in leads_after[:targets_count]
+            for lead in leads
         ]
-        return leads
+
+        return formatted
 
     except Exception as e:
         print(f"Exception: {e}")
@@ -237,6 +266,8 @@ def campaign(request, email_account_id):
             email_subject = form.cleaned_data['email_subject']
             email_body = form.cleaned_data['email_body']
             file_upload = form.cleaned_data['file_upload']
+            lower_limit_mc_number = form.cleaned_data['lower_limit_mc_number']
+            upper_limit_mc_number = form.cleaned_data['upper_limit_mc_number']
             mc_number = form.cleaned_data['mc_number']
             targets_count = form.cleaned_data['targets_count']
             min_delay = form.cleaned_data.get('min_delay')
@@ -255,9 +286,9 @@ def campaign(request, email_account_id):
             leads = []
             if file_upload:
                 leads = process_excel_file(file_upload)
-            elif mc_number and not request.user.on_free_trial:
+            elif (mc_number and not request.user.on_free_trial) or ((lower_limit_mc_number and upper_limit_mc_number) and not request.user.on_free_trial):
                 leads = get_leads_from_db(
-                    mc_number, targets_count,
+                    mc_number, targets_count, lower_limit_mc_number, upper_limit_mc_number,
                     power_units_comparison=power_units_comparison, power_units_value=power_units_value, 
                     drivers_comparison=drivers_comparison, drivers_value=drivers_value,
                     status=status, carrier_operation=carrier_operation,
@@ -352,6 +383,8 @@ def bulk_campaign(request):
         if form.is_valid():
             file_upload = form.cleaned_data['file_upload']
             mc_number = form.cleaned_data['mc_number']
+            lower_limit_mc_number = form.cleaned_data['lower_limit_mc_number']
+            upper_limit_mc_number = form.cleaned_data['upper_limit_mc_number']
             targets_count = form.cleaned_data['targets_count']
 
             # Extra filters from the form
@@ -367,9 +400,9 @@ def bulk_campaign(request):
             leads = []
             if file_upload:
                 leads = process_excel_file(file_upload)
-            elif mc_number and not request.user.on_free_trial:
+            elif (mc_number and not request.user.on_free_trial) or ((lower_limit_mc_number and upper_limit_mc_number) and not request.user.on_free_trial):
                 leads = get_leads_from_db(
-                    mc_number, targets_count,
+                    mc_number, targets_count, lower_limit_mc_number, upper_limit_mc_number,
                     power_units_comparison=power_units_comparison, power_units_value=power_units_value, 
                     drivers_comparison=drivers_comparison, drivers_value=drivers_value,
                     status=status, carrier_operation=carrier_operation,
