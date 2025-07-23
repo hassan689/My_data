@@ -2,6 +2,8 @@ from django.db import models
 from users.models import CustomUser
 from django.utils.timezone import now
 from datetime import timedelta
+from decimal import Decimal
+
 
 class Subscription(models.Model):
     user = models.OneToOneField(CustomUser, on_delete=models.CASCADE, related_name="subscription")
@@ -46,4 +48,20 @@ class Subscription(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.status}"
+
+
+
+class Revenue(models.Model):
+    # Use the 1st day of each month to represent that month
+    month = models.DateField(unique=True)
+    net_revenue = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    paid_to_affiliates = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+
+    def __str__(self):
+        return self.month.strftime("%B %Y")
+
+    class Meta:
+        verbose_name = "Monthly Revenue"
+        verbose_name_plural = "Monthly Revenues"
+
 

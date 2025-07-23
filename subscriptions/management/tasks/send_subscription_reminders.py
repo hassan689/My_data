@@ -25,5 +25,3 @@ The Dispatch Skool Team
             fail_silently=False,
         )
         
-
-#  use thread pool executor
