@@ -25,6 +25,8 @@ class Lead(models.Model):
     operation_classification = models.TextField(null=True, blank=True)
     cargo_classifications = models.TextField(null=True, blank=True)
     cargo_info = models.TextField(null=True, blank=True)
+    city = models.CharField(max_length=60, null=True, blank=True)
+    state = models.CharField(max_length=20, null=True, blank=True)
     
     added_on = models.DateField(auto_now_add=True, null=True, blank=True)
 

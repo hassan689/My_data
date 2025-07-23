@@ -57,6 +57,8 @@ class Command(BaseCommand):
                         operation_classification=row.get("Operation Classification", "").strip(),
                         cargo_classifications=row.get("Cargo Classifications", "").strip(),
                         cargo_info=row.get("Cargo Info", "").strip(),
+                        city=row.get("City", "").strip(),
+                        state=row.get("State", "").strip(),
                     )
                 )
             except ValueError as e:

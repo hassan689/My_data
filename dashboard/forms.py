@@ -1,6 +1,9 @@
 from django import forms
 from users.models import EmailAccount
 from django_ckeditor_5.widgets import CKEditor5Widget
+from django.forms.widgets import DateTimeInput
+from django.utils import timezone # Import timezone
+import pytz
 # from ckeditor_uploader.widgets import CKEditorUploadingWidget 
 
 class EmailAccountForm(forms.ModelForm):
@@ -43,6 +46,9 @@ class EmailAccountForm(forms.ModelForm):
         if commit:
             email_account.save()
         return email_account
+
+class DateTimePickerInput(DateTimeInput):
+    input_type = 'datetime-local'
 
 class CampaignForm(forms.Form):
     email_subject = forms.CharField(
@@ -157,6 +163,11 @@ class CampaignForm(forms.Form):
         widget=forms.TextInput(attrs={'placeholder': 'e.g., Straight Trucks, Truck Tractors, Trailers etc.'})
     )
 
+    schedule_launch_datetime = forms.DateTimeField(
+        required=False,
+        widget=DateTimePickerInput(),
+    )
+
     def __init__(self, *args, **kwargs):
         self.user = kwargs.pop('user', None)  # Get user instance
         super().__init__(*args, **kwargs)
@@ -173,6 +184,7 @@ class CampaignForm(forms.Form):
         targets_count = cleaned_data.get('targets_count')
         min_delay = cleaned_data.get('min_delay')
         max_delay = cleaned_data.get('max_delay')
+        schedule_launch_datetime = cleaned_data.get('schedule_launch_datetime')
 
         if self.user and self.user.on_free_trial:
             if not file_upload:
@@ -197,11 +209,38 @@ class CampaignForm(forms.Form):
             self.add_error('min_delay', "Lower limit delay must be greater than 0.")
         if max_delay < min_delay:
             self.add_error('max_delay', "Upper limit delay must be greater than lower limit.")
-        if lower_limit_mc_number > upper_limit_mc_number:
-            self.add_error('max_delay', "Upper limit MC Number must be greater than the lower limit.")
+        if lower_limit_mc_number is not None and upper_limit_mc_number is not None and lower_limit_mc_number > upper_limit_mc_number:
+            self.add_error('upper_limit_mc_number', "Upper limit MC Number must be greater than the lower limit.")
+            # Changed 'max_delay' to 'upper_limit_mc_number' for the error field
 
+
+        if schedule_launch_datetime:
+            pst_tz = pytz.timezone('Asia/Karachi')
+            try:
+                # Make datetime naive first if it's already aware and not UTC
+                if timezone.is_aware(schedule_launch_datetime) and schedule_launch_datetime.tzinfo != pytz.utc:
+                    schedule_launch_datetime = timezone.make_naive(schedule_launch_datetime, timezone.get_current_timezone())
+                elif not timezone.is_aware(schedule_launch_datetime): # If naive, assume it's in local timezone for conversion
+                    # Localize naive datetime to the current timezone before converting to PST
+                    schedule_launch_datetime = timezone.make_aware(schedule_launch_datetime, timezone.get_current_timezone())
+
+
+                localized_pst_dt = pst_tz.localize(schedule_launch_datetime, is_dst=None)
+
+                # Convert to UTC for storage
+                # CRITICAL FIX: Use pytz.utc instead of timezone.utc
+                scheduled_launch_datetime_utc = localized_pst_dt.astimezone(pytz.utc) #
+
+                if scheduled_launch_datetime_utc <= timezone.now():
+                    self.add_error('schedule_launch_datetime', "Scheduled launch time must be in the future.")
+                else:
+                    cleaned_data['schedule_launch_datetime'] = scheduled_launch_datetime_utc
+
+            except Exception as e:
+                self.add_error('schedule_launch_datetime', f"Invalid date/time format or timezone conversion error: {e}")
 
         return cleaned_data
+
 
 class BulkCampaignForm(CampaignForm):
     

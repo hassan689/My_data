@@ -4,7 +4,7 @@ from .models import Lead, DailySheet
 # ✅ Customizing Lead Admin
 @admin.register(Lead)
 class LeadAdmin(admin.ModelAdmin):
-    list_display = ("mc_number", "legal_name", "status", "drivers", "added_on")
+    list_display = ("mc_number", "legal_name", "city", "state", "drivers", "added_on")
     search_fields = ("mc_number", "legal_name", "status", "added_on")
     list_filter = ("status", "carrier_operation", "operation_classification")
     ordering = ("-mc_number",)

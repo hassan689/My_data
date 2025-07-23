@@ -357,6 +357,7 @@
         Reset Leads 🔁
       </a>  
     </section>
+
     <!-- Step 2 - Rest of the inputs -->
     <div id="step-2-wrapper" class="hidden">
 
@@ -466,7 +467,7 @@
         <!-- Set Delay -->
         <section class="flex flex-col max-w-2xl mx-auto items-center text-center px-4 md:px-4 lg:px-5 py-6 mt-20">
 					<span class="text-md font-medium text-gray-700 bg-slate-200 px-4 py-1 rounded-full">
-						Step 2
+						Step 3
 					</span>
 					<h2 class="text-2xl md:text-3xl font-semibold mt-3">
 						Set Delay
@@ -499,6 +500,32 @@
                 {% endif %}
               </div>
             </div>
+          </div>
+        </div>
+
+        <section class="flex flex-col max-w-2xl mx-auto items-center text-center px-4 md:px-4 lg:px-5">
+					<h2 class="text-2xl md:text-3xl font-semibold mt-3">
+						Schedule Campaign
+					</h2>
+					<p class="text-gray-500 text-base my-5">
+						<span class="font-bold">Optional: </span>Select a <span class="font-bold"> future date and time (PST) </span>to launch this campaign.
+					</p>
+				</section>
+
+        <div class="container mx-auto px-4 max-w-2xl mb-20">
+          <div class="bg-white border border-gray-300 rounded-lg shadow-md">
+        
+            <div class="p-6">
+              <div>
+                {% render_field form.schedule_launch_datetime class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none" %}
+                {% if form.schedule_launch_datetime.errors %}
+                  <div class="bg-red-200 p-5 my-3 rounded-xl border-2 border-solid border-red-700">
+                    <p class="text-red-700 text-sm">{{ form.schedule_launch_datetime.errors|first }}</p>
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+
           </div>
         </div>
         

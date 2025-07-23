@@ -431,7 +431,7 @@ def process_single_message(msg_wrapper, mailbox, recipient_email_address):
         return False
 
 
-@shared_task(bind=True, default_retry_delay=300, max_retries=5)
+# @shared_task(bind=True, default_retry_delay=300, max_retries=5)
 def fetch_gmail_messages_for_all_accounts(self):
     """
     Celery task to fetch and process new Gmail messages for all connected accounts.

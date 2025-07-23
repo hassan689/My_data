@@ -5,7 +5,7 @@ from django.views.decorators.http import require_http_methods
 
 from users.models import EmailAccount
 from leads_data.models import Lead, DailySheet
-from .models import GmailToken
+from .models import GmailToken, CampaignRecord
 from .forms import EmailAccountForm, CampaignForm, BulkCampaignForm
 from .tasks import send_emails_chunk_celery_task
 from django.db.models import Q, F, Value, IntegerField
@@ -18,6 +18,9 @@ from django.core.exceptions import ValidationError
 from django.conf import settings
 from django.core.cache import cache
 from django.utils.timezone import now
+from datetime import datetime
+from django.utils.timezone import make_naive
+from django.views.decorators.csrf import csrf_exempt
 
 from concurrent.futures import ThreadPoolExecutor
 from google_secrets import *
@@ -26,6 +29,8 @@ from urllib.parse import quote_plus
 import pandas as pd
 import requests
 import re
+import json
+import pytz
 
 ######################################## Campaign sending views
 
@@ -254,14 +259,159 @@ def get_leads_from_db(starting_mc_number=None, targets_count=None,
         return []
 
 
+# @login_required
+# def campaign(request, email_account_id):
+    
+#     email_account = get_object_or_404(EmailAccount, id=email_account_id, user=request.user)
+#     form = CampaignForm(user=request.user)
+
+#     if request.method == 'POST':
+#         print(request.POST)
+#         form = CampaignForm(request.POST, request.FILES, user=request.user)
+#         is_ajax = request.headers.get('x-requested-with') == 'XMLHttpRequest'
+#         if form.is_valid():
+#             email_subject = form.cleaned_data['email_subject']
+#             email_body = form.cleaned_data['email_body']
+#             file_upload = form.cleaned_data['file_upload']
+#             lower_limit_mc_number = form.cleaned_data['lower_limit_mc_number']
+#             upper_limit_mc_number = form.cleaned_data['upper_limit_mc_number']
+#             mc_number = form.cleaned_data['mc_number']
+#             targets_count = form.cleaned_data['targets_count']
+#             min_delay = form.cleaned_data.get('min_delay')
+#             max_delay = form.cleaned_data.get('max_delay')
+#             scheduled_launch_datetime = form.cleaned_data.get('schedule_launch_datetime')
+
+#             # Extra filters from the form
+#             power_units_comparison = form.cleaned_data.get('power_units_comparison')
+#             power_units_value = form.cleaned_data.get('power_units_value')
+#             drivers_comparison = form.cleaned_data.get('drivers_comparison')
+#             drivers_value = form.cleaned_data.get('drivers_value')
+#             status = form.cleaned_data.get('status')
+#             carrier_operation = form.cleaned_data.get('carrier_operation')
+#             cargo_classification_search = form.cleaned_data.get('cargo_classification_search')
+#             cargo_info_search = form.cleaned_data.get('cargo_info_search')
+
+#             leads = []
+#             if file_upload:
+#                 leads = process_excel_file(file_upload)
+#             elif (mc_number and not request.user.on_free_trial) or ((lower_limit_mc_number and upper_limit_mc_number) and not request.user.on_free_trial):
+#                 leads = get_leads_from_db(
+#                     mc_number, targets_count, lower_limit_mc_number, upper_limit_mc_number,
+#                     power_units_comparison=power_units_comparison, power_units_value=power_units_value, 
+#                     drivers_comparison=drivers_comparison, drivers_value=drivers_value,
+#                     status=status, carrier_operation=carrier_operation,
+#                     cargo_classification_search_term=cargo_classification_search, cargo_info_search_term=cargo_info_search
+#                 )
+
+#             # if not leads:
+#             #     messages.error(request, "No valid leads found.")
+#             #     return redirect('dashboard:index')
+
+#             if not leads:
+#                 message = "No valid leads found."
+#                 messages.error(request, message)
+#                 if is_ajax:
+#                     return JsonResponse({'success': False, 'message': message}, status=400)
+#                 return redirect('dashboard:index')
+            
+#             seen_emails = set()
+#             unique_leads = []
+#             for lead in leads:
+#                 email = lead.get("Email")
+#                 if email and email not in seen_emails:
+#                     unique_leads.append(lead)
+#                     seen_emails.add(email)
+
+#             leads = unique_leads
+
+#             filter_data = {}
+#             for key in ['mc_number', 'targets_count', 'power_units_comparison', 'power_units_value', 
+#                         'drivers_comparison', 'drivers_value', 'status', 'carrier_operation',
+#                         'cargo_classification_search', 'cargo_info_search']:
+#                 val = locals().get(key)
+#                 if val not in [None, '', 'None']:
+#                     filter_data[key] = val
+
+#             # # Handle AJAX pre-check
+#             # if request.headers.get('x-requested-with') == 'XMLHttpRequest' and not request.POST.get('confirm'):
+#             #     res = JsonResponse({
+#             #         'lead_count': len(leads),
+#             #         'filters': filter_data,
+#             #         'confirmed': False
+#             #     })
+#             #     return res
+
+#             if is_ajax and not request.POST.get('confirm'):
+#                 return JsonResponse({
+#                     'lead_count': len(leads),
+#                     'filters': filter_data,
+#                     'confirmed': False, # Indicate this is just a confirmation request
+#                     'success': True # Indicate success for the pre-check data retrieval
+#                 })
+
+#             if scheduled_launch_datetime:
+#                 # Save the campaign as a scheduled record
+#                 CampaignRecord.objects.create(
+#                     subject=email_subject,
+#                     body=email_body,
+#                     leads_data=leads,
+#                     min_delay=min_delay,
+#                     max_delay=max_delay,
+#                     scheduled_launch_time=scheduled_launch_datetime,
+#                     launched_by=request.user,
+#                     sender_account=email_account,
+#                     total_recipients=len(leads),
+#                     sent_count=0,
+#                     status='pending',
+#                     lead_source='Excel' if file_upload else 'DB'
+#                 )
+#                 pst_tz = pytz.timezone('Asia/Karachi')
+#                 scheduled_time_pst = scheduled_launch_datetime.astimezone(pst_tz)
+#                 messages.success(request, f"Campaign '{email_subject}' scheduled for {scheduled_time_pst.strftime('%Y-%m-%d %H:%M %p %Z')}.")
+#                 return redirect('dashboard:index')
+#             else:
+#                 print(f"Queuing email campaign to {len(leads)} leads for {email_account.email_address}")
+#                 send_emails_chunk_celery_task.delay(email_account.id, request.user.id, leads, email_subject, email_body, min_delay, max_delay)
+#                 email_account.last_used_at = now()
+#                 email_account.save(update_fields=["last_used_at"])
+#                 messages.success(request, f"Success! Emails are being sent for {email_account.email_address}. Thank you for your patience.")
+#                 return redirect('dashboard:index')
+            
+        
+#         if is_ajax:
+#             return JsonResponse({'success': True, 'message': message, 'redirect_url': str(redirect('dashboard:index').url)})
+#         return redirect('dashboard:index')
+
+#     else:
+#         form = CampaignForm(user=request.user)
+
+#     return render(request, 'dashboard/campaign.html', {'form': form, 'email_account': email_account})
+
+
 @login_required
 def campaign(request, email_account_id):
-    
     email_account = get_object_or_404(EmailAccount, id=email_account_id, user=request.user)
     form = CampaignForm(user=request.user)
 
     if request.method == 'POST':
-        form = CampaignForm(request.POST, request.FILES, user=request.user)
+        is_ajax = request.headers.get('x-requested-with') == 'XMLHttpRequest'
+        post_data = request.POST.copy()  # Make mutable copy
+        files_data = request.FILES
+
+        # ✅ Fix: Normalize schedule datetime to string format acceptable to form
+        raw_schedule = post_data.get("schedule_launch_datetime")
+        if raw_schedule:
+            try:
+                dt_obj = datetime.fromisoformat(raw_schedule)
+                if dt_obj.tzinfo:
+                    dt_obj = make_naive(dt_obj)  # Remove timezone info
+                post_data["schedule_launch_datetime"] = dt_obj.strftime("%Y-%m-%d %H:%M:%S")
+            except Exception as e:
+                print("⛔ Failed to parse schedule datetime:", e)
+
+        form = CampaignForm(post_data, files_data, user=request.user)
+
+
         if form.is_valid():
             email_subject = form.cleaned_data['email_subject']
             email_body = form.cleaned_data['email_body']
@@ -272,8 +422,8 @@ def campaign(request, email_account_id):
             targets_count = form.cleaned_data['targets_count']
             min_delay = form.cleaned_data.get('min_delay')
             max_delay = form.cleaned_data.get('max_delay')
+            scheduled_launch_datetime = form.cleaned_data.get('schedule_launch_datetime')
 
-            # Extra filters from the form
             power_units_comparison = form.cleaned_data.get('power_units_comparison')
             power_units_value = form.cleaned_data.get('power_units_value')
             drivers_comparison = form.cleaned_data.get('drivers_comparison')
@@ -284,21 +434,37 @@ def campaign(request, email_account_id):
             cargo_info_search = form.cleaned_data.get('cargo_info_search')
 
             leads = []
+            debug_info = {}
+
             if file_upload:
                 leads = process_excel_file(file_upload)
+                debug_info['lead_source'] = 'Excel'
+                debug_info['leads_count'] = len(leads)
+
             elif (mc_number and not request.user.on_free_trial) or ((lower_limit_mc_number and upper_limit_mc_number) and not request.user.on_free_trial):
                 leads = get_leads_from_db(
                     mc_number, targets_count, lower_limit_mc_number, upper_limit_mc_number,
-                    power_units_comparison=power_units_comparison, power_units_value=power_units_value, 
+                    power_units_comparison=power_units_comparison, power_units_value=power_units_value,
                     drivers_comparison=drivers_comparison, drivers_value=drivers_value,
                     status=status, carrier_operation=carrier_operation,
                     cargo_classification_search_term=cargo_classification_search, cargo_info_search_term=cargo_info_search
                 )
+                debug_info['lead_source'] = 'DB'
+                debug_info['leads_count'] = len(leads)
 
             if not leads:
-                messages.error(request, "No valid leads found.")
+                message = "❌ No valid leads found. Either the Excel is empty or filters didn't return any results."
+                print("🛑", message)
+                messages.error(request, message)
+                if is_ajax:
+                    return JsonResponse({
+                        'success': False,
+                        'message': message,
+                        'debug': debug_info
+                    }, status=400)
                 return redirect('dashboard:index')
-            
+
+            # Remove duplicate emails
             seen_emails = set()
             unique_leads = []
             for lead in leads:
@@ -308,38 +474,85 @@ def campaign(request, email_account_id):
                     seen_emails.add(email)
 
             leads = unique_leads
+            debug_info['unique_leads'] = len(leads)
 
+            # Filters info for preview
             filter_data = {}
-            for key in ['mc_number', 'targets_count', 'power_units_comparison', 'power_units_value', 
+            for key in ['mc_number', 'targets_count', 'power_units_comparison', 'power_units_value',
                         'drivers_comparison', 'drivers_value', 'status', 'carrier_operation',
                         'cargo_classification_search', 'cargo_info_search']:
                 val = locals().get(key)
                 if val not in [None, '', 'None']:
                     filter_data[key] = val
 
-            # Handle AJAX pre-check
-            if request.headers.get('x-requested-with') == 'XMLHttpRequest' and not request.POST.get('confirm'):
-                res = JsonResponse({
+            if is_ajax and not request.POST.get('confirm'):
+                return JsonResponse({
                     'lead_count': len(leads),
                     'filters': filter_data,
-                    'confirmed': False
+                    'confirmed': False,
+                    'success': True,
+                    'debug': debug_info
                 })
-                return res
 
-            print(f"Queuing email campaign to {len(leads)} leads for {email_account.email_address}")
-            # send_emails(email_account, leads, email_subject, email_body, min_delay, max_delay)
+            if scheduled_launch_datetime:
+                print("📅 Scheduler detected. Saving scheduled campaign...")
+                CampaignRecord.objects.create(
+                    subject=email_subject,
+                    body=email_body,
+                    leads_data=leads,
+                    min_delay=min_delay,
+                    max_delay=max_delay,
+                    scheduled_launch_time=scheduled_launch_datetime,
+                    launched_by=request.user,
+                    sender_account=email_account,
+                    total_recipients=len(leads),
+                    sent_count=0,
+                    status='pending',
+                    lead_source='Excel' if file_upload else 'DB'
+                )
+                pst_tz = pytz.timezone('Asia/Karachi')
+                scheduled_time_pst = scheduled_launch_datetime.astimezone(pst_tz)
+                success_message = f"✅ Campaign '{email_subject}' scheduled for {scheduled_time_pst.strftime('%Y-%m-%d %H:%M %p %Z')}."
 
-            # Skip the chunking and directly feed the entire list to the celery worker
-            send_emails_chunk_celery_task.delay(email_account.id, request.user.id, leads, email_subject, email_body, min_delay, max_delay)
+                if is_ajax:
+                    return JsonResponse({
+                        'success': True,
+                        'message': success_message,
+                        'redirect_url': str(redirect('dashboard:index').url),
+                        'debug': debug_info
+                    })
 
+                messages.success(request, success_message)
+                return redirect('dashboard:index')
+
+            # Immediate send
+            print(f"📤 Queuing email campaign to {len(leads)} leads for {email_account.email_address}")
+            send_emails_chunk_celery_task.delay(email_account.id, request.user.id, leads, email_subject, email_body, min_delay, max_delay, save_record=True)
             email_account.last_used_at = now()
             email_account.save(update_fields=["last_used_at"])
 
-            messages.success(request, f"Success! Emails are being sent for {email_account.email_address}. Thank you for your patience.")
+            success_message = f"✅ Success! Emails are being sent for {email_account.email_address}."
+
+            if is_ajax:
+                return JsonResponse({
+                    'success': True,
+                    'message': success_message,
+                    'redirect_url': str(redirect('dashboard:index').url),
+                    'debug': debug_info
+                })
+
+            messages.success(request, success_message)
             return redirect('dashboard:index')
 
-    else:
-        form = CampaignForm(user=request.user)
+        # Invalid form
+        print("🛑 Form is invalid:", form.errors)
+        if is_ajax:
+            return JsonResponse({
+                'success': False,
+                'message': "Form is invalid.",
+                'errors': form.errors
+            }, status=400)
+        return redirect('dashboard:index')
 
     return render(request, 'dashboard/campaign.html', {'form': form, 'email_account': email_account})
 
@@ -367,7 +580,6 @@ def distribute_leads_among_accounts(leads, accounts):
 def bulk_campaign(request):
     email_accounts = EmailAccount.objects.filter(user=request.user)
     email_accounts_count = email_accounts.count()
-    # Unique cache key per user (you can make it tighter using session ID if needed)
     cache_key = f"bulk_leads_{request.user.id}"
 
     # Load cached data (leads & count)
@@ -399,8 +611,10 @@ def bulk_campaign(request):
 
             leads = []
             if file_upload:
+                lead_source = 'Excel'
                 leads = process_excel_file(file_upload)
             elif (mc_number and not request.user.on_free_trial) or ((lower_limit_mc_number and upper_limit_mc_number) and not request.user.on_free_trial):
+                lead_source = 'DB'
                 leads = get_leads_from_db(
                     mc_number, targets_count, lower_limit_mc_number, upper_limit_mc_number,
                     power_units_comparison=power_units_comparison, power_units_value=power_units_value, 
@@ -417,7 +631,7 @@ def bulk_campaign(request):
             
             # Before setting the cache, delete the old one
             cache.delete(cache_key)
-            cache.set(cache_key, {'leads': leads, 'leads_available': len(leads)}, timeout=300)
+            cache.set(cache_key, {'leads': leads, 'leads_available': len(leads), 'lead_source': lead_source}, timeout=300)
 
             filter_data = {}
             for key in ['mc_number', 'targets_count', 'power_units_comparison', 'power_units_value', 
@@ -462,6 +676,8 @@ def bulk_campaign(request):
             select_all = form.cleaned_data.get('select_all')
             min_delay = form.cleaned_data.get('min_delay')
             max_delay = form.cleaned_data.get('max_delay')
+            scheduled_launch_datetime = form.cleaned_data.get('schedule_launch_datetime')
+            lead_source = cached_data.get('lead_source')
 
             selected_account_ids = request.POST.getlist('selected_accounts')
             account_lead_map = {}
@@ -531,21 +747,73 @@ def bulk_campaign(request):
                 account_lead_map = updated_map
 
 
-            def start_campaign():
+            # def start_campaign():
+            #     scheduled_campaign_count = 0
+            #     immediate_campaign_count = 0
+            #     for account, assigned_leads in account_lead_map.items():
+            #         if assigned_leads:
+
+            #             print(f"Queuing bulk email campaign to {len(assigned_leads)} leads for {account.email_address}")
+            #             send_emails_chunk_celery_task.delay(account.id, request.user.id, assigned_leads, email_subject, email_body, min_delay, max_delay)
+
+            #             account.last_used_at = now()
+            #             account.save(update_fields=["last_used_at"])
+            #             print(f"Account {account.email_address}: Total leads in all chunks: {total_leads}")
+
+            # start_campaign()
+            # cache.delete(cache_key)  # clean up
+
+            # messages.success(request, "🎉 Bulk Campaign started successfully! Emails are being sent!")
+
+            def start_campaign_processing():
+                scheduled_campaign_count = 0
+                immediate_campaign_count = 0
                 for account, assigned_leads in account_lead_map.items():
                     if assigned_leads:
+                        if scheduled_launch_datetime:
+                            # Save as a scheduled record for each account
+                            CampaignRecord.objects.create(
+                                subject=email_subject,
+                                body=email_body,
+                                leads_data=assigned_leads,
+                                min_delay=min_delay,
+                                max_delay=max_delay,
+                                scheduled_launch_time=scheduled_launch_datetime, # Already UTC from form.clean()
+                                launched_by=request.user,
+                                sender_account=account,
+                                total_recipients=len(assigned_leads),
+                                sent_count=0,
+                                status='pending',
+                                lead_source=lead_source
+                            )
+                            scheduled_campaign_count += 1
+                            print(f"Scheduled bulk campaign for {account.email_address} with {len(assigned_leads)} leads.")
+                        else:
+                            # Immediate send
+                            print(f"Queuing immediate bulk email campaign to {len(assigned_leads)} leads for {account.email_address}")
+                            send_emails_chunk_celery_task.delay(account.id, request.user.id, assigned_leads, email_subject, email_body, min_delay, max_delay, save_record=True)
+                            immediate_campaign_count += 1
+                            account.last_used_at = now()
+                            account.save(update_fields=["last_used_at"])
 
-                        print(f"Queuing bulk email campaign to {len(assigned_leads)} leads for {account.email_address}")
-                        send_emails_chunk_celery_task.delay(account.id, request.user.id, assigned_leads, email_subject, email_body, min_delay, max_delay)
+                return scheduled_campaign_count, immediate_campaign_count
 
-                        account.last_used_at = now()
-                        account.save(update_fields=["last_used_at"])
-                        print(f"Account {account.email_address}: Total leads in all chunks: {total_leads}")
+            scheduled_count, immediate_count = start_campaign_processing()
+            cache.delete(cache_key) # Clean up cache
 
-            start_campaign()
-            cache.delete(cache_key)  # clean up
+            # Display messages using PST (Pakistan Standard Time)
+            pst_tz = pytz.timezone('Asia/Karachi')
+            scheduled_time_pst = scheduled_launch_datetime.astimezone(pst_tz) if scheduled_launch_datetime else None
 
-            messages.success(request, "🎉 Bulk Campaign started successfully! Emails are being sent!")
+            if scheduled_count > 0 and immediate_count > 0:
+                messages.success(request, f"🎉 {scheduled_count} campaigns scheduled for {scheduled_time_pst.strftime('%Y-%m-%d %H:%M %p %Z')} and {immediate_count} campaigns launched immediately!")
+            elif scheduled_count > 0:
+                messages.success(request, f"🎉 {scheduled_count} bulk campaigns scheduled for {scheduled_time_pst.strftime('%Y-%m-%d %H:%M %p %Z')}!")
+            elif immediate_count > 0:
+                messages.success(request, f"🎉 Bulk Campaigns launched successfully! Emails are being sent!")
+            else:
+                messages.info(request, "No campaigns were launched or scheduled.")
+
             return redirect('dashboard:index')
 
         else:

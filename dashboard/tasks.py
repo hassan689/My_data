@@ -2,17 +2,16 @@ import time
 import re
 from django.core.mail import EmailMultiAlternatives, get_connection, send_mail
 from users.models import EmailAccount, CustomUser
-from unibox.models import EmailThread, OutgoingEmailMessage, Attachment
+from unibox.models import EmailThread, OutgoingEmailMessage
 from dashboard.models import GmailToken, CampaignRecord
 import random
 from growth_skool.celery import app
+from django.utils import timezone
 from email.utils import make_msgid
 import uuid
 from django.conf import settings
+import json
 
-
-# Celery Task: Failed to send to GUILLERMOCABRE64@GMAIL.COM (via onboarding.freightwise38@gmail.com): 
-# (550, b'5.4.5 Daily user sending limit exceeded.
 
 email_regex = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
 
@@ -56,7 +55,7 @@ def get_email_connection(email_account, decrypted_password):
 # This task will be consumed by Celery workers
 # ----------------------------------------------------
 @app.task(name="dashboard.send_emails_chunk_celery_task")
-def send_emails_chunk_celery_task(email_account_id, user_id, leads, subject, body, min_delay, max_delay):
+def send_emails_chunk_celery_task(email_account_id, user_id, leads, subject, body, min_delay, max_delay, save_record):
     
     try:
         email_account = EmailAccount.objects.get(id=email_account_id)
@@ -201,18 +200,19 @@ def send_emails_chunk_celery_task(email_account_id, user_id, leads, subject, bod
                         else:
                             raise e
 
+        if save_record:
 
-        sending_user = CustomUser.objects.get(id=user_id)
+            sending_user = CustomUser.objects.get(id=user_id)
 
-        # Save the campaign record to db for analysis
-        CampaignRecord.objects.create(
-            subject = subject,
-            body = body,
-            launched_by = sending_user,
-            sender_account = email_account,
-            total_recipients = len(leads),
-            sent_count = sent_count
-        )
+            # Save the campaign record to db for analysis
+            CampaignRecord.objects.create(
+                subject = subject,
+                body = body,
+                launched_by = sending_user,
+                sender_account = email_account,
+                total_recipients = len(leads),
+                sent_count = sent_count
+            )
 
         connection.close()
         print(f"Celery Task: {sent_count}/{len(leads)} emails sent for chunk using {email_account.email_address}.")
@@ -223,8 +223,54 @@ def send_emails_chunk_celery_task(email_account_id, user_id, leads, subject, bod
         print(f"Celery Task Error: An unexpected error occurred in send_emails_chunk_celery_task: {e}")
 
 
-# The problem was the Celery worker encountering "please run connect() first" errors, 
-# indicating a closed SMTP connection when sending emails to a long list of leads with 
-# significant delays between each. The solution implemented involves re-establishing the 
-# SMTP connection every 10 emails, closing the old one and opening a new one, to prevent 
-# server timeouts and connection instability during prolonged idle periods.
+
+
+@app.task(name="dashboard.tasks.launch_scheduled_campaign_checker")
+def launch_scheduled_campaign_checker():
+    # Get the current time in UTC, as all scheduled_launch_time are stored in UTC
+    now_utc = timezone.now()
+    print(f"Current UTC time from checker: {now_utc}")
+
+    # Find pending campaigns that are due to be launched
+    campaigns_to_launch = CampaignRecord.objects.filter(
+        status='pending',
+        scheduled_launch_time__lte=now_utc # Campaigns whose scheduled time is now or in the past (UTC)
+    ).select_related('sender_account', 'launched_by') # Optimize query by prefetching related objects
+
+    if not campaigns_to_launch.exists():
+        print("No scheduled campaigns found to launch.")
+        return
+
+    print(f"Found {campaigns_to_launch.count()} campaigns to launch.")
+    for campaign_record in campaigns_to_launch:
+        try:
+
+            # Retrieve leads data from JSONField
+            leads = campaign_record.leads_data
+
+            # Trigger the actual email sending task
+            send_emails_chunk_celery_task.delay(
+                campaign_record.sender_account.id,
+                campaign_record.launched_by.id,
+                leads,
+                campaign_record.subject,
+                campaign_record.body,
+                campaign_record.min_delay,
+                campaign_record.max_delay,
+                save_record=False
+            )
+            print(f"Triggered send_emails_chunk_celery_task for CampaignRecord {campaign_record.id}.")
+
+            campaign_record.sender_account.last_used_at = now_utc
+            campaign_record.sender_account.save(update_fields=["last_used_at"])
+            campaign_record.status = 'processing'
+            campaign_record.save(update_fields=['status'])
+
+        except Exception as e:
+            # Log any errors that occur during the launching process
+            print(f"Error launching scheduled campaign {campaign_record.id}: {e}")
+            # Optionally, set status to 'failed' if an error prevents launching
+            campaign_record.status = 'failed'
+            campaign_record.save(update_fields=['status'])
+
+
