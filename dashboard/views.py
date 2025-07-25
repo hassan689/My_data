@@ -7,22 +7,19 @@ from users.models import EmailAccount
 from leads_data.models import Lead, DailySheet
 from .models import GmailToken, CampaignRecord
 from .forms import EmailAccountForm, CampaignForm, BulkCampaignForm
-from .tasks import send_emails_chunk_celery_task
+from .tasks import send_emails_chunk_celery_task, send_account_attach_notif_email
 from django.db.models import Q, F, Value, IntegerField
 from django.db.models.functions import Cast, Replace, Lower
 from django.contrib.postgres.search import TrigramSimilarity
 
 from django.contrib import messages
-from django.core.mail import get_connection, EmailMessage
 from django.core.exceptions import ValidationError
 from django.conf import settings
 from django.core.cache import cache
 from django.utils.timezone import now
 from datetime import datetime
 from django.utils.timezone import make_naive
-from django.views.decorators.csrf import csrf_exempt
 
-from concurrent.futures import ThreadPoolExecutor
 from google_secrets import *
 from urllib.parse import quote_plus
 
@@ -856,83 +853,83 @@ def index(request):
 
 
 # Email account successfully added confirmation email
-def send_email_async(email_account, request):
-    """Sends an email in a separate thread using ThreadPoolExecutor."""
+# def send_email_async(email_account, request):
+#     """Sends an email in a separate thread using ThreadPoolExecutor."""
     
-    def _send_email():
-        try:
-            decrypted_password = email_account.get_password()
+#     def _send_email():
+#         try:
+#             decrypted_password = email_account.get_password()
 
-            # Determine the SMTP security type
-            use_tls = email_account.server_type == "STARTTLS" or email_account.server_type == "TLS"
-            use_ssl = email_account.server_type == "SSL"
+#             # Determine the SMTP security type
+#             use_tls = email_account.server_type == "STARTTLS" or email_account.server_type == "TLS"
+#             use_ssl = email_account.server_type == "SSL"
 
-            if use_tls and use_ssl:
-                print("Invalid configuration: Cannot enable all TLS, SSL and STARTTLS.")
-                return
+#             if use_tls and use_ssl:
+#                 print("Invalid configuration: Cannot enable all TLS, SSL and STARTTLS.")
+#                 return
 
-            # Correct credentials entered
-            try:
-                # Create SMTP connection
-                connection = get_connection(
-                    backend="django.core.mail.backends.smtp.EmailBackend",
-                    host=email_account.host,
-                    port=email_account.port_number,
-                    username=email_account.email_address,
-                    password=decrypted_password,
-                    use_tls=use_tls,
-                    use_ssl=use_ssl,
-                )
-                connection.open()
+#             # Correct credentials entered
+#             try:
+#                 # Create SMTP connection
+#                 connection = get_connection(
+#                     backend="django.core.mail.backends.smtp.EmailBackend",
+#                     host=email_account.host,
+#                     port=email_account.port_number,
+#                     username=email_account.email_address,
+#                     password=decrypted_password,
+#                     use_tls=use_tls,
+#                     use_ssl=use_ssl,
+#                 )
+#                 connection.open()
 
-                # Email content
-                subject = "Email account configured successfully"
-                body = (
-                    f"Hello {request.user.first_name},\n\n"
-                    f"This is to notify you that your email account {email_account.email_address} "
-                    "has been successfully configured with Dispatch Skool and is now ready to launch campaigns.\n\n"
-                    "Best Regards,\nThe Dispatch Skool Team."
-                )
-                from_email = email_account.email_address
-                recipient_list = [request.user.email]
+#                 # Email content
+#                 subject = "Email account configured successfully"
+#                 body = (
+#                     f"Hello {request.user.first_name},\n\n"
+#                     f"This is to notify you that your email account {email_account.email_address} "
+#                     "has been successfully configured with Dispatch Skool and is now ready to launch campaigns.\n\n"
+#                     "Best Regards,\nThe Dispatch Skool Team."
+#                 )
+#                 from_email = email_account.email_address
+#                 recipient_list = [request.user.email]
 
-                # Create and send email
-                email_message = EmailMessage(
-                    subject, body, from_email, recipient_list, connection=connection
-                )
-                email_message.send()
-                connection.close()
+#                 # Create and send email
+#                 email_message = EmailMessage(
+#                     subject, body, from_email, recipient_list, connection=connection
+#                 )
+#                 email_message.send()
+#                 connection.close()
 
-            # Incorrect credentials entered
-            except Exception as e:
-                print(f"SMTP connection failed: {e}")
-                subject = "Email account configuration failure"
-                body = (
-                    f"Hello {request.user.first_name},\n\n"
-                    f"This is to notify you that your email account {email_account.email_address} "
-                    "could not be configured with Dispatch Skool. This is likely due to incorrect credentials entered. Please refer to the provided instructions on the add account page and try 'updating' the account you were trying to attach.\n\n"
-                    "In case of any problems, feel free to reach out.\n\n"
-                    "Best Regards,\nThe Dispatch Skool Team."
-                )
-                from_email = settings.EMAIL_HOST_USER
-                recipient_list = [request.user.email]
+#             # Incorrect credentials entered
+#             except Exception as e:
+#                 print(f"SMTP connection failed: {e}")
+#                 subject = "Email account configuration failure"
+#                 body = (
+#                     f"Hello {request.user.first_name},\n\n"
+#                     f"This is to notify you that your email account {email_account.email_address} "
+#                     "could not be configured with Dispatch Skool. This is likely due to incorrect credentials entered. Please refer to the provided instructions on the add account page and try 'updating' the account you were trying to attach.\n\n"
+#                     "In case of any problems, feel free to reach out.\n\n"
+#                     "Best Regards,\nThe Dispatch Skool Team."
+#                 )
+#                 from_email = settings.EMAIL_HOST_USER
+#                 recipient_list = [request.user.email]
 
-                email_message = EmailMessage(
-                    subject,
-                    body,
-                    from_email,
-                    recipient_list,
-                )
-                email_message.send()
+#                 email_message = EmailMessage(
+#                     subject,
+#                     body,
+#                     from_email,
+#                     recipient_list,
+#                 )
+#                 email_message.send()
 
-            print(f"Notification email sent to {request.user.email}")
+#             print(f"Notification email sent to {request.user.email}")
 
-        except Exception as e:
-            print(f"Error sending notification email: {e}")
+#         except Exception as e:
+#             print(f"Error sending notification email: {e}")
 
-    # Execute in a separate thread
-    executor = ThreadPoolExecutor(max_workers=1)
-    executor.submit(_send_email)
+#     # Execute in a separate thread
+#     executor = ThreadPoolExecutor(max_workers=1)
+#     executor.submit(_send_email)
 
 
 
@@ -951,8 +948,8 @@ def add_email_account(request):
                 email_account.full_clean()  # Run model-level validation after assigning user
                 email_account.save()  # Save only if validation passes
 
-                print(request.POST)
-                send_email_async(email_account, request)  # Send confirmation email
+                # send_email_async(email_account, request)  # Send confirmation email
+                send_account_attach_notif_email.delay(email_account.id, request.user.id)
 
                 messages.warning(
                     request,
@@ -986,7 +983,8 @@ def email_account_update(request, id):
         if form.is_valid():
             form.save()
             email_account = get_object_or_404(EmailAccount, id=id, user=request.user)
-            send_email_async(email_account, request)
+            # send_email_async(email_account, request)
+            send_account_attach_notif_email.delay(email_account.id, request.user.id)
             messages.warning(
                     request,
                     "Form Submission Complete!\n\n"

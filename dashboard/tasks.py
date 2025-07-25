@@ -1,6 +1,6 @@
 import time
 import re
-from django.core.mail import EmailMultiAlternatives, get_connection, send_mail
+from django.core.mail import EmailMultiAlternatives, get_connection, send_mail, EmailMessage
 from users.models import EmailAccount, CustomUser
 from unibox.models import EmailThread, OutgoingEmailMessage
 from dashboard.models import GmailToken, CampaignRecord
@@ -10,7 +10,6 @@ from django.utils import timezone
 from email.utils import make_msgid
 import uuid
 from django.conf import settings
-import json
 
 
 email_regex = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
@@ -223,8 +222,6 @@ def send_emails_chunk_celery_task(email_account_id, user_id, leads, subject, bod
         print(f"Celery Task Error: An unexpected error occurred in send_emails_chunk_celery_task: {e}")
 
 
-
-
 @app.task(name="dashboard.tasks.launch_scheduled_campaign_checker")
 def launch_scheduled_campaign_checker():
     # Get the current time in UTC, as all scheduled_launch_time are stored in UTC
@@ -272,5 +269,79 @@ def launch_scheduled_campaign_checker():
             # Optionally, set status to 'failed' if an error prevents launching
             campaign_record.status = 'failed'
             campaign_record.save(update_fields=['status'])
+
+
+
+@app.task(name="dashboard.tasks.send_account_attach_notif_email")
+def send_account_attach_notif_email(email_account_id, user_id):
+    try:
+        email_account = EmailAccount.objects.get(id=email_account_id)
+        decrypted_password = email_account.get_password()
+        user = CustomUser.objects.get(id=user_id)
+
+        # Determine the SMTP security type
+        use_tls = email_account.server_type == "STARTTLS" or email_account.server_type == "TLS"
+        use_ssl = email_account.server_type == "SSL"
+
+        if use_tls and use_ssl:
+            print("Invalid configuration: Cannot enable all TLS, SSL and STARTTLS.")
+            return
+
+        # Correct credentials entered
+        try:
+            # Create SMTP connection
+            connection = get_connection(
+                backend="django.core.mail.backends.smtp.EmailBackend",
+                host=email_account.host,
+                port=email_account.port_number,
+                username=email_account.email_address,
+                password=decrypted_password,
+                use_tls=use_tls,
+                use_ssl=use_ssl,
+            )
+            connection.open()
+
+            # Email content
+            subject = "Email account configured successfully"
+            body = (
+                f"Hello {user.first_name},\n\n"
+                f"This is to notify you that your email account {email_account.email_address} "
+                "has been successfully configured with Dispatch Skool and is now ready to launch campaigns.\n\n"
+                "Best Regards,\nThe Dispatch Skool Team."
+            )
+            from_email = email_account.email_address
+            recipient_list = [user.email]
+
+            # Create and send email
+            email_message = EmailMessage(
+                subject, body, from_email, recipient_list, connection=connection
+            )
+            email_message.send()
+            connection.close()
+
+        # Incorrect credentials entered
+        except Exception as e:
+            subject = "Email account configuration failure"
+            body = (
+                f"Hello {user.first_name},\n\n"
+                f"This is to notify you that your email account {email_account.email_address} "
+                "could not be configured with Dispatch Skool. This is likely due to incorrect credentials entered. Please refer to the provided instructions on the add account page and try 'updating' the account you were trying to attach.\n\n"
+                "In case of any problems, feel free to reach out.\n\n"
+                "Best Regards,\nThe Dispatch Skool Team."
+            )
+            from_email = settings.EMAIL_HOST_USER
+            recipient_list = [user.email]
+
+            email_message = EmailMessage(
+                subject,
+                body,
+                from_email,
+                recipient_list,
+            )
+            email_message.send()
+
+    except Exception as e:
+        print(f"Error sending notification email: {e}")
+
 
 
