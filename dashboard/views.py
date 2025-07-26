@@ -245,6 +245,8 @@ def get_leads_from_db(starting_mc_number=None, targets_count=None,
                 'Drivers': lead.drivers,
                 'Cargo Classifications': lead.cargo_classifications,
                 'Cargo Info': lead.cargo_info,
+                'Telephone': lead.telephone,
+                'Address': lead.address,
             }
             for lead in leads
         ]
