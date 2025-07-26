@@ -20,7 +20,7 @@ app.conf.beat_schedule = {
         'task': 'dashboard.tasks.launch_scheduled_campaign_checker',
         'schedule': 60.0,  # Run every 60 seconds (1 minute)
         # 'args': (some_arg,) # If your checker task needed arguments
-        'options': {'queue': 'default'}, # Optionally specify a queue for beat tasks
+        'options': {'queue': 'celery'}, # Optionally specify a queue for beat tasks
     },
 }
 app.conf.timezone = 'Asia/Karachi'

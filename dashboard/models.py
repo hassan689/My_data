@@ -78,7 +78,7 @@ class CampaignRecord(models.Model):
         ('failed', 'Failed'),
         ('cancelled', 'Cancelled'),
     ]
-    status = models.CharField(max_length=20, choices=CAMPAIGN_STATUS_CHOICES, default='pending')
+    status = models.CharField(max_length=20, choices=CAMPAIGN_STATUS_CHOICES, null=True, blank=True)
 
     LEAD_SOURCE_CHOICES = [
         ('Excel', 'Excel'),

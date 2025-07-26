@@ -54,7 +54,7 @@ def get_email_connection(email_account, decrypted_password):
 # This task will be consumed by Celery workers
 # ----------------------------------------------------
 @app.task(name="dashboard.send_emails_chunk_celery_task")
-def send_emails_chunk_celery_task(email_account_id, user_id, leads, subject, body, min_delay, max_delay, save_record):
+def send_emails_chunk_celery_task(email_account_id, user_id, leads, subject, body, min_delay, max_delay, lead_source, save_record, campaign_record_id=None):
     
     try:
         email_account = EmailAccount.objects.get(id=email_account_id)
@@ -199,6 +199,7 @@ def send_emails_chunk_celery_task(email_account_id, user_id, leads, subject, bod
                         else:
                             raise e
 
+        # This will be called to create new campaign if it wasn't scheduled
         if save_record:
 
             sending_user = CustomUser.objects.get(id=user_id)
@@ -210,8 +211,16 @@ def send_emails_chunk_celery_task(email_account_id, user_id, leads, subject, bod
                 launched_by = sending_user,
                 sender_account = email_account,
                 total_recipients = len(leads),
-                sent_count = sent_count
+                sent_count = sent_count,
+                status = 'launched',
+                lead_source =  lead_source
             )
+
+        else: # if shceduled, then its already saved, only update its relevant fields
+            campaign = CampaignRecord.objects.get(id=campaign_record_id)
+            campaign.status = 'launched'
+            campaign.sent_count = sent_count
+            campaign.save(update_fields=['status', 'sent_count'])
 
         connection.close()
         print(f"Celery Task: {sent_count}/{len(leads)} emails sent for chunk using {email_account.email_address}.")
@@ -254,7 +263,9 @@ def launch_scheduled_campaign_checker():
                 campaign_record.body,
                 campaign_record.min_delay,
                 campaign_record.max_delay,
-                save_record=False
+                campaign_record.lead_source,
+                save_record=False,
+                campaign_record_id=campaign_record.id
             )
             print(f"Triggered send_emails_chunk_celery_task for CampaignRecord {campaign_record.id}.")
 

@@ -26,7 +26,6 @@ from urllib.parse import quote_plus
 import pandas as pd
 import requests
 import re
-import json
 import pytz
 
 ######################################## Campaign sending views
@@ -434,9 +433,11 @@ def campaign(request, email_account_id):
 
             leads = []
             debug_info = {}
+            lead_source = ''
 
             if file_upload:
                 leads = process_excel_file(file_upload)
+                lead_source = 'Excel'
                 debug_info['lead_source'] = 'Excel'
                 debug_info['leads_count'] = len(leads)
 
@@ -448,6 +449,7 @@ def campaign(request, email_account_id):
                     status=status, carrier_operation=carrier_operation,
                     cargo_classification_search_term=cargo_classification_search, cargo_info_search_term=cargo_info_search
                 )
+                lead_source = 'DB'
                 debug_info['lead_source'] = 'DB'
                 debug_info['leads_count'] = len(leads)
 
@@ -526,7 +528,7 @@ def campaign(request, email_account_id):
 
             # Immediate send
             print(f"📤 Queuing email campaign to {len(leads)} leads for {email_account.email_address}")
-            send_emails_chunk_celery_task.delay(email_account.id, request.user.id, leads, email_subject, email_body, min_delay, max_delay, save_record=True)
+            send_emails_chunk_celery_task.delay(email_account.id, request.user.id, leads, email_subject, email_body, min_delay, max_delay, lead_source, save_record=True, campaign_record_id=None)
             email_account.last_used_at = now()
             email_account.save(update_fields=["last_used_at"])
 
@@ -790,7 +792,7 @@ def bulk_campaign(request):
                         else:
                             # Immediate send
                             print(f"Queuing immediate bulk email campaign to {len(assigned_leads)} leads for {account.email_address}")
-                            send_emails_chunk_celery_task.delay(account.id, request.user.id, assigned_leads, email_subject, email_body, min_delay, max_delay, save_record=True)
+                            send_emails_chunk_celery_task.delay(account.id, request.user.id, assigned_leads, email_subject, email_body, min_delay, max_delay, lead_source, save_record=True, campaign_record_id=None)
                             immediate_campaign_count += 1
                             account.last_used_at = now()
                             account.save(update_fields=["last_used_at"])
