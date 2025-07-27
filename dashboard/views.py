@@ -8,8 +8,8 @@ from leads_data.models import Lead, DailySheet
 from .models import GmailToken, CampaignRecord
 from .forms import EmailAccountForm, CampaignForm, BulkCampaignForm
 from .tasks import send_emails_chunk_celery_task, send_account_attach_notif_email
-from django.db.models import Q, F, Value, IntegerField
-from django.db.models.functions import Cast, Replace, Lower
+from django.db.models import Q, F, Value, IntegerField, OuterRef, Subquery, Prefetch
+from django.db.models.functions import Cast, Replace, Lower, Coalesce
 from django.contrib.postgres.search import TrigramSimilarity
 
 from django.contrib import messages
@@ -257,134 +257,6 @@ def get_leads_from_db(starting_mc_number=None, targets_count=None,
         return []
 
 
-# @login_required
-# def campaign(request, email_account_id):
-    
-#     email_account = get_object_or_404(EmailAccount, id=email_account_id, user=request.user)
-#     form = CampaignForm(user=request.user)
-
-#     if request.method == 'POST':
-#         print(request.POST)
-#         form = CampaignForm(request.POST, request.FILES, user=request.user)
-#         is_ajax = request.headers.get('x-requested-with') == 'XMLHttpRequest'
-#         if form.is_valid():
-#             email_subject = form.cleaned_data['email_subject']
-#             email_body = form.cleaned_data['email_body']
-#             file_upload = form.cleaned_data['file_upload']
-#             lower_limit_mc_number = form.cleaned_data['lower_limit_mc_number']
-#             upper_limit_mc_number = form.cleaned_data['upper_limit_mc_number']
-#             mc_number = form.cleaned_data['mc_number']
-#             targets_count = form.cleaned_data['targets_count']
-#             min_delay = form.cleaned_data.get('min_delay')
-#             max_delay = form.cleaned_data.get('max_delay')
-#             scheduled_launch_datetime = form.cleaned_data.get('schedule_launch_datetime')
-
-#             # Extra filters from the form
-#             power_units_comparison = form.cleaned_data.get('power_units_comparison')
-#             power_units_value = form.cleaned_data.get('power_units_value')
-#             drivers_comparison = form.cleaned_data.get('drivers_comparison')
-#             drivers_value = form.cleaned_data.get('drivers_value')
-#             status = form.cleaned_data.get('status')
-#             carrier_operation = form.cleaned_data.get('carrier_operation')
-#             cargo_classification_search = form.cleaned_data.get('cargo_classification_search')
-#             cargo_info_search = form.cleaned_data.get('cargo_info_search')
-
-#             leads = []
-#             if file_upload:
-#                 leads = process_excel_file(file_upload)
-#             elif (mc_number and not request.user.on_free_trial) or ((lower_limit_mc_number and upper_limit_mc_number) and not request.user.on_free_trial):
-#                 leads = get_leads_from_db(
-#                     mc_number, targets_count, lower_limit_mc_number, upper_limit_mc_number,
-#                     power_units_comparison=power_units_comparison, power_units_value=power_units_value, 
-#                     drivers_comparison=drivers_comparison, drivers_value=drivers_value,
-#                     status=status, carrier_operation=carrier_operation,
-#                     cargo_classification_search_term=cargo_classification_search, cargo_info_search_term=cargo_info_search
-#                 )
-
-#             # if not leads:
-#             #     messages.error(request, "No valid leads found.")
-#             #     return redirect('dashboard:index')
-
-#             if not leads:
-#                 message = "No valid leads found."
-#                 messages.error(request, message)
-#                 if is_ajax:
-#                     return JsonResponse({'success': False, 'message': message}, status=400)
-#                 return redirect('dashboard:index')
-            
-#             seen_emails = set()
-#             unique_leads = []
-#             for lead in leads:
-#                 email = lead.get("Email")
-#                 if email and email not in seen_emails:
-#                     unique_leads.append(lead)
-#                     seen_emails.add(email)
-
-#             leads = unique_leads
-
-#             filter_data = {}
-#             for key in ['mc_number', 'targets_count', 'power_units_comparison', 'power_units_value', 
-#                         'drivers_comparison', 'drivers_value', 'status', 'carrier_operation',
-#                         'cargo_classification_search', 'cargo_info_search']:
-#                 val = locals().get(key)
-#                 if val not in [None, '', 'None']:
-#                     filter_data[key] = val
-
-#             # # Handle AJAX pre-check
-#             # if request.headers.get('x-requested-with') == 'XMLHttpRequest' and not request.POST.get('confirm'):
-#             #     res = JsonResponse({
-#             #         'lead_count': len(leads),
-#             #         'filters': filter_data,
-#             #         'confirmed': False
-#             #     })
-#             #     return res
-
-#             if is_ajax and not request.POST.get('confirm'):
-#                 return JsonResponse({
-#                     'lead_count': len(leads),
-#                     'filters': filter_data,
-#                     'confirmed': False, # Indicate this is just a confirmation request
-#                     'success': True # Indicate success for the pre-check data retrieval
-#                 })
-
-#             if scheduled_launch_datetime:
-#                 # Save the campaign as a scheduled record
-#                 CampaignRecord.objects.create(
-#                     subject=email_subject,
-#                     body=email_body,
-#                     leads_data=leads,
-#                     min_delay=min_delay,
-#                     max_delay=max_delay,
-#                     scheduled_launch_time=scheduled_launch_datetime,
-#                     launched_by=request.user,
-#                     sender_account=email_account,
-#                     total_recipients=len(leads),
-#                     sent_count=0,
-#                     status='pending',
-#                     lead_source='Excel' if file_upload else 'DB'
-#                 )
-#                 pst_tz = pytz.timezone('Asia/Karachi')
-#                 scheduled_time_pst = scheduled_launch_datetime.astimezone(pst_tz)
-#                 messages.success(request, f"Campaign '{email_subject}' scheduled for {scheduled_time_pst.strftime('%Y-%m-%d %H:%M %p %Z')}.")
-#                 return redirect('dashboard:index')
-#             else:
-#                 print(f"Queuing email campaign to {len(leads)} leads for {email_account.email_address}")
-#                 send_emails_chunk_celery_task.delay(email_account.id, request.user.id, leads, email_subject, email_body, min_delay, max_delay)
-#                 email_account.last_used_at = now()
-#                 email_account.save(update_fields=["last_used_at"])
-#                 messages.success(request, f"Success! Emails are being sent for {email_account.email_address}. Thank you for your patience.")
-#                 return redirect('dashboard:index')
-            
-        
-#         if is_ajax:
-#             return JsonResponse({'success': True, 'message': message, 'redirect_url': str(redirect('dashboard:index').url)})
-#         return redirect('dashboard:index')
-
-#     else:
-#         form = CampaignForm(user=request.user)
-
-#     return render(request, 'dashboard/campaign.html', {'form': form, 'email_account': email_account})
-
 
 @login_required
 def campaign(request, email_account_id):
@@ -498,18 +370,18 @@ def campaign(request, email_account_id):
             if scheduled_launch_datetime:
                 print("📅 Scheduler detected. Saving scheduled campaign...")
                 CampaignRecord.objects.create(
-                    subject=email_subject,
-                    body=email_body,
-                    leads_data=leads,
-                    min_delay=min_delay,
-                    max_delay=max_delay,
-                    scheduled_launch_time=scheduled_launch_datetime,
-                    launched_by=request.user,
-                    sender_account=email_account,
-                    total_recipients=len(leads),
-                    sent_count=0,
-                    status='pending',
-                    lead_source='Excel' if file_upload else 'DB'
+                    subject = email_subject,
+                    body = email_body,
+                    leads_data = leads,
+                    min_delay = min_delay,
+                    max_delay = max_delay,
+                    scheduled_launch_time = scheduled_launch_datetime,
+                    launched_by = request.user,
+                    sender_account = email_account,
+                    total_recipients = len(leads),
+                    sent_count = 0,
+                    status = 'pending',
+                    lead_source = 'Excel' if file_upload else 'DB'
                 )
                 pst_tz = pytz.timezone('Asia/Karachi')
                 scheduled_time_pst = scheduled_launch_datetime.astimezone(pst_tz)
@@ -525,25 +397,36 @@ def campaign(request, email_account_id):
 
                 messages.success(request, success_message)
                 return redirect('dashboard:index')
+            else: # imidiate started campaign
+                new_camp = CampaignRecord.objects.create(
+                    subject = email_subject,
+                    body = email_body,
+                    launched_by = request.user,
+                    sender_account = email_account,
+                    total_recipients = len(leads),
+                    sent_count = 0,
+                    status = 'processing',
+                    lead_source =  lead_source
+                )
 
-            # Immediate send
-            print(f"📤 Queuing email campaign to {len(leads)} leads for {email_account.email_address}")
-            send_emails_chunk_celery_task.delay(email_account.id, request.user.id, leads, email_subject, email_body, min_delay, max_delay, lead_source, save_record=True, campaign_record_id=None)
-            email_account.last_used_at = now()
-            email_account.save(update_fields=["last_used_at"])
+                # Immediate send
+                print(f"📤 Queuing email campaign to {len(leads)} leads for {email_account.email_address}")
+                send_emails_chunk_celery_task.delay(email_account.id, leads, email_subject, email_body, min_delay, max_delay, campaign_record_id=new_camp.id)
+                email_account.last_used_at = now()
+                email_account.save(update_fields=["last_used_at"])
 
-            success_message = f"✅ Success! Emails are being sent for {email_account.email_address}."
+                success_message = f"✅ Success! Emails are being sent for {email_account.email_address}."
 
-            if is_ajax:
-                return JsonResponse({
-                    'success': True,
-                    'message': success_message,
-                    'redirect_url': str(redirect('dashboard:index').url),
-                    'debug': debug_info
-                })
+                if is_ajax:
+                    return JsonResponse({
+                        'success': True,
+                        'message': success_message,
+                        'redirect_url': str(redirect('dashboard:index').url),
+                        'debug': debug_info
+                    })
 
-            messages.success(request, success_message)
-            return redirect('dashboard:index')
+                messages.success(request, success_message)
+                return redirect('dashboard:index')
 
         # Invalid form
         print("🛑 Form is invalid:", form.errors)
@@ -792,7 +675,19 @@ def bulk_campaign(request):
                         else:
                             # Immediate send
                             print(f"Queuing immediate bulk email campaign to {len(assigned_leads)} leads for {account.email_address}")
-                            send_emails_chunk_celery_task.delay(account.id, request.user.id, assigned_leads, email_subject, email_body, min_delay, max_delay, lead_source, save_record=True, campaign_record_id=None)
+
+                            new_camp = CampaignRecord.objects.create(
+                                subject = email_subject,
+                                body = email_body,
+                                launched_by = request.user,
+                                sender_account = account,
+                                total_recipients = len(leads),
+                                sent_count = 0,
+                                status = 'processing',
+                                lead_source =  lead_source
+                            )
+
+                            send_emails_chunk_celery_task.delay(account.id, assigned_leads, email_subject, email_body, min_delay, max_delay, campaign_record_id=new_camp.id)
                             immediate_campaign_count += 1
                             account.last_used_at = now()
                             account.save(update_fields=["last_used_at"])
@@ -845,95 +740,73 @@ def bulk_campaign(request):
 
 @login_required
 def index(request):
-	
-  email_accounts = EmailAccount.objects.filter(user=request.user).order_by('-last_used_at')
-  for account in email_accounts:
+    
+    latest_campaign_id_subquery = Subquery(
+        CampaignRecord.objects.filter(sender_account=OuterRef('id'))
+        .order_by('-launch_time')
+        .values('id')[:1]
+    )
+    latest_campaign_status_subquery = Subquery(
+        CampaignRecord.objects.filter(sender_account=OuterRef('id'))
+        .order_by('-launch_time')
+        .values('status')[:1]
+    )
+
+    email_accounts_queryset = EmailAccount.objects.filter(user=request.user).order_by('-last_used_at').annotate(
+        _latest_campaign_id=latest_campaign_id_subquery,
+        last_campaign_status=Coalesce(latest_campaign_status_subquery, Value('N/A'))
+    )
+
+    prefetched_campaigns = Prefetch(
+        'campaigns',
+        queryset=CampaignRecord.objects.filter(id__in=Subquery(email_accounts_queryset.values('_latest_campaign_id'))),
+        to_attr='_latest_campaign_obj'
+    )
+
+    # Apply the prefetch to the main queryset
+    email_accounts = email_accounts_queryset.prefetch_related(prefetched_campaigns)
+
+
+    for account in email_accounts:
         account.is_gmail = account.email_address.lower().endswith('@gmail.com')
         account.is_connected = hasattr(account, 'gmail_token') and account.gmail_token is not None
-  context = {
-		"email_accounts": email_accounts
-	}
-  return render(request, 'dashboard/index.html', context)
+        account.latest_campaign = account._latest_campaign_obj[0] if hasattr(account, '_latest_campaign_obj') and account._latest_campaign_obj else None
+
+    context = {
+        "email_accounts": email_accounts
+    }
+    return render(request, 'dashboard/index.html', context)
 
 
-# Email account successfully added confirmation email
-# def send_email_async(email_account, request):
-#     """Sends an email in a separate thread using ThreadPoolExecutor."""
-    
-#     def _send_email():
-#         try:
-#             decrypted_password = email_account.get_password()
+@login_required
+@require_http_methods(["POST"])
+def emergency_stop(request, email_account_id):
+    """
+    Soft-cancels the latest 'processing' campaign for the given email account
+    by marking its status as 'cancelled'. The Celery task will detect this and exit cleanly.
+    """
+    email_account = get_object_or_404(EmailAccount, id=email_account_id)
 
-#             # Determine the SMTP security type
-#             use_tls = email_account.server_type == "STARTTLS" or email_account.server_type == "TLS"
-#             use_ssl = email_account.server_type == "SSL"
+    # Ensure the logged-in user owns this account
+    if email_account.user != request.user:
+        messages.error(request, "You do not have permission to manage this email account.")
+        return redirect("dashboard:index")
 
-#             if use_tls and use_ssl:
-#                 print("Invalid configuration: Cannot enable all TLS, SSL and STARTTLS.")
-#                 return
+    # Get the latest campaign that is currently 'processing'
+    latest_processing_campaign = CampaignRecord.objects.filter(
+        sender_account=email_account,
+        status='processing'
+    ).order_by('-id').first()
 
-#             # Correct credentials entered
-#             try:
-#                 # Create SMTP connection
-#                 connection = get_connection(
-#                     backend="django.core.mail.backends.smtp.EmailBackend",
-#                     host=email_account.host,
-#                     port=email_account.port_number,
-#                     username=email_account.email_address,
-#                     password=decrypted_password,
-#                     use_tls=use_tls,
-#                     use_ssl=use_ssl,
-#                 )
-#                 connection.open()
+    if latest_processing_campaign:
+        latest_processing_campaign.status = 'cancelled'
+        latest_processing_campaign.save(update_fields=['status'])
 
-#                 # Email content
-#                 subject = "Email account configured successfully"
-#                 body = (
-#                     f"Hello {request.user.first_name},\n\n"
-#                     f"This is to notify you that your email account {email_account.email_address} "
-#                     "has been successfully configured with Dispatch Skool and is now ready to launch campaigns.\n\n"
-#                     "Best Regards,\nThe Dispatch Skool Team."
-#                 )
-#                 from_email = email_account.email_address
-#                 recipient_list = [request.user.email]
+        messages.success(request, f"Campaign '{latest_processing_campaign.subject}' has been stopped. ⚠️ WARNING: After the emergency stop, the comapaign still might send emails to 3 or 4 targets but it will stop after that!")
+    else:
+        messages.info(request, f"No active campaign found for {email_account.email_address} to stop.")
 
-#                 # Create and send email
-#                 email_message = EmailMessage(
-#                     subject, body, from_email, recipient_list, connection=connection
-#                 )
-#                 email_message.send()
-#                 connection.close()
-
-#             # Incorrect credentials entered
-#             except Exception as e:
-#                 print(f"SMTP connection failed: {e}")
-#                 subject = "Email account configuration failure"
-#                 body = (
-#                     f"Hello {request.user.first_name},\n\n"
-#                     f"This is to notify you that your email account {email_account.email_address} "
-#                     "could not be configured with Dispatch Skool. This is likely due to incorrect credentials entered. Please refer to the provided instructions on the add account page and try 'updating' the account you were trying to attach.\n\n"
-#                     "In case of any problems, feel free to reach out.\n\n"
-#                     "Best Regards,\nThe Dispatch Skool Team."
-#                 )
-#                 from_email = settings.EMAIL_HOST_USER
-#                 recipient_list = [request.user.email]
-
-#                 email_message = EmailMessage(
-#                     subject,
-#                     body,
-#                     from_email,
-#                     recipient_list,
-#                 )
-#                 email_message.send()
-
-#             print(f"Notification email sent to {request.user.email}")
-
-#         except Exception as e:
-#             print(f"Error sending notification email: {e}")
-
-#     # Execute in a separate thread
-#     executor = ThreadPoolExecutor(max_workers=1)
-#     executor.submit(_send_email)
+    return redirect("dashboard:index")
 
 
 

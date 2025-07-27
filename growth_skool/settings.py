@@ -49,17 +49,18 @@ INSTALLED_APPS = [
     'affiliates.apps.AffiliatesConfig',
 
 		'widget_tweaks',
-		'django_q',
+		# 'django_q',
 		'django_ckeditor_5',
     # 'ckeditor',
     # 'ckeditor_uploader',
     'django_celery_beat',
+    'django_celery_results'
 ]
 
 
 # Celery Configuration
 CELERY_BROKER_URL = 'amqp://guest:guest@localhost:5672//'
-CELERY_RESULT_BACKEND = 'rpc://'
+CELERY_RESULT_BACKEND = 'django-db'
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
@@ -68,24 +69,6 @@ CELERY_TASK_TRACK_STARTED = True # Useful for monitoring task states
 CELERY_TASK_CREATE_DIRS = False # Prevent Celery from creating directories for logs if you're not using file logging for tasks
 
 CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
-
-
-
-Q_CLUSTER = {
-    'name': 'pdm',
-    'workers': 3,
-    'max_workers': 10,
-    'recycle': 500,
-    'timeout': 120,
-    'retry': 180,
-    'max_attempts': 1,
-    'compress': True,
-    'save_limit': 250,
-    'queue_limit': 1000,
-    'label': 'Django Q',
-    'daemonize_workers': False,
-    'orm': 'default',
-}
 
 
 customColorPalette = [

@@ -10,6 +10,8 @@ from django.utils import timezone
 from email.utils import make_msgid
 import uuid
 from django.conf import settings
+from django_celery_results.models import TaskResult
+from django.utils.timezone import now, timedelta
 
 
 email_regex = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
@@ -49,12 +51,9 @@ def get_email_connection(email_account, decrypted_password):
     connection.open()
     return connection
 
-# ----------------------------------------------------
-# NEW CELERY TASK for processing a chunk of leads
-# This task will be consumed by Celery workers
-# ----------------------------------------------------
+
 @app.task(name="dashboard.send_emails_chunk_celery_task")
-def send_emails_chunk_celery_task(email_account_id, user_id, leads, subject, body, min_delay, max_delay, lead_source, save_record, campaign_record_id=None):
+def send_emails_chunk_celery_task(email_account_id, leads, subject, body, min_delay, max_delay, campaign_record_id):
     
     try:
         email_account = EmailAccount.objects.get(id=email_account_id)
@@ -73,7 +72,20 @@ def send_emails_chunk_celery_task(email_account_id, user_id, leads, subject, bod
         # Initial connection setup
         connection = get_email_connection(email_account, decrypted_password)
 
-        for lead in leads:
+        campaign = CampaignRecord.objects.get(id=campaign_record_id)
+        campaign.status = 'processing'
+        campaign.save(update_fields=['status'])
+        stopped = False
+
+        for i, lead in enumerate(leads, 1):
+
+            if i % 5 == 0:
+                campaign.refresh_from_db()
+                if campaign.status == 'cancelled':
+                    print("🛑 Campaign was cancelled. Exiting task.")
+                    stopped = True
+                    break
+
             if not isinstance(lead, dict) or 'Email' not in lead:
                 print(f"Skipping invalid lead: {lead}")
                 continue
@@ -199,28 +211,14 @@ def send_emails_chunk_celery_task(email_account_id, user_id, leads, subject, bod
                         else:
                             raise e
 
-        # This will be called to create new campaign if it wasn't scheduled
-        if save_record:
+        # Update the status of the above created new_campaign after finishing the loop and sending all the mails
 
-            sending_user = CustomUser.objects.get(id=user_id)
-
-            # Save the campaign record to db for analysis
-            CampaignRecord.objects.create(
-                subject = subject,
-                body = body,
-                launched_by = sending_user,
-                sender_account = email_account,
-                total_recipients = len(leads),
-                sent_count = sent_count,
-                status = 'launched',
-                lead_source =  lead_source
-            )
-
-        else: # if shceduled, then its already saved, only update its relevant fields
-            campaign = CampaignRecord.objects.get(id=campaign_record_id)
+        if not stopped:
             campaign.status = 'launched'
-            campaign.sent_count = sent_count
-            campaign.save(update_fields=['status', 'sent_count'])
+            campaign.save(update_fields=['status'])
+
+        campaign.sent_count = sent_count
+        campaign.save(update_fields=['sent_count'])
 
         connection.close()
         print(f"Celery Task: {sent_count}/{len(leads)} emails sent for chunk using {email_account.email_address}.")
@@ -229,6 +227,7 @@ def send_emails_chunk_celery_task(email_account_id, user_id, leads, subject, bod
         print(f"Celery Task Error: EmailAccount with ID {email_account_id} does not exist.")
     except Exception as e:
         print(f"Celery Task Error: An unexpected error occurred in send_emails_chunk_celery_task: {e}")
+
 
 
 @app.task(name="dashboard.tasks.launch_scheduled_campaign_checker")
@@ -257,22 +256,17 @@ def launch_scheduled_campaign_checker():
             # Trigger the actual email sending task
             send_emails_chunk_celery_task.delay(
                 campaign_record.sender_account.id,
-                campaign_record.launched_by.id,
                 leads,
                 campaign_record.subject,
                 campaign_record.body,
                 campaign_record.min_delay,
                 campaign_record.max_delay,
-                campaign_record.lead_source,
-                save_record=False,
                 campaign_record_id=campaign_record.id
             )
             print(f"Triggered send_emails_chunk_celery_task for CampaignRecord {campaign_record.id}.")
 
             campaign_record.sender_account.last_used_at = now_utc
             campaign_record.sender_account.save(update_fields=["last_used_at"])
-            campaign_record.status = 'processing'
-            campaign_record.save(update_fields=['status'])
 
         except Exception as e:
             # Log any errors that occur during the launching process
@@ -354,5 +348,16 @@ def send_account_attach_notif_email(email_account_id, user_id):
     except Exception as e:
         print(f"Error sending notification email: {e}")
 
+
+
+@app.task(name="dashboard.tasks.clear_successful_task_results")
+def clear_successful_task_results():
+    # Delete only successful tasks older than 1 day (optional safety filter)
+    one_day_ago = now() - timedelta(days=1)
+    deleted, _ = TaskResult.objects.filter(
+        status="SUCCESS",
+        date_done__lt=one_day_ago
+    ).delete()
+    return f"Deleted {deleted} successful task results"
 
 

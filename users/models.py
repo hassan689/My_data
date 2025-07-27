@@ -130,7 +130,7 @@ class EmailAccount(models.Model):
 
 
     def __str__(self):
-        return f"{self.user.username} - {self.email_address}"
+        return f"{self.email_address}"
 
     class Meta:
         verbose_name = "Email Account"

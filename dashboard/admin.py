@@ -43,7 +43,7 @@ class CampaignRecordAdmin(admin.ModelAdmin):
         if obj.status == 'pending' and obj.scheduled_launch_time:
             return timezone.localtime(obj.scheduled_launch_time).strftime('%Y-%m-%d %H:%M %p (Scheduled)')
         elif obj.launch_time:
-            return timezone.localtime(obj.launch_time).strftime('%Y-%m-%d %H:%M %p (Completed)')
+            return timezone.localtime(obj.launch_time).strftime('%Y-%m-%d %H:%M %p (Started)')
         return "-" # Fallback if no time is available
 
     display_launch_or_schedule_time.short_description = 'Launch/Schedule Time'

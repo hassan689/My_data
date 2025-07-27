@@ -63,7 +63,7 @@ class CampaignRecord(models.Model):
     body = models.TextField()
     launch_time = models.DateTimeField(auto_now_add=True)
     launched_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
-    sender_account = models.ForeignKey(EmailAccount, on_delete=models.SET_NULL, null=True, blank=True)
+    sender_account = models.ForeignKey(EmailAccount, on_delete=models.SET_NULL, null=True, blank=True, related_name="campaigns")
     total_recipients = models.IntegerField(default=0)
     sent_count = models.IntegerField(default=0)
 
@@ -73,10 +73,11 @@ class CampaignRecord(models.Model):
     scheduled_launch_time = models.DateTimeField(null=True, blank=True) # When the campaign is set to launch
 
     CAMPAIGN_STATUS_CHOICES = [
-        ('pending', 'Pending'),
-        ('launched', 'Launched'),
+        ('pending', 'Pending'), # schduled for later
+        ('launched', 'Launched'), # campaign finnished
         ('failed', 'Failed'),
-        ('cancelled', 'Cancelled'),
+        ('cancelled', 'Cancelled'), # stopped midway
+        ('processing', 'Processing'), # emails are going out
     ]
     status = models.CharField(max_length=20, choices=CAMPAIGN_STATUS_CHOICES, null=True, blank=True)
 

@@ -72,6 +72,7 @@
 									<th class="text-left p-3">Email Account</th>
 									<th class="text-left p-3">Last Used At</th>
 									<th class="text-left p-3">Actions</th>
+									<th class="text-left p-3">Campaign Status</th>
 							</tr>
 					</thead>
 					<tbody>
@@ -98,12 +99,38 @@
                       class="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600 text-center">
                       Launch Campaign
                     </a>
+                    {% comment %}
                     {% if account.is_gmail and not account.is_connected %}
                         <a href="{% url 'dashboard:oauth_start' account.id %}" 
                           class="bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600 text-center">
                           Connect Gmail
                         </a>
                     {% endif %}
+                    {% endcomment %}
+                  </div>
+                </td>
+
+                <td class="p-3">
+                  <div class="flex flex-col md:flex-row md:space-x-5 space-y-2 md:space-y-0 md:items-center">
+                      <div class="px-2 py-1 rounded font-semibold
+                          {% if account.last_campaign_status == 'launched' %} bg-green-200 text-green-800
+                          {% elif  account.last_campaign_status == 'pending' %} bg-orange-200 text-orange-800
+                          {% elif  account.last_campaign_status == 'processing' %} bg-blue-200 text-blue-800
+                          {% elif  account.last_campaign_status == 'failed' %} bg-red-200 text-red-800
+                          {% elif  account.last_campaign_status == 'cancelled' %} bg-red-200 text-red-800
+                          {% endif %}">
+                          {{ account.last_campaign_status }}
+                      </div>
+                      <div>
+                          {% if account.last_campaign_status == 'processing' %}
+                              <form action="{% url 'dashboard:emergency_stop' account.id %}" method="post" style="display: inline;">
+                                  {% csrf_token %}
+                                  <button type="submit" class="bg-red-700 text-white px-3 py-1 rounded hover:bg-red-800 text-center font-semibold">
+                                      EMERGENCY STOP
+                                  </button>
+                              </form>
+                          {% endif %}
+                      </div>
                   </div>
                 </td>
                 
@@ -112,7 +139,7 @@
 					</tbody>
 					<tfoot>
 						<tr class="border-t bg-gray-50">
-								<td colspan="3" class="p-3 text-gray-700 font-bold">Total Email Accounts: {{ email_accounts|length }}</td>
+								<td colspan="4" class="p-3 text-gray-700 font-bold">Total Email Accounts: {{ email_accounts|length }}</td>
 						</tr>
 					</tfoot>
 				
