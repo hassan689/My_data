@@ -14,6 +14,7 @@ urlpatterns = [
 		path('add-email-account/', views.add_email_account, name='email_account'),
 		path('email-account/update/<int:id>/', views.email_account_update, name='email_account_update'),
 		path('email-account/delete/<int:id>/', views.email_account_delete, name='email_account_delete'),
+    path('campaign-statuses/', views.campaign_statuses, name='campaign_statuses'),
 
     path('oauth/start/<int:email_account_id>/', views.oauth_start, name='oauth_start'),
     path('oauth/callback/', views.oauth_callback, name='oauth_callback'),

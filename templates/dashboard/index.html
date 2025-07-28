@@ -70,9 +70,9 @@
 					<thead>
 							<tr class="bg-gray-200">
 									<th class="text-left p-3">Email Account</th>
-									<th class="text-left p-3">Last Used At</th>
 									<th class="text-left p-3">Actions</th>
 									<th class="text-left p-3">Campaign Status</th>
+                  <th class="text-left p-3">Sent Count</th>
 							</tr>
 					</thead>
 					<tbody>
@@ -81,8 +81,7 @@
 								<!-- Email -->
 								<td class="p-3">{{ account.email_address }}</td>
 				
-								<!-- Last Used at -->
-								<td class="p-3">{{ account.last_used_at }}</td>
+								
 				
 								<!-- Update Button -->
 								<td class="p-3">
@@ -112,7 +111,7 @@
 
                 <td class="p-3">
                   <div class="flex flex-col md:flex-row md:space-x-5 space-y-2 md:space-y-0 md:items-center">
-                      <div class="px-2 py-1 rounded font-semibold
+                      <div id="status-box-{{ account.id }}" class="px-2 py-1 rounded font-semibold
                           {% if account.last_campaign_status == 'launched' %} bg-green-200 text-green-800
                           {% elif  account.last_campaign_status == 'pending' %} bg-orange-200 text-orange-800
                           {% elif  account.last_campaign_status == 'processing' %} bg-blue-200 text-blue-800
@@ -125,7 +124,7 @@
                           {% if account.last_campaign_status == 'processing' %}
                               <form action="{% url 'dashboard:emergency_stop' account.id %}" method="post" style="display: inline;">
                                   {% csrf_token %}
-                                  <button type="submit" class="bg-red-700 text-white px-3 py-1 rounded hover:bg-red-800 text-center font-semibold">
+                                  <button id="emergency-stop-btn-{{ account.id }}" type="submit" class="bg-red-700 text-white px-3 py-1 rounded hover:bg-red-800 text-center font-semibold">
                                       EMERGENCY STOP
                                   </button>
                               </form>
@@ -133,6 +132,17 @@
                       </div>
                   </div>
                 </td>
+
+                <td class="p-3">
+                  <div class="w-full bg-gray-200 rounded-full h-5">
+                    <div id="sent-count-box-{{ account.id }}"
+                        class="bg-blue-600 text-xs font-semibold text-white text-center h-full rounded-full"
+                        style="width: {{ account.latest_campaign.sent_count|default:0|divisibleby:account.latest_campaign.total_recipients|floatformat:0 }}%;">
+                      {{ account.latest_campaign.sent_count }}/{{ account.latest_campaign.total_recipients }}
+                    </div>
+                  </div>
+                </td>
+
                 
 						</tr>
 						{% endfor %}
@@ -151,5 +161,55 @@
 	</div>
 
 </div>	
+
+<script>
+    function updateCampaignStatuses() {
+      fetch("{% url 'dashboard:campaign_statuses' %}")
+        .then(response => response.json())
+        .then(data => {
+          Object.keys(data).forEach(accountId => {
+            const status = data[accountId].status;
+            const sent = data[accountId].sent_count;
+            const total = data[accountId].total;
+
+            // === ✅ Update Campaign Status Badge ===
+            const statusBox = document.querySelector(`#status-box-${accountId}`);
+            if (statusBox) {
+              statusBox.textContent = status;
+              statusBox.className = "px-2 py-1 rounded font-semibold";
+
+              if (status === 'launched') statusBox.classList.add("bg-green-200", "text-green-800");
+              else if (status === 'pending') statusBox.classList.add("bg-orange-200", "text-orange-800");
+              else if (status === 'processing') statusBox.classList.add("bg-blue-200", "text-blue-800");
+              else if (status === 'failed' || status === 'cancelled') statusBox.classList.add("bg-red-200", "text-red-800");
+            }
+
+            // === ✅ Update Sent Count Progress Bar ===
+            const sentBox = document.querySelector(`#sent-count-box-${accountId}`);
+            if (sentBox) {
+              const percent = total === 0 ? 0 : Math.round((sent / total) * 100);
+              sentBox.style.width = `${percent}%`;
+              sentBox.textContent = `${sent}/${total}`;
+            }
+
+            // === ✅ Show/Hide Emergency Stop Button ===
+            const stopButton = document.querySelector(`#emergency-stop-btn-${accountId}`);
+            if (stopButton) {
+              if (status === 'processing') {
+                stopButton.style.display = 'inline-block';
+              } else {
+                stopButton.style.display = 'none';
+              }
+            }
+          });
+        });
+    }
+
+    setInterval(updateCampaignStatuses, 10000);
+    updateCampaignStatuses(); // initial run
+</script>
+
+
+
 
 {% endblock %}

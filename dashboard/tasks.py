@@ -85,6 +85,9 @@ def send_emails_chunk_celery_task(email_account_id, leads, subject, body, min_de
                     print("🛑 Campaign was cancelled. Exiting task.")
                     stopped = True
                     break
+                else:
+                    campaign.sent_count = sent_count
+                    campaign.save(update_fields=['sent_count'])
 
             if not isinstance(lead, dict) or 'Email' not in lead:
                 print(f"Skipping invalid lead: {lead}")

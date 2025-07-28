@@ -802,11 +802,43 @@ def emergency_stop(request, email_account_id):
         latest_processing_campaign.status = 'cancelled'
         latest_processing_campaign.save(update_fields=['status'])
 
-        messages.success(request, f"Campaign '{latest_processing_campaign.subject}' has been stopped. ⚠️ WARNING: After the emergency stop, the comapaign still might send emails to 3 or 4 targets but it will stop after that!")
+        messages.success(
+            request,
+            f"Campaign '{latest_processing_campaign.subject}' has been stopped. "
+            f"Emails sent to {latest_processing_campaign.sent_count}/{latest_processing_campaign.total_recipients} recipients.\n"
+            "⚠️ WARNING: After the emergency stop, the campaign might still send emails to 3-4 more recipients, but it will stop shortly after."
+        )
+
     else:
         messages.info(request, f"No active campaign found for {email_account.email_address} to stop.")
 
     return redirect("dashboard:index")
+
+
+@login_required
+def campaign_statuses(request):
+    accounts = EmailAccount.objects.filter(user=request.user)
+    data = {}
+
+    for account in accounts:
+        latest_campaign = CampaignRecord.objects.filter(
+            sender_account=account
+        ).order_by('-launch_time').first()
+
+        if latest_campaign:
+            data[account.id] = {
+                'status': latest_campaign.status,
+                'sent_count': latest_campaign.sent_count,
+                'total': latest_campaign.total_recipients,
+            }
+        else:
+            data[account.id] = {
+                'status': 'N/A',
+                'sent_count': 0,
+                'total': 0,
+            }
+
+    return JsonResponse(data)
 
 
 
