@@ -401,12 +401,15 @@ def campaign(request, email_account_id):
                 new_camp = CampaignRecord.objects.create(
                     subject = email_subject,
                     body = email_body,
+                    leads_data = leads,
+                    min_delay = min_delay,
+                    max_delay = max_delay,
                     launched_by = request.user,
                     sender_account = email_account,
                     total_recipients = len(leads),
                     sent_count = 0,
                     status = 'processing',
-                    lead_source =  lead_source
+                    lead_source =  'Excel' if file_upload else 'DB'
                 )
 
                 # Immediate send
@@ -631,24 +634,6 @@ def bulk_campaign(request):
                 account_lead_map = updated_map
 
 
-            # def start_campaign():
-            #     scheduled_campaign_count = 0
-            #     immediate_campaign_count = 0
-            #     for account, assigned_leads in account_lead_map.items():
-            #         if assigned_leads:
-
-            #             print(f"Queuing bulk email campaign to {len(assigned_leads)} leads for {account.email_address}")
-            #             send_emails_chunk_celery_task.delay(account.id, request.user.id, assigned_leads, email_subject, email_body, min_delay, max_delay)
-
-            #             account.last_used_at = now()
-            #             account.save(update_fields=["last_used_at"])
-            #             print(f"Account {account.email_address}: Total leads in all chunks: {total_leads}")
-
-            # start_campaign()
-            # cache.delete(cache_key)  # clean up
-
-            # messages.success(request, "🎉 Bulk Campaign started successfully! Emails are being sent!")
-
             def start_campaign_processing():
                 scheduled_campaign_count = 0
                 immediate_campaign_count = 0
@@ -679,9 +664,12 @@ def bulk_campaign(request):
                             new_camp = CampaignRecord.objects.create(
                                 subject = email_subject,
                                 body = email_body,
+                                leads_data = assigned_leads,
+                                min_delay = min_delay,
+                                max_delay = max_delay,
                                 launched_by = request.user,
                                 sender_account = account,
-                                total_recipients = len(leads),
+                                total_recipients = len(assigned_leads),
                                 sent_count = 0,
                                 status = 'processing',
                                 lead_source =  lead_source
@@ -806,11 +794,50 @@ def emergency_stop(request, email_account_id):
             request,
             f"Campaign '{latest_processing_campaign.subject}' has been stopped. "
             f"Emails sent to {latest_processing_campaign.sent_count}/{latest_processing_campaign.total_recipients} recipients.\n"
-            "⚠️ WARNING: After the emergency stop, the campaign might still send emails to 3-4 more recipients, but it will stop shortly after."
         )
 
     else:
         messages.info(request, f"No active campaign found for {email_account.email_address} to stop.")
+
+    return redirect("dashboard:index")
+
+
+@login_required
+@require_http_methods(["POST"])
+def resume_stopped(request, email_account_id):
+    
+    email_account = get_object_or_404(EmailAccount, id=email_account_id)
+
+    # Ensure the logged-in user owns this account
+    if email_account.user != request.user:
+        messages.error(request, "You do not have permission to manage this email account.")
+        return redirect("dashboard:index")
+    
+    # Get the latest campaign that is currently 'cancelled' (stopped)
+    latest_cancelled_campaign = CampaignRecord.objects.filter(
+        sender_account=email_account,
+        status='cancelled'
+    ).order_by('-id').first()
+
+    if latest_cancelled_campaign:
+        
+        # recall the celery worker for that stopped campaign
+        send_emails_chunk_celery_task.delay(
+            email_account.id, 
+            latest_cancelled_campaign.leads_data, 
+            latest_cancelled_campaign.subject, 
+            latest_cancelled_campaign.body, 
+            latest_cancelled_campaign.min_delay, 
+            latest_cancelled_campaign.max_delay, 
+            latest_cancelled_campaign.id
+        )
+
+        messages.success(
+            request,
+            f"Campaign '{latest_cancelled_campaign.subject}' has been resumed successfully."
+        )
+    else:
+        messages.info(request, f"No stopped campaign found for {email_account.email_address} to resume.")
 
     return redirect("dashboard:index")
 
@@ -821,15 +848,19 @@ def campaign_statuses(request):
     data = {}
 
     for account in accounts:
-        latest_campaign = CampaignRecord.objects.filter(
-            sender_account=account
-        ).order_by('-launch_time').first()
+        latest_campaign = (
+            CampaignRecord.objects
+            .filter(sender_account=account)
+            .order_by('-launch_time')
+            .only('status', 'sent_count', 'total_recipients')
+            .first()
+        )
 
         if latest_campaign:
             data[account.id] = {
-                'status': latest_campaign.status,
-                'sent_count': latest_campaign.sent_count,
-                'total': latest_campaign.total_recipients,
+                'status': latest_campaign.status or 'N/A',
+                'sent_count': latest_campaign.sent_count or 0,
+                'total': latest_campaign.total_recipients or 0,
             }
         else:
             data[account.id] = {
@@ -839,7 +870,6 @@ def campaign_statuses(request):
             }
 
     return JsonResponse(data)
-
 
 
 @login_required

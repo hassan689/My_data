@@ -73,21 +73,33 @@ def send_emails_chunk_celery_task(email_account_id, leads, subject, body, min_de
         connection = get_email_connection(email_account, decrypted_password)
 
         campaign = CampaignRecord.objects.get(id=campaign_record_id)
+
+        campaign.total_recipients = len(leads) # Update total_recipients based on how many leads are left to send, if it was resumed
         campaign.status = 'processing'
-        campaign.save(update_fields=['status'])
+        campaign.sent_count = sent_count
+        campaign.save(update_fields=['status', 'total_recipients', 'sent_count'])
         stopped = False
+        sent_leads_batch = []  # track last 5 leads
 
         for i, lead in enumerate(leads, 1):
 
-            if i % 5 == 0:
+            if i % 2 == 0:
                 campaign.refresh_from_db()
                 if campaign.status == 'cancelled':
                     print("🛑 Campaign was cancelled. Exiting task.")
                     stopped = True
                     break
                 else:
+                    # Remove all the sent leads in the batch from campaign.leads_data
+                    if campaign.leads_data:
+                        campaign.leads_data = [
+                            l for l in campaign.leads_data
+                            if l not in sent_leads_batch
+                        ]
                     campaign.sent_count = sent_count
-                    campaign.save(update_fields=['sent_count'])
+                    campaign.save(update_fields=['sent_count', 'leads_data'])
+                    sent_leads_batch = [] # Clear the batch
+
 
             if not isinstance(lead, dict) or 'Email' not in lead:
                 print(f"Skipping invalid lead: {lead}")
@@ -135,6 +147,7 @@ def send_emails_chunk_celery_task(email_account_id, leads, subject, body, min_de
                         raise e
 
                 sent_count += 1
+                sent_leads_batch.append(lead)
 
                 if mailbox_instance: # Reason explained above
                     
@@ -219,6 +232,14 @@ def send_emails_chunk_celery_task(email_account_id, leads, subject, body, min_de
         if not stopped:
             campaign.status = 'launched'
             campaign.save(update_fields=['status'])
+
+        # Final cleanup for any remaining leads in batch
+        if sent_leads_batch:
+            campaign.leads_data = [
+                l for l in campaign.leads_data
+                if l not in sent_leads_batch
+            ]
+            campaign.save(update_fields=['leads_data'])
 
         campaign.sent_count = sent_count
         campaign.save(update_fields=['sent_count'])

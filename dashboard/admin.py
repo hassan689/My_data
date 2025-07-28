@@ -36,7 +36,7 @@ class GmailTokenAdmin(admin.ModelAdmin):
 @admin.register(CampaignRecord)
 class CampaignRecordAdmin(admin.ModelAdmin):
     list_display = ('launched_by', 'sender_account', 'display_launch_or_schedule_time', 'total_recipients', 'sent_count', 'status', 'lead_source')
-    list_filter = ("launch_time",)
+    list_filter = ("launch_time", 'status',)
     search_fields = ("launched_by",)
 
     def display_launch_or_schedule_time(self, obj):

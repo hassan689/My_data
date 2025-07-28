@@ -111,39 +111,67 @@
 
                 <td class="p-3">
                   <div class="flex flex-col md:flex-row md:space-x-5 space-y-2 md:space-y-0 md:items-center">
-                      <div id="status-box-{{ account.id }}" class="px-2 py-1 rounded font-semibold
-                          {% if account.last_campaign_status == 'launched' %} bg-green-200 text-green-800
-                          {% elif  account.last_campaign_status == 'pending' %} bg-orange-200 text-orange-800
-                          {% elif  account.last_campaign_status == 'processing' %} bg-blue-200 text-blue-800
-                          {% elif  account.last_campaign_status == 'failed' %} bg-red-200 text-red-800
-                          {% elif  account.last_campaign_status == 'cancelled' %} bg-red-200 text-red-800
-                          {% endif %}">
-                          {{ account.last_campaign_status }}
-                      </div>
+                      {% if account.last_campaign_status == 'launched' %}
+                        <div id="status-box-{{ account.id }}" class="px-2 py-1 rounded font-semibold bg-green-200 text-green-800">Completed</div>
+                      {% elif  account.last_campaign_status == 'pending' %}
+                        <div id="status-box-{{ account.id }}" class="px-2 py-1 rounded font-semibold bg-orange-200 text-orange-800">Scheduled</div>
+                      {% elif  account.last_campaign_status == 'processing' %}
+                        <div id="status-box-{{ account.id }}" class="px-2 py-1 rounded font-semibold bg-blue-200 text-blue-800">Sending</div>
+                      {% elif  account.last_campaign_status == 'failed' %}
+                        <div id="status-box-{{ account.id }}" class="px-2 py-1 rounded font-semibold bg-red-200 text-red-800">Failed</div>
+                      {% elif  account.last_campaign_status == 'cancelled' %}
+                        <div id="status-box-{{ account.id }}" class="px-2 py-1 rounded font-semibold bg-red-200 text-red-800">Stopped</div>
+                      {% endif %}
                       <div>
-                          {% if account.last_campaign_status == 'processing' %}
-                              <form action="{% url 'dashboard:emergency_stop' account.id %}" method="post" style="display: inline;">
-                                  {% csrf_token %}
-                                  <button id="emergency-stop-btn-{{ account.id }}" type="submit" class="bg-red-700 text-white px-3 py-1 rounded hover:bg-red-800 text-center font-semibold">
-                                      EMERGENCY STOP
-                                  </button>
-                              </form>
+                        {% if account.last_campaign_status == 'processing' %}
+                        <!-- Emergency Stop Button -->
+                        <form id="emergency-stop-form-{{ account.id }}" action="{% url 'dashboard:emergency_stop' account.id %}" method="post" style="display: {% if account.last_campaign_status == 'processing' %}inline-block{% else %}none{% endif %};">
+                          {% csrf_token %}
+                          <button type="submit" class="bg-red-700 text-white px-3 py-1 rounded hover:bg-red-800 text-center font-semibold">
+                            EMERGENCY STOP
+                          </button>
+                        </form>
+                        <!-- Resume Campaign Button -->
+                        <div>
+                          {% elif account.last_campaign_status == 'cancelled' %}
+                            <form action="{% url 'dashboard:resume_stopped' account.id %}" method="post" style="display: inline;">
+                              {% csrf_token %}
+                              <button class="bg-teal-500 text-white px-3 py-1 rounded hover:bg-teal-600 text-center font-semibold relative group disabled:opacity-50 disabled:cursor-not-allowed">
+                                Resume Campaign
+                              </button>
+                            </form>
                           {% endif %}
+                        </div>
                       </div>
                   </div>
                 </td>
 
                 <td class="p-3">
-                  <div class="w-full bg-gray-200 rounded-full h-5">
-                    <div id="sent-count-box-{{ account.id }}"
-                        class="bg-blue-600 text-xs font-semibold text-white text-center h-full rounded-full"
-                        style="width: {{ account.latest_campaign.sent_count|default:0|divisibleby:account.latest_campaign.total_recipients|floatformat:0 }}%;">
-                      {{ account.latest_campaign.sent_count }}/{{ account.latest_campaign.total_recipients }}
-                    </div>
-                  </div>
+                  {% if account.latest_campaign %}
+                    {% with account.latest_campaign.sent_count as sent %}
+                      {% with account.latest_campaign.total_recipients as total %}
+                        <div class="w-full bg-gray-200 rounded-full h-5">
+                          {% if total > 0 %}
+                            {% widthratio sent total 100 as percentage %}
+                            <div id="sent-count-box-{{ account.id }}"
+                                class="bg-blue-600 text-xs font-semibold text-white text-center h-full rounded-full"
+                                style="width: {{ percentage }}%;">
+                              {{ sent }}/{{ total }}
+                            </div>
+                          {% else %}
+                            <div id="sent-count-box-{{ account.id }}"
+                                class="bg-blue-600 text-xs font-semibold text-white text-center h-full rounded-full"
+                                style="width: 0%;">
+                              {{ sent }}/0
+                            </div>
+                          {% endif %}
+                        </div>
+                      {% endwith %}
+                    {% endwith %}
+                  {% else %}
+                    <span class="text-sm text-gray-500">N/A</span>
+                  {% endif %}
                 </td>
-
-                
 						</tr>
 						{% endfor %}
 					</tbody>
@@ -163,52 +191,69 @@
 </div>	
 
 <script>
-    function updateCampaignStatuses() {
-      fetch("{% url 'dashboard:campaign_statuses' %}")
-        .then(response => response.json())
-        .then(data => {
-          Object.keys(data).forEach(accountId => {
-            const status = data[accountId].status;
-            const sent = data[accountId].sent_count;
-            const total = data[accountId].total;
+  function updateCampaignStatuses() {
+    fetch("{% url 'dashboard:campaign_statuses' %}")
+      .then(response => response.json())
+      .then(data => {
+        Object.keys(data).forEach(accountId => {
+          const status = data[accountId].status;
+          const sent = data[accountId].sent_count;
+          const total = data[accountId].total;
 
-            // === ✅ Update Campaign Status Badge ===
-            const statusBox = document.querySelector(`#status-box-${accountId}`);
-            if (statusBox) {
-              statusBox.textContent = status;
-              statusBox.className = "px-2 py-1 rounded font-semibold";
+          // === Update Status Box ===
+          const statusBox = document.querySelector(`#status-box-${accountId}`);
+          if (statusBox) {
+            statusBox.className = "px-2 py-1 rounded font-semibold";
+            let label = "";
 
-              if (status === 'launched') statusBox.classList.add("bg-green-200", "text-green-800");
-              else if (status === 'pending') statusBox.classList.add("bg-orange-200", "text-orange-800");
-              else if (status === 'processing') statusBox.classList.add("bg-blue-200", "text-blue-800");
-              else if (status === 'failed' || status === 'cancelled') statusBox.classList.add("bg-red-200", "text-red-800");
+            if (status === "launched") {
+              statusBox.classList.add("bg-green-200", "text-green-800");
+              label = "Completed";
+            } else if (status === "pending") {
+              statusBox.classList.add("bg-orange-200", "text-orange-800");
+              label = "Scheduled";
+            } else if (status === "processing") {
+              statusBox.classList.add("bg-blue-200", "text-blue-800");
+              label = "Sending";
+            } else if (status === "failed") {
+              statusBox.classList.add("bg-red-200", "text-red-800");
+              label = "Failed";
+            } else if (status === "cancelled") {
+              statusBox.classList.add("bg-red-200", "text-red-800");
+              label = "Stopped";
+            } else {
+              statusBox.classList.add("bg-gray-200", "text-gray-700");
+              label = "N/A";
             }
 
-            // === ✅ Update Sent Count Progress Bar ===
-            const sentBox = document.querySelector(`#sent-count-box-${accountId}`);
-            if (sentBox) {
-              const percent = total === 0 ? 0 : Math.round((sent / total) * 100);
-              sentBox.style.width = `${percent}%`;
-              sentBox.textContent = `${sent}/${total}`;
-            }
+            statusBox.textContent = label;
+          }
 
-            // === ✅ Show/Hide Emergency Stop Button ===
-            const stopButton = document.querySelector(`#emergency-stop-btn-${accountId}`);
-            if (stopButton) {
-              if (status === 'processing') {
-                stopButton.style.display = 'inline-block';
-              } else {
-                stopButton.style.display = 'none';
-              }
-            }
-          });
+          // === Update Progress Bar ===
+          const sentBox = document.querySelector(`#sent-count-box-${accountId}`);
+          if (sentBox) {
+            const percent = total === 0 ? 0 : Math.round((sent / total) * 100);
+            sentBox.style.width = `${percent}%`;
+            sentBox.textContent = `${sent}/${total}`;
+          }
+
+          // === Show/Hide Emergency Stop and Resume Buttons ===
+          const stopForm = document.querySelector(`#emergency-stop-form-${accountId}`);
+          const resumeForm = document.querySelector(`#resume-form-${accountId}`);
+
+          if (stopForm) {
+            stopForm.style.display = (status === "processing") ? "inline-block" : "none";
+          }
+          if (resumeForm) {
+            resumeForm.style.display = (status === "cancelled") ? "inline-block" : "none";
+          }
         });
-    }
+      });
+  }
 
-    setInterval(updateCampaignStatuses, 10000);
-    updateCampaignStatuses(); // initial run
+  setInterval(updateCampaignStatuses, 5000);
+  updateCampaignStatuses(); // Initial run
 </script>
-
 
 
 
