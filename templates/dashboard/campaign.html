@@ -1,6 +1,7 @@
 {% extends "dshbrd_base.html" %}
 
 {% load static %}
+{% load custom_filters %}
 {% block 'title' %}Dispatch Skool - Campaign Creator{% endblock %}
 
 {% block 'head' %}{{ form.media }}{% endblock %}
@@ -195,6 +196,20 @@
                             </div>
                           </div>
 
+                          <div class="mt-6">
+                            <label for="skip-mc-numbers-input" class="block text-sm font-medium text-gray-700 mb-2">
+                              Skip These MC Numbers
+                            </label>
+                            {{ form.skip_mc_numbers|add_class:"w-full" }}
+                            <p class="text-sm text-gray-500 mt-1">Type an MC Number like "MC 1234567" and press Enter to add. Click x to remove.</p>
+                            {% if form.skip_mc_numbers.errors %}
+                              <div class="bg-red-200 p-5 my-3 rounded-xl border-2 border-solid border-red-700">
+                                <p class="text-red-700 text-sm">{{ form.skip_mc_numbers.errors.0 }}</p>
+                              </div>
+                            {% endif %}
+                          </div>
+
+
                           <div class="relative inline-flex items-center justify-center w-full">
                             <h2 class="text-base md:text-lg font-semibold my-6 text-blue-600">
                               Available Filters
@@ -242,8 +257,8 @@
 
                             <div class="grid md:grid-cols-2 md:gap-x-6 my-5">
                               <div>
-                                <label class="block text-sm font-medium text-gray-700">Cargo Classification</label>
-                                {{ form.cargo_classification_search|add_class:"mt-1 block w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none" }}
+                              <label class="block text-sm font-medium text-gray-700">Cargo Classification</label>
+                              {{ form.cargo_classification_search|add_class:"w-full"|attr:"id:id_cargo_classification_search" }}
                                 
                                 <p class="text-sm text-gray-600 my-4">
                                   You can simply <span class="font-bold">copy, paste</span> from the following examples:
@@ -260,8 +275,8 @@
                               </div>
 
                               <div>
-                                <label class="block text-sm font-medium text-gray-700">Cargo Info</label>
-                                {{ form.cargo_info_search|add_class:"mt-1 block w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none" }}
+                              <label class="block text-sm font-medium text-gray-700">Cargo Info</label>
+                              {{ form.cargo_info_search|add_class:"w-full"|attr:"id:id_cargo_info_search" }}
 
                                 <p class="text-sm text-gray-600 my-4">
                                   You can simply <span class="font-bold">copy, paste</span> from the following examples:
@@ -708,6 +723,7 @@
     });
   </script>
 
+  <!-- Detect local time -->
   <script>
     document.addEventListener('DOMContentLoaded', function () {
       const form = document.querySelector('form');
@@ -723,8 +739,36 @@
         }
       });
     });
-</script>
+  </script>
 
+  <!-- Tagify Script -->
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const skipMcInput = document.getElementById('skip-mc-numbers-input');
+        new Tagify(skipMcInput, {
+            enforceWhitelist: false,
+            dropdown: {
+                enabled: 0
+            }
+        });
+
+        const cargoClassificationInput = document.getElementById('id_cargo_classification_search');
+        new Tagify(cargoClassificationInput, {
+            enforceWhitelist: false,
+            dropdown: {
+                enabled: 0
+            }
+        });
+
+        const cargoInfoInput = document.getElementById('id_cargo_info_search');
+        new Tagify(cargoInfoInput, {
+            enforceWhitelist: false,
+            dropdown: {
+                enabled: 0
+            }
+        });
+    });
+  </script>
 
 
 </div>

@@ -1,6 +1,7 @@
 {% extends "dshbrd_base.html" %}
 
 {% load static %}
+{% load custom_filters %}
 {% block 'title' %}Dispatch Skool - Bulk Campaign{% endblock %}
 
 {% block 'head' %}{{ form.media }}{% endblock %}
@@ -221,6 +222,19 @@
                           </div>
                         </div>
 
+                        <div class="mt-6">
+                          <label for="skip-mc-numbers-input" class="block text-sm font-medium text-gray-700 mb-2">
+                            Skip These MC Numbers
+                          </label>
+                          {{ form.skip_mc_numbers|add_class:"w-full" }}
+                          <p class="text-sm text-gray-500 mt-1">Type an MC Number like "MC 1234567" and press Enter to add. Click x to remove.</p>
+                          {% if form.skip_mc_numbers.errors %}
+                            <div class="bg-red-200 p-5 my-3 rounded-xl border-2 border-solid border-red-700">
+                              <p class="text-red-700 text-sm">{{ form.skip_mc_numbers.errors.0 }}</p>
+                            </div>
+                          {% endif %}
+                        </div>
+
                         <div class="relative inline-flex items-center justify-center w-full">
                           <h2 class="text-base md:text-lg font-semibold my-6 text-blue-600">
                             Available Filters
@@ -269,7 +283,7 @@
                           <div class="grid md:grid-cols-2 md:gap-x-6 my-5">
                             <div>
                               <label class="block text-sm font-medium text-gray-700">Cargo Classification</label>
-                              {{ form.cargo_classification_search|add_class:"mt-1 block w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none" }}
+                              {{ form.cargo_classification_search|add_class:"w-full"|attr:"id:id_cargo_classification_search" }}
                               
                               <p class="text-sm text-gray-600 my-4">
                                 You can simply <span class="font-bold">copy, paste</span> from the following examples:
@@ -287,7 +301,7 @@
 
                             <div>
                               <label class="block text-sm font-medium text-gray-700">Cargo Info</label>
-                              {{ form.cargo_info_search|add_class:"mt-1 block w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none" }}
+                              {{ form.cargo_info_search|add_class:"w-full"|attr:"id:id_cargo_info_search" }}
 
                               <p class="text-sm text-gray-600 my-4">
                                 You can simply <span class="font-bold">copy, paste</span> from the following examples:
@@ -804,138 +818,168 @@
 	
 </div>
 
-<!-- Assign accounts and leads checkboxes -->
-<script>
-  function toggleLeadInput(accountId, forceChecked = null) {
-    var checkbox = document.getElementById('checkbox_' + accountId);
-    var leadInput = document.getElementById('lead_input_' + accountId);
+  <!-- Assign accounts and leads checkboxes -->
+  <script>
+    function toggleLeadInput(accountId, forceChecked = null) {
+      var checkbox = document.getElementById('checkbox_' + accountId);
+      var leadInput = document.getElementById('lead_input_' + accountId);
 
-    // Set the checkbox state if forceChecked is provided
-    if (forceChecked !== null) {
-      checkbox.checked = forceChecked;
-    }
+      // Set the checkbox state if forceChecked is provided
+      if (forceChecked !== null) {
+        checkbox.checked = forceChecked;
+      }
 
-    // Toggle visibility of the lead input based on the checkbox
-    if (checkbox.checked) {
-      leadInput.classList.remove('hidden');
-    } else {
-      leadInput.classList.add('hidden');
-    }
-  }
-
-  function toggleAllAccounts(selectAllCheckbox) {
-    const checkboxes = document.querySelectorAll('.account-checkbox');
-    const selectAllState = selectAllCheckbox.checked;
-
-    checkboxes.forEach(checkbox => {
-      const accountId = checkbox.value;
-      toggleLeadInput(accountId, selectAllState);
-    });
-  }
-</script>
-
-<!-- Forms transition -->
-<script>
-  document.getElementById('campaign-form').addEventListener('submit', async function (e) {
-    e.preventDefault(); // Prevent form reload for Step 1 only
-
-    const form = e.target;
-    const formData = new FormData(form);
-
-    // Add submit_leads to simulate button name for Step 1
-    formData.append('submit_leads', '1');
-
-    try {
-      const response = await fetch(form.action, {
-        method: 'POST',
-        headers: {
-          'X-Requested-With': 'XMLHttpRequest',
-          'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
-        },
-        body: formData
-      });
-
-      const data = await response.json();
-      console.log('Response Data:', data);
-
-      if (data.status === 'success') {
-        const proceed = confirm(data.message);  // Show confirm box
-
-        if (proceed) {
-            // Hide Step 1 form and show the reset button
-            document.getElementById('campaign-form').classList.add('hidden');
-            document.getElementById('reset-button').classList.remove('hidden');
-
-            // Show Step 2 and scroll to it
-            document.getElementById('step-2-wrapper').classList.remove('hidden');
-            document.getElementById('step-2-wrapper').scrollIntoView({ behavior: 'smooth' });
-        }
-
+      // Toggle visibility of the lead input based on the checkbox
+      if (checkbox.checked) {
+        leadInput.classList.remove('hidden');
       } else {
-        // Show errors
-        if (data.errors) {
-          Object.entries(data.errors).forEach(([field, errorList]) => {
-            alert(`${field}: ${errorList[0][0].message}`);
-          });
-        } else {
-          alert(data.message);
-        }
+        leadInput.classList.add('hidden');
       }
-    } catch (error) {
-      console.error("AJAX error:", error);
-      alert("Something went wrong. Please try again.");
     }
-  });
-</script>
 
-<!-- Select from DB -->
-<script>
-  const openModalBtn = document.getElementById('open-modal-btn');
-  const modal = document.getElementById('selectFromDbModal');
-  const closeModalBtn = document.getElementById('modal-close-btn');
+    function toggleAllAccounts(selectAllCheckbox) {
+      const checkboxes = document.querySelectorAll('.account-checkbox');
+      const selectAllState = selectAllCheckbox.checked;
 
-  // Open modal on button click
-  openModalBtn.addEventListener('click', () => {
-    modal.classList.remove('hidden');
-  });
-
-  // Close modal on close button click
-  closeModalBtn.addEventListener('click', () => {
-    modal.classList.add('hidden');
-  });
-
-  // Close modal on click outside modal content
-  modal.addEventListener('click', (e) => {
-    if (e.target === modal) {
-      modal.classList.add('hidden');
+      checkboxes.forEach(checkbox => {
+        const accountId = checkbox.value;
+        toggleLeadInput(accountId, selectAllState);
+      });
     }
-  });
+  </script>
 
-  // Optional: close modal on ESC key press
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
-      modal.classList.add('hidden');
-    }
-  });
-</script>
+  <!-- Forms transition -->
+  <script>
+    document.getElementById('campaign-form').addEventListener('submit', async function (e) {
+      e.preventDefault(); // Prevent form reload for Step 1 only
 
+      const form = e.target;
+      const formData = new FormData(form);
 
-<script>
-  document.addEventListener('DOMContentLoaded', function () {
-    const form = document.querySelector('form');
-    const datetimeInput = document.querySelector('input[name="schedule_launch_datetime"]');
+      // Add submit_leads to simulate button name for Step 1
+      formData.append('submit_leads', '1');
 
-    if (!form || !datetimeInput) return;
+      try {
+        const response = await fetch(form.action, {
+          method: 'POST',
+          headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+          },
+          body: formData
+        });
 
-    form.addEventListener('submit', function (e) {
-      if (datetimeInput.value) {
-        const localDate = new Date(datetimeInput.value);
-        const utcDateString = localDate.toISOString().slice(0, 16); // format like "2025-08-01T04:26"
-        datetimeInput.value = utcDateString;
+        const data = await response.json();
+        console.log('Response Data:', data);
+
+        if (data.status === 'success') {
+          const proceed = confirm(data.message);  // Show confirm box
+
+          if (proceed) {
+              // Hide Step 1 form and show the reset button
+              document.getElementById('campaign-form').classList.add('hidden');
+              document.getElementById('reset-button').classList.remove('hidden');
+
+              // Show Step 2 and scroll to it
+              document.getElementById('step-2-wrapper').classList.remove('hidden');
+              document.getElementById('step-2-wrapper').scrollIntoView({ behavior: 'smooth' });
+          }
+
+        } else {
+          // Show errors
+          if (data.errors) {
+            Object.entries(data.errors).forEach(([field, errorList]) => {
+              alert(`${field}: ${errorList[0][0].message}`);
+            });
+          } else {
+            alert(data.message);
+          }
+        }
+      } catch (error) {
+        console.error("AJAX error:", error);
+        alert("Something went wrong. Please try again.");
       }
     });
-  });
-</script>
+  </script>
+
+  <!-- Select from DB -->
+  <script>
+    const openModalBtn = document.getElementById('open-modal-btn');
+    const modal = document.getElementById('selectFromDbModal');
+    const closeModalBtn = document.getElementById('modal-close-btn');
+
+    // Open modal on button click
+    openModalBtn.addEventListener('click', () => {
+      modal.classList.remove('hidden');
+    });
+
+    // Close modal on close button click
+    closeModalBtn.addEventListener('click', () => {
+      modal.classList.add('hidden');
+    });
+
+    // Close modal on click outside modal content
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        modal.classList.add('hidden');
+      }
+    });
+
+    // Optional: close modal on ESC key press
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
+        modal.classList.add('hidden');
+      }
+    });
+  </script>
+
+  <!-- Detect local time -->
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      const form = document.querySelector('form');
+      const datetimeInput = document.querySelector('input[name="schedule_launch_datetime"]');
+
+      if (!form || !datetimeInput) return;
+
+      form.addEventListener('submit', function (e) {
+        if (datetimeInput.value) {
+          const localDate = new Date(datetimeInput.value);
+          const utcDateString = localDate.toISOString().slice(0, 16); // format like "2025-08-01T04:26"
+          datetimeInput.value = utcDateString;
+        }
+      });
+    });
+  </script>
+
+  <!-- Tagify Script -->
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const skipMcInput = document.getElementById('skip-mc-numbers-input');
+        new Tagify(skipMcInput, {
+            enforceWhitelist: false,
+            dropdown: {
+                enabled: 0
+            }
+        });
+
+        const cargoClassificationInput = document.getElementById('id_cargo_classification_search');
+        new Tagify(cargoClassificationInput, {
+            enforceWhitelist: false,
+            dropdown: {
+                enabled: 0
+            }
+        });
+
+        const cargoInfoInput = document.getElementById('id_cargo_info_search');
+        new Tagify(cargoInfoInput, {
+            enforceWhitelist: false,
+            dropdown: {
+                enabled: 0
+            }
+        });
+    });
+  </script>
+
 
 
 

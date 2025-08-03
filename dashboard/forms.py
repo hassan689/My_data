@@ -168,6 +168,15 @@ class CampaignForm(forms.Form):
         widget=DateTimePickerInput(),
     )
 
+    skip_mc_numbers = forms.CharField(
+        required=False,
+        label="Skip These MC Numbers",
+        widget=forms.TextInput(attrs={
+            'placeholder': 'Type an MC Number and press enter',
+            'id': 'skip-mc-numbers-input'
+        })
+    )
+
     def __init__(self, *args, **kwargs):
         self.user = kwargs.pop('user', None)  # Get user instance
         super().__init__(*args, **kwargs)
@@ -231,10 +240,6 @@ class CampaignForm(forms.Form):
                 else:
                     cleaned_data['schedule_launch_datetime'] = schedule_launch_datetime
 
-                print("Received:", self.cleaned_data['schedule_launch_datetime'])
-                print("Stored (UTC):", schedule_launch_datetime)
-                print("Displayed (local):", timezone.localtime(schedule_launch_datetime))
-
             except Exception as e:
                 self.add_error('schedule_launch_datetime', f"Invalid date/time: {e}")
 
@@ -264,6 +269,7 @@ class BulkCampaignForm(CampaignForm):
         # Manual validation for delay field
         min_delay = cleaned_data.get('min_delay')
         max_delay = cleaned_data.get('max_delay')
+        schedule_launch_datetime = cleaned_data.get('schedule_launch_datetime')
 
         # Set defaults if left blank
         if min_delay is None:
@@ -278,6 +284,22 @@ class BulkCampaignForm(CampaignForm):
             self.add_error('min_delay', "Lower limit delay must be greater than 0.")
         if max_delay < min_delay:
             self.add_error('max_delay', "Upper limit delay must be greater than lower limit.")
+
+        # Schedule datetime validation
+        if schedule_launch_datetime:
+            try:
+                if timezone.is_naive(schedule_launch_datetime):
+                    schedule_launch_datetime = timezone.make_aware(schedule_launch_datetime, dt_timezone.utc)
+                else:
+                    schedule_launch_datetime = schedule_launch_datetime.astimezone(dt_timezone.utc)
+
+                if schedule_launch_datetime <= timezone.now():
+                    self.add_error('schedule_launch_datetime', "Scheduled time must be in the future.")
+                else:
+                    cleaned_data['schedule_launch_datetime'] = schedule_launch_datetime
+
+            except Exception as e:
+                self.add_error('schedule_launch_datetime', f"Invalid date/time: {e}")
 
         # Bypass account allocation check if 'select_all' is true
         is_select_all = self.data.get('select_all') in ['true', 'on', '1']

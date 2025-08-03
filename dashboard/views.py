@@ -27,6 +27,7 @@ import pandas as pd
 import requests
 import re
 import pytz
+import json
 
 ######################################## Campaign sending views
 
@@ -96,10 +97,20 @@ def get_leads_from_db(starting_mc_number=None, targets_count=None,
                       lower_limit_mc_number=None, upper_limit_mc_number=None,  # <-- Added support for range
                       power_units_comparison=None, power_units_value=None,
                       drivers_comparison=None, drivers_value=None,
-                      status=None, carrier_operation=None,
+                      status=None, carrier_operation=None, skip_mc_numbers=None,
                       cargo_classification_search_term=None, cargo_info_search_term=None):
     try:
         queryset = Lead.objects.all()
+
+        if skip_mc_numbers:
+            # Check if the input is a JSON string and parse it
+            if isinstance(skip_mc_numbers, str) and skip_mc_numbers.startswith('['):
+                skip_mc_numbers = json.loads(skip_mc_numbers)
+            
+            # Now, format the list to get just the values
+            skip_mc_numbers_formatted = [item['value'] for item in skip_mc_numbers]
+            skip_mc_numbers_formatted = [f"MC {mc}" if not str(mc).startswith("MC") else mc for mc in skip_mc_numbers_formatted]
+            queryset = queryset.exclude(mc_number__in=skip_mc_numbers_formatted)
 
         # Apply numerical cleaning
         queryset = queryset.filter(
@@ -124,21 +135,81 @@ def get_leads_from_db(starting_mc_number=None, targets_count=None,
         if carrier_operation and not carrier_operation == '':
             filters &= Q(carrier_operation=carrier_operation)
 
+        # if cargo_classification_search_term:
+        #     search_term_lower = cargo_classification_search_term.lower()
+        #     queryset = queryset.filter(
+        #         Q(cargo_classifications__isnull=False) & ~Q(cargo_classifications='')
+        #     ).annotate(
+        #         cargo_class_similarity=TrigramSimilarity(Lower('cargo_classifications'), search_term_lower)
+        #     ).filter(cargo_class_similarity__gt=0.3)
+
+        # if cargo_info_search_term:
+        #     search_term_lower = cargo_info_search_term.lower()
+        #     queryset = queryset.filter(
+        #         Q(cargo_info__isnull=False) & ~Q(cargo_info='')
+        #     ).annotate(
+        #         cargo_info_similarity=TrigramSimilarity(Lower('cargo_info'), search_term_lower)
+            # ).filter(cargo_info_similarity__gt=0.3)
+
+        # --- START OF NEW TAGIFY LOGIC FOR CARGO CLASSIFICATION ---
+        cargo_classification_list = []
         if cargo_classification_search_term:
-            search_term_lower = cargo_classification_search_term.lower()
+            # Parse the JSON from Tagify if it's a string
+            if isinstance(cargo_classification_search_term, str) and cargo_classification_search_term.startswith('['):
+                try:
+                    parsed_list = json.loads(cargo_classification_search_term)
+                    cargo_classification_list = [item['value'] for item in parsed_list]
+                except json.JSONDecodeError:
+                    # Fallback to single string if parsing fails
+                    cargo_classification_list = [cargo_classification_search_term]
+            elif isinstance(cargo_classification_search_term, list):
+                # If it's already a list (from a previous form cleaning step)
+                cargo_classification_list = cargo_classification_search_term
+            else:
+                # Treat as a single string
+                cargo_classification_list = [cargo_classification_search_term]
+
+        if cargo_classification_list:
+            cargo_classification_filters = Q()
+            for term in cargo_classification_list:
+                term_lower = term.lower()
+                cargo_classification_filters |= Q(
+                    cargo_classifications__icontains=term_lower
+                )
             queryset = queryset.filter(
                 Q(cargo_classifications__isnull=False) & ~Q(cargo_classifications='')
-            ).annotate(
-                cargo_class_similarity=TrigramSimilarity(Lower('cargo_classifications'), search_term_lower)
-            ).filter(cargo_class_similarity__gt=0.3)
+            ).filter(cargo_classification_filters)
+        # --- END OF NEW TAGIFY LOGIC ---
 
+        # --- START OF NEW TAGIFY LOGIC FOR CARGO INFO ---
+        cargo_info_list = []
         if cargo_info_search_term:
-            search_term_lower = cargo_info_search_term.lower()
+            # Parse the JSON from Tagify if it's a string
+            if isinstance(cargo_info_search_term, str) and cargo_info_search_term.startswith('['):
+                try:
+                    parsed_list = json.loads(cargo_info_search_term)
+                    cargo_info_list = [item['value'] for item in parsed_list]
+                except json.JSONDecodeError:
+                    # Fallback to single string if parsing fails
+                    cargo_info_list = [cargo_info_search_term]
+            elif isinstance(cargo_info_search_term, list):
+                # If it's already a list (from a previous form cleaning step)
+                cargo_info_list = cargo_info_search_term
+            else:
+                # Treat as a single string
+                cargo_info_list = [cargo_info_search_term]
+
+        if cargo_info_list:
+            cargo_info_filters = Q()
+            for term in cargo_info_list:
+                term_lower = term.lower()
+                cargo_info_filters |= Q(
+                    cargo_info__icontains=term_lower
+                )
             queryset = queryset.filter(
                 Q(cargo_info__isnull=False) & ~Q(cargo_info='')
-            ).annotate(
-                cargo_info_similarity=TrigramSimilarity(Lower('cargo_info'), search_term_lower)
-            ).filter(cargo_info_similarity__gt=0.3)
+            ).filter(cargo_info_filters)
+        # --- END OF NEW TAGIFY LOGIC ---
 
         if power_units_comparison and power_units_value is not None:
             filters &= Q(power_units_int__isnull=False)
@@ -293,6 +364,7 @@ def campaign(request, email_account_id):
             min_delay = form.cleaned_data.get('min_delay')
             max_delay = form.cleaned_data.get('max_delay')
             scheduled_launch_datetime = form.cleaned_data.get('schedule_launch_datetime')
+            skip_mc_numbers = form.cleaned_data.get("skip_mc_numbers")
 
             power_units_comparison = form.cleaned_data.get('power_units_comparison')
             power_units_value = form.cleaned_data.get('power_units_value')
@@ -318,7 +390,7 @@ def campaign(request, email_account_id):
                     mc_number, targets_count, lower_limit_mc_number, upper_limit_mc_number,
                     power_units_comparison=power_units_comparison, power_units_value=power_units_value,
                     drivers_comparison=drivers_comparison, drivers_value=drivers_value,
-                    status=status, carrier_operation=carrier_operation,
+                    status=status, carrier_operation=carrier_operation, skip_mc_numbers=skip_mc_numbers,
                     cargo_classification_search_term=cargo_classification_search, cargo_info_search_term=cargo_info_search
                 )
                 lead_source = 'DB'
@@ -485,6 +557,7 @@ def bulk_campaign(request):
             lower_limit_mc_number = form.cleaned_data['lower_limit_mc_number']
             upper_limit_mc_number = form.cleaned_data['upper_limit_mc_number']
             targets_count = form.cleaned_data['targets_count']
+            skip_mc_numbers = form.cleaned_data.get("skip_mc_numbers")
 
             # Extra filters from the form
             power_units_comparison = form.cleaned_data.get('power_units_comparison')
@@ -506,7 +579,7 @@ def bulk_campaign(request):
                     mc_number, targets_count, lower_limit_mc_number, upper_limit_mc_number,
                     power_units_comparison=power_units_comparison, power_units_value=power_units_value, 
                     drivers_comparison=drivers_comparison, drivers_value=drivers_value,
-                    status=status, carrier_operation=carrier_operation,
+                    status=status, carrier_operation=carrier_operation, skip_mc_numbers=skip_mc_numbers,
                     cargo_classification_search_term=cargo_classification_search, cargo_info_search_term=cargo_info_search
                 )
 
