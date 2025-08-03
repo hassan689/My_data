@@ -6,6 +6,7 @@ from growth_skool.celery import app
 from django.core.mail import send_mail
 from django.conf import settings
 from datetime import timedelta
+from django.utils.timezone import get_current_timezone, make_aware
 
 
 @app.task(name="subscriptions.tasks.expire_subscriptions.expire_subscriptions")
@@ -46,17 +47,17 @@ The Dispatch Skool Team
 
 @app.task(name="subscriptions.tasks.update_current_month_revenue.update_current_month_revenue")
 def update_current_month_revenue():
-    current_time = now()
+    
+    tz = get_current_timezone()
+    current_time = now().astimezone(tz)
     year, month = current_time.year, current_time.month
 
-    # First day of this month (UTC aware)
-    month_start = current_time.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    month_start = make_aware(datetime(year, month, 1), timezone=tz)
 
-    # First day of next month
     if month == 12:
-        next_month_start = datetime(year + 1, 1, 1, tzinfo=current_time.tzinfo)
+        next_month_start = make_aware(datetime(year + 1, 1, 1), timezone=tz)
     else:
-        next_month_start = datetime(year, month + 1, 1, tzinfo=current_time.tzinfo)
+        next_month_start = make_aware(datetime(year, month + 1, 1), timezone=tz)
 
     # Fetch subscriptions created this month with valid payment
     subs = Subscription.objects.filter(

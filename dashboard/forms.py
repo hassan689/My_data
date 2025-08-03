@@ -1,9 +1,9 @@
 from django import forms
+from django.utils import timezone
 from users.models import EmailAccount
 from django_ckeditor_5.widgets import CKEditor5Widget
 from django.forms.widgets import DateTimeInput
-from django.utils import timezone # Import timezone
-import pytz
+from datetime import timezone as dt_timezone
 # from ckeditor_uploader.widgets import CKEditorUploadingWidget 
 
 class EmailAccountForm(forms.ModelForm):
@@ -177,6 +177,7 @@ class CampaignForm(forms.Form):
 
     def clean(self):
         cleaned_data = super().clean()
+
         file_upload = cleaned_data.get('file_upload')
         lower_limit_mc_number = cleaned_data.get('lower_limit_mc_number')
         upper_limit_mc_number = cleaned_data.get('upper_limit_mc_number')
@@ -196,50 +197,49 @@ class CampaignForm(forms.Form):
         if targets_count is not None and targets_count < 1:
             self.add_error('targets_count', "Targets count cannot be less than 1.")
 
-        # Set defaults if left blank
         if min_delay is None:
             min_delay = 30
             cleaned_data['min_delay'] = min_delay
+
         if max_delay is None:
             max_delay = 60
             cleaned_data['max_delay'] = max_delay
 
-        # Validation rules
+        # Delay validation
         if min_delay < 0:
             self.add_error('min_delay', "Lower limit delay must be greater than 0.")
+
         if max_delay < min_delay:
             self.add_error('max_delay', "Upper limit delay must be greater than lower limit.")
-        if lower_limit_mc_number is not None and upper_limit_mc_number is not None and lower_limit_mc_number > upper_limit_mc_number:
-            self.add_error('upper_limit_mc_number', "Upper limit MC Number must be greater than the lower limit.")
-            # Changed 'max_delay' to 'upper_limit_mc_number' for the error field
 
+        # MC number range validation
+        if lower_limit_mc_number is not None and upper_limit_mc_number is not None:
+            if lower_limit_mc_number > upper_limit_mc_number:
+                self.add_error('upper_limit_mc_number', "Upper limit MC Number must be greater than the lower limit.")
 
+        # Schedule datetime validation
         if schedule_launch_datetime:
-            pst_tz = pytz.timezone('Asia/Karachi')
             try:
-                # Make datetime naive first if it's already aware and not UTC
-                if timezone.is_aware(schedule_launch_datetime) and schedule_launch_datetime.tzinfo != pytz.utc:
-                    schedule_launch_datetime = timezone.make_naive(schedule_launch_datetime, timezone.get_current_timezone())
-                elif not timezone.is_aware(schedule_launch_datetime): # If naive, assume it's in local timezone for conversion
-                    # Localize naive datetime to the current timezone before converting to PST
-                    schedule_launch_datetime = timezone.make_aware(schedule_launch_datetime, timezone.get_current_timezone())
-
-
-                localized_pst_dt = pst_tz.localize(schedule_launch_datetime, is_dst=None)
-
-                # Convert to UTC for storage
-                # CRITICAL FIX: Use pytz.utc instead of timezone.utc
-                scheduled_launch_datetime_utc = localized_pst_dt.astimezone(pytz.utc) #
-
-                if scheduled_launch_datetime_utc <= timezone.now():
-                    self.add_error('schedule_launch_datetime', "Scheduled launch time must be in the future.")
+                if timezone.is_naive(schedule_launch_datetime):
+                    schedule_launch_datetime = timezone.make_aware(schedule_launch_datetime, dt_timezone.utc)
                 else:
-                    cleaned_data['schedule_launch_datetime'] = scheduled_launch_datetime_utc
+                    schedule_launch_datetime = schedule_launch_datetime.astimezone(dt_timezone.utc)
+
+
+                if schedule_launch_datetime <= timezone.now():
+                    self.add_error('schedule_launch_datetime', "Scheduled time must be in the future.")
+                else:
+                    cleaned_data['schedule_launch_datetime'] = schedule_launch_datetime
+
+                print("Received:", self.cleaned_data['schedule_launch_datetime'])
+                print("Stored (UTC):", schedule_launch_datetime)
+                print("Displayed (local):", timezone.localtime(schedule_launch_datetime))
 
             except Exception as e:
-                self.add_error('schedule_launch_datetime', f"Invalid date/time format or timezone conversion error: {e}")
+                self.add_error('schedule_launch_datetime', f"Invalid date/time: {e}")
 
         return cleaned_data
+
 
 
 class BulkCampaignForm(CampaignForm):

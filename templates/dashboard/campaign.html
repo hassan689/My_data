@@ -352,8 +352,8 @@
 						Schedule Campaign
 					</h2>
 					<p class="text-gray-500 text-base my-5">
-						<span class="font-bold">Optional: </span>Select a <span class="font-bold"> future date and time (Pakistan Standard Time) </span>to launch this campaign.
-					</p>
+            <span class="font-bold">Optional: </span>Select a <span class="font-bold">future date and time (your local time)</span> to launch this campaign.
+          </p>
 				</section>
 
         <div class="container mx-auto px-4 max-w-2xl mb-20">
@@ -707,6 +707,24 @@
       }
     });
   </script>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      const form = document.querySelector('form');
+      const datetimeInput = document.querySelector('input[name="schedule_launch_datetime"]');
+
+      if (!form || !datetimeInput) return;
+
+      form.addEventListener('submit', function (e) {
+        if (datetimeInput.value) {
+          const localDate = new Date(datetimeInput.value);
+          const utcDateString = localDate.toISOString().slice(0, 16); // format like "2025-08-01T04:26"
+          datetimeInput.value = utcDateString;
+        }
+      });
+    });
+</script>
+
 
 
 </div>
