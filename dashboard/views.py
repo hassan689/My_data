@@ -1,7 +1,8 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
-from django.http import JsonResponse
-from django.views.decorators.http import require_http_methods
+from django.http import JsonResponse, HttpResponse
+from django.views.decorators.http import require_http_methods, require_safe
+from django.core.paginator import Paginator
 
 from users.models import EmailAccount
 from leads_data.models import Lead, DailySheet
@@ -9,8 +10,7 @@ from .models import GmailToken, CampaignRecord
 from .forms import EmailAccountForm, CampaignForm, BulkCampaignForm
 from .tasks import send_emails_chunk_celery_task, send_account_attach_notif_email
 from django.db.models import Q, F, Value, IntegerField, OuterRef, Subquery, Prefetch
-from django.db.models.functions import Cast, Replace, Lower, Coalesce
-from django.contrib.postgres.search import TrigramSimilarity
+from django.db.models.functions import Cast, Replace, Coalesce
 
 from django.contrib import messages
 from django.core.exceptions import ValidationError
@@ -365,6 +365,7 @@ def campaign(request, email_account_id):
             max_delay = form.cleaned_data.get('max_delay')
             scheduled_launch_datetime = form.cleaned_data.get('schedule_launch_datetime')
             skip_mc_numbers = form.cleaned_data.get("skip_mc_numbers")
+            track_campaign = form.cleaned_data.get('track_campaign')
 
             power_units_comparison = form.cleaned_data.get('power_units_comparison')
             power_units_value = form.cleaned_data.get('power_units_value')
@@ -453,7 +454,8 @@ def campaign(request, email_account_id):
                     total_recipients = len(leads),
                     sent_count = 0,
                     status = 'pending',
-                    lead_source = 'Excel' if file_upload else 'DB'
+                    lead_source = 'Excel' if file_upload else 'DB',
+                    track_campaign = track_campaign
                 )
                 pst_tz = pytz.timezone('Asia/Karachi')
                 scheduled_time_pst = scheduled_launch_datetime.astimezone(pst_tz)
@@ -481,12 +483,13 @@ def campaign(request, email_account_id):
                     total_recipients = len(leads),
                     sent_count = 0,
                     status = 'processing',
-                    lead_source =  'Excel' if file_upload else 'DB'
+                    lead_source =  'Excel' if file_upload else 'DB',
+                    track_campaign = track_campaign
                 )
 
                 # Immediate send
                 print(f"📤 Queuing email campaign to {len(leads)} leads for {email_account.email_address}")
-                send_emails_chunk_celery_task.delay(email_account.id, leads, email_subject, email_body, min_delay, max_delay, campaign_record_id=new_camp.id)
+                send_emails_chunk_celery_task.delay(email_account.id, leads, email_subject, email_body, min_delay, max_delay, new_camp.id)
                 email_account.last_used_at = now()
                 email_account.save(update_fields=["last_used_at"])
 
@@ -638,6 +641,7 @@ def bulk_campaign(request):
             max_delay = form.cleaned_data.get('max_delay')
             scheduled_launch_datetime = form.cleaned_data.get('schedule_launch_datetime')
             lead_source = cached_data.get('lead_source')
+            track_campaign = form.cleaned_data.get('track_campaign')
 
             selected_account_ids = request.POST.getlist('selected_accounts')
             account_lead_map = {}
@@ -726,7 +730,8 @@ def bulk_campaign(request):
                                 total_recipients=len(assigned_leads),
                                 sent_count=0,
                                 status='pending',
-                                lead_source=lead_source
+                                lead_source=lead_source,
+                                track_campaign=track_campaign
                             )
                             scheduled_campaign_count += 1
                             print(f"Scheduled bulk campaign for {account.email_address} with {len(assigned_leads)} leads.")
@@ -745,10 +750,11 @@ def bulk_campaign(request):
                                 total_recipients = len(assigned_leads),
                                 sent_count = 0,
                                 status = 'processing',
-                                lead_source =  lead_source
+                                lead_source =  lead_source,
+                                track_campaign=track_campaign
                             )
 
-                            send_emails_chunk_celery_task.delay(account.id, assigned_leads, email_subject, email_body, min_delay, max_delay, campaign_record_id=new_camp.id)
+                            send_emails_chunk_celery_task.delay(account.id, assigned_leads, email_subject, email_body, min_delay, max_delay, new_camp.id)
                             immediate_campaign_count += 1
                             account.last_used_at = now()
                             account.save(update_fields=["last_used_at"])
@@ -796,8 +802,60 @@ def bulk_campaign(request):
     })
 
 
+@require_safe # Ensures the view only responds to GET requests
+def track_open(request, campaign_id):
+    """
+    View to track email open events.
+    """
+    try:
+        campaign = CampaignRecord.objects.get(id=campaign_id)
+        campaign.open_rate = F('open_rate') + 1
+        campaign.save(update_fields=['open_rate'])
+        print(f"Tracking pixel hit for campaign {campaign_id}. Open rate updated.")
+    except CampaignRecord.DoesNotExist:
+        # Silently fail if the campaign doesn't exist to avoid errors for the user
+        pass
+    
+    # Return a 1x1 transparent GIF to the client
+    response = HttpResponse(
+        b'GIF89a\x01\x00\x01\x00\x80\x00\x00\xff\xff\xff\x00\x00\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;',
+        content_type='image/gif'
+    )
+    return response
+
 
 ######################################## Email accounts creation and dashboard views
+
+
+@login_required
+def campaign_records(request):
+    
+    # Filter campaigns for the current user with a 'launched' status
+    campaign_list = CampaignRecord.objects.filter(
+        launched_by=request.user,
+        status='launched'
+        # track_campaign=True
+    ).order_by('-launch_time')
+    
+    # Paginate the results, 50 records per page
+    paginator = Paginator(campaign_list, 20)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    
+    context = {
+        'page_obj': page_obj
+    }
+    
+    return render(request, 'dashboard/campaign_records.html', context)
+
+
+@login_required
+def delete_campaign(request, cmpn_id):
+    
+    campaign = get_object_or_404(CampaignRecord, id=cmpn_id, launched_by=request.user)
+    campaign.delete()
+    return redirect("dashboard:campaign_records")
+
 
 @login_required
 def index(request):

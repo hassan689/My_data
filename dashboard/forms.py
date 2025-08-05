@@ -177,6 +177,12 @@ class CampaignForm(forms.Form):
         })
     )
 
+    track_campaign = forms.BooleanField(
+        required=False, 
+        label="Track Email Opens",
+        widget=forms.CheckboxInput()
+    )
+
     def __init__(self, *args, **kwargs):
         self.user = kwargs.pop('user', None)  # Get user instance
         super().__init__(*args, **kwargs)

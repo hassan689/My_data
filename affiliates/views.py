@@ -13,7 +13,7 @@ def affiliate_dshbrd(request, aff_name, aff_id):
     
     affiliate = get_object_or_404(Affiliate, id=aff_id, name=aff_name)
 
-    if request.user != affiliate.user:
+    if not (request.user == affiliate.user or request.user.is_superuser):
         return HttpResponse("You are not authorized to view this dashboard.")
     
     referred_users_raw = affiliate.referred_users.all().order_by("-date_joined")

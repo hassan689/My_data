@@ -72,6 +72,9 @@ class CampaignRecord(models.Model):
     max_delay = models.IntegerField(default=0, null=True, blank=True)
     scheduled_launch_time = models.DateTimeField(null=True, blank=True) # When the campaign is set to launch
 
+    track_campaign = models.BooleanField(default=False)
+    open_rate = models.IntegerField(default=0)
+
     CAMPAIGN_STATUS_CHOICES = [
         ('pending', 'Pending'), # schduled for later
         ('launched', 'Launched'), # campaign finnished

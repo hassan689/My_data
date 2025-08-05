@@ -12,7 +12,8 @@ import uuid
 from django.conf import settings
 from django_celery_results.models import TaskResult
 from django.utils.timezone import now, timedelta
-
+from django.urls import reverse
+from urllib.parse import urljoin
 
 email_regex = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
 
@@ -122,7 +123,16 @@ def send_emails_chunk_celery_task(email_account_id, leads, subject, body, min_de
             message_id = make_msgid(idstring=uuid.uuid4().hex, domain='dispatchskool.com')
 
             delay = random.randint(min_delay, max_delay)
-            time.sleep(delay) 
+            time.sleep(delay)
+
+            if campaign.track_campaign:
+                pixel_url = reverse('dashboard:track_open', kwargs={'campaign_id': campaign.id})
+                pixel_link = urljoin(settings.BASE_URL, pixel_url)
+
+                tracking_pixel = f'<img src="{pixel_link}" width="1" height="1" style="display:none;" alt="">'
+                personalized_body += tracking_pixel
+
+                print("\nTracking campaign\n")
 
             try:
                 msg = EmailMultiAlternatives(
@@ -206,7 +216,7 @@ def send_emails_chunk_celery_task(email_account_id, leads, subject, body, min_de
                     # Stop processing this chunk for the current email_account
                     break # This will break the loop and halt the campaign, freeing the celry worker
 
-                elif "timeout exceeded" in str(error_message).lower() or "timed out" in str(error_message).lower():
+                elif "timeout exceeded" in str(error_message).lower() or "timed out" in str(error_message).lower() or "Connection unexpectedly closed" in str(error_message).lower():
                     
                     try:
                         connection.close()
@@ -285,7 +295,7 @@ def launch_scheduled_campaign_checker():
                 campaign_record.body,
                 campaign_record.min_delay,
                 campaign_record.max_delay,
-                campaign_record_id=campaign_record.id
+                campaign_record.id
             )
             print(f"Triggered send_emails_chunk_celery_task for CampaignRecord {campaign_record.id}.")
 
@@ -354,6 +364,7 @@ def send_account_attach_notif_email(email_account_id, user_id):
             body = (
                 f"Hello {user.first_name},\n\n"
                 f"This is to notify you that your email account {email_account.email_address} "
+                f"\nError during email attach: {e} \n"
                 "could not be configured with Dispatch Skool. This is likely due to incorrect credentials entered. Please refer to the provided instructions on the add account page and try 'updating' the account you were trying to attach.\n\n"
                 "In case of any problems, feel free to reach out.\n\n"
                 "Best Regards,\nThe Dispatch Skool Team."

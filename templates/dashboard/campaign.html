@@ -456,12 +456,26 @@
 
 
 							<div class="mt-4">
-								<label class="block text-sm font-medium text-gray-700">Email Subject</label>
-								{{ form.email_subject|add_class:"mt-1 w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none" }}
-								{% if form.email_subject.errors %}
-										<div class="bg-red-200 p-5 my-3 rounded-xl border-2 border-solid border-red-700"><p class="text-red-700 text-sm">{{ form.email_subject.errors.0 }}</p></div>
-								{% endif %}
-							</div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Email Subject</label>
+                
+                <div class="flex items-center gap-4">
+                  {{ form.email_subject|add_class:"w-2/3 p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none" }}
+
+                  <div class="flex items-center space-x-2">
+                    {{ form.track_campaign|add_class:"sr-only toggle-input" }}
+                    
+                    <label for="{{ form.track_campaign.id_for_label }}" class="toggle-label"></label>
+                    <span class="text-base text-gray-900">Track Open Rate</span>
+                    <span class="ml-2 text-xs font-semibold bg-green-100 text-green-800 px-2 py-0.5 rounded-full">New</span>
+                  </div>
+                </div>
+
+                {% if form.email_subject.errors %}
+                  <div class="bg-red-200 p-5 my-3 rounded-xl border-2 border-solid border-red-700">
+                    <p class="text-red-700 text-sm">{{ form.email_subject.errors.0 }}</p>
+                  </div>
+                {% endif %}
+              </div>
 
 							<div class="mt-4">
 								<label class="block text-sm font-medium text-gray-700">Email Body</label>

@@ -18,3 +18,9 @@ def add_attr(field, css):
         attrs[key] = value
 
     return field.as_widget(attrs=attrs)
+
+
+@register.filter
+def has_attr(obj, attr_name):
+    return hasattr(obj, attr_name)
+
