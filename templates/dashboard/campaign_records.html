@@ -8,12 +8,12 @@
 
 <div class="p-4 sm:ml-72">
 
-  <div class="text-center max-w-4xl mx-auto px-4 pt-16 pb-5">
+  <div class="text-center max-w-4xl mx-auto px-4 pt-16 pb-5 text-primary">
       <h2 class="text-3xl md:text-4xl font-bold">Your Past Campaigns, <span class="text-blue-600 font-bold">All in One Place</span></h2>
 			<div class="overflow-auto max-w-full">
 				{% if not page_obj %}
 				<div class="text-center mx-auto max-w-4xl p-5">
-					<p class="text-gray-500 text-lg md:text-xl">
+					<p class="text-tertiary text-lg md:text-xl">
 						Welcome! It looks like you haven't launched any campaigns yet. Get started by launching your first campaign to see how they're performing!
 					</p>
 				</div>
@@ -23,11 +23,11 @@
 
 	<div class="flex flex-col md:flex-row gap-6">
 		<!-- Email Campaigns Table -->
-		<div class="flex-1 p-6 bg-white shadow-md rounded-lg">
+		<div class="flex-1 p-6 bg-primary shadow-md rounded-lg">
 			
-				<table class="w-full min-w-[600px] border-collapse overflow-x-auto">
+				<table class="w-full min-w-[600px] border-collapse overflow-x-auto text-primary">
 					<thead>
-							<tr class="bg-gray-200">
+							<tr class="bg-tertiary">
 									<th class="text-left p-3">Email Account</th>
 									<th class="text-left p-3">Subject Line</th>
 									<th class="text-left p-3">Launch Date & Time</th>
@@ -37,7 +37,7 @@
 					</thead>
 					<tbody>
 						{% for campaign in page_obj %}
-						<tr class="border-b hover:bg-gray-100">
+						<tr class="border-b bg-hover-light">
 								<td class="p-3">{{ campaign.sender_account.email_address }}</td>
 								<td class="p-3">{{ campaign.subject }}</td>
 								<td class="p-3">{{ campaign.launch_time }}</td>
@@ -53,12 +53,10 @@
 					</tbody>
 
 					<tfoot>
-						<tr class="border-t bg-gray-50">
-								<td colspan="5" class="p-3 text-gray-700 font-bold">Total Campaign Records: {{ page_obj|length }}</td>
+						<tr class="border-t bg-tertiary">
+								<td colspan="5" class="p-3 text-secondary font-bold">Total Campaign Records: {{ page_obj|length }}</td>
 						</tr>
 					</tfoot>
-				
-				
 				</table>
 				
 			</div>

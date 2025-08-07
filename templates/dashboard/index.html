@@ -8,10 +8,10 @@
 <div class="p-4 sm:ml-72">
 
   <div class="text-left px-4 md:px-2 pt-16 pb-5">
-    <h2 class="text-3xl md:text-4xl font-bold">
+    <h2 class="text-3xl md:text-4xl font-bold text-primary">
       Dashboard
     </h2>
-    <p class="text-gray-500 text-lg md:text-xl my-5">
+    <p class="text-tertiary text-lg md:text-xl my-5">
         Welcome {{ request.user.first_name }} {{ request.user.last_name }}
     </p>
     {% if request.user.subscription.status != "active" %}
@@ -46,11 +46,11 @@
 
 	<div class="flex flex-col md:flex-row gap-6">
 		<!-- Email Campaigns Table -->
-		<div class="flex-1 p-6 bg-white shadow-md rounded-lg">
+		<div class="flex-1 p-6 bg-primary shadow-md rounded-lg">
 			<div class="flex flex-col md:flex-row md:justify-between md:items-center gap-3 mb-5 text-center">
-        <h2 class="text-3xl font-semibold">Email Accounts</h2>
+        <h2 class="text-3xl font-semibold text-primary">Email Accounts</h2>
         <div class="flex flex-col md:flex-row gap-3 font-semibold text-lg md:text-base">
-          <a href="{% url 'dashboard:email_account' %}" class="bg-gray-800 hover:bg-gray-900 text-white px-4 py-2 rounded-lg flex items-center justify-center">
+          <a href="{% url 'dashboard:email_account' %}" class="btn-bg-hover btn-bg-primary btn-text px-4 py-2 rounded-lg flex items-center justify-center">
             📩 New Account
           </a>
           <a href="{% url 'dashboard:bulk_campaign' %}" class="bg-violet-600 text-white hover:bg-violet-700 px-4 py-2 rounded-lg flex items-center justify-center">
@@ -61,14 +61,14 @@
 			<div class="overflow-auto max-w-full">
 				{% if not email_accounts %}
 				<div class="text-center max-w-4xl p-5">
-					<p class="text-gray-500 text-lg mt-6">
+					<p class="text-tertiary text-lg mt-6">
 						Welcome! It looks like you haven't registered any accounts yet. Get started by adding your first account to unlock all features!
 					</p>
 				</div>
 				{% endif %}
-				<table class="w-full min-w-[600px] border-collapse overflow-x-auto">
+				<table class="w-full min-w-[600px] border-collapse overflow-x-auto text-primary">
 					<thead>
-							<tr class="bg-gray-200">
+							<tr class="bg-secondary">
 									<th class="text-left p-3">Email Account</th>
 									<th class="text-left p-3">Actions</th>
 									<th class="text-left p-3">Campaign Status</th>
@@ -77,7 +77,7 @@
 					</thead>
 					<tbody>
 						{% for account in email_accounts %}
-						<tr class="border-b hover:bg-gray-100">
+						<tr class="border-b bg-hover-light">
 								<!-- Email -->
 								<td class="p-3">{{ account.email_address }}</td>
                 
@@ -148,7 +148,7 @@
                   {% if account.latest_campaign %}
                     {% with account.latest_campaign.sent_count as sent %}
                       {% with account.latest_campaign.total_recipients as total %}
-                        <div class="w-full bg-gray-200 rounded-full h-5">
+                        <div class="w-full bg-tertiary rounded-full h-5">
                           {% if total > 0 %}
                             {% widthratio sent total 100 as percentage %}
                             <div id="sent-count-box-{{ account.id }}"
@@ -167,15 +167,15 @@
                       {% endwith %}
                     {% endwith %}
                   {% else %}
-                    <span class="text-sm text-gray-500">N/A</span>
+                    <span class="text-sm text-tertiary">N/A</span>
                   {% endif %}
                 </td>
 						</tr>
 						{% endfor %}
 					</tbody>
 					<tfoot>
-						<tr class="border-t bg-gray-50">
-								<td colspan="4" class="p-3 text-gray-700 font-bold">Total Email Accounts: {{ email_accounts|length }}</td>
+						<tr class="bg-secondary">
+								<td colspan="4" class="p-3 text-secondary font-bold">Total Email Accounts: {{ email_accounts|length }}</td>
 						</tr>
 					</tfoot>
 				
@@ -220,7 +220,7 @@
               statusBox.classList.add("bg-red-200", "text-red-800");
               label = "Stopped";
             } else {
-              statusBox.classList.add("bg-gray-200", "text-gray-700");
+              statusBox.classList.add("bg-tertiary", "text-secondary");
               label = "N/A";
             }
 

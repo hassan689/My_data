@@ -7,7 +7,7 @@
 
 {% block 'content' %}
 
-<div class="bg-white pt-20">
+<div class="bg-primary pt-20 text-primary">
 	<section class="flex flex-col items-center text-center px-4 md:px-4 lg:px-5 py-6">
 		{% if messages %}
     {% for message in messages %}
@@ -21,19 +21,19 @@
     {% endfor %}
 		{% endif %}
 
-		<span class="text-md font-medium text-gray-700 bg-slate-200 px-4 py-1 rounded-full">
+		<span class="text-md font-medium text-secondary bg-tertiary px-4 py-1 rounded-full">
 				No Cold Calls, No Sales Agents
 		</span>
-		<h1 class="text-4xl md:text-6xl font-bold text-gray-900 leading-tight mt-4 py-2">
+		<h1 class="text-4xl md:text-6xl font-bold text-primary leading-tight mt-4 py-2">
 				Find Carriers <br class="hidden sm:block">
 				Without Cold Calling <br class="hidden sm:block">
 				Or Sales Agents!
 		</h1>
-		<h2 class="text-4xl md:text-6xl font-bold text-gray-700 mt-2 lg:py-2">
+		<h2 class="text-4xl md:text-6xl font-bold text-tertiary mt-2 lg:py-2">
 				Train & Automate <br class="hidden sm:block">
 				with Dispatch Skool
 		</h2>
-		<p class="text-gray-500 text-xl sm:text-2xl md:text-2xl max-w-2xl mt-4">
+		<p class="text-secondary text-xl sm:text-2xl md:text-2xl max-w-2xl mt-4">
 				Transform your dispatch business with our all-in-one platform.
 				Automate your workflow, find quality carriers, and scale your operations.
 		</p>
@@ -43,20 +43,20 @@
     <div class="container mx-auto px-4 text-center lg:px-20 pb-10">
 			<div class="flex flex-col items-center space-y-4 md:space-y-0 md:flex-row md:space-x-6 justify-center w-full">
 				{% if not request.user.is_authenticated %}
-          <a href="{% url 'users:signup' %}" class="bg-gray-900 hover:bg-gray-800 text-white px-8 py-4 text-lg font-bold lg:text-xl rounded-lg w-full md:w-auto text-center">
+          <a href="{% url 'users:signup' %}" class="btn-bg-primary btn-bg-hover btn-text px-8 py-4 text-lg font-bold lg:text-xl rounded-lg w-full md:w-auto text-center">
               Signup →
           </a>
-          <a href="{% url 'users:login' %}" class="border border-gray-300 hover:bg-gray-900 hover:text-white font-bold px-8 py-4 text-lg lg:text-xl rounded-lg w-full md:w-auto">
+          <a href="{% url 'users:login' %}" class="border border-color hover:btn-bg-primary hover:btn-text font-bold px-8 py-4 text-lg lg:text-xl rounded-lg w-full md:w-auto">
               Login to Dashboard →
           </a>
 				{% else %}
-          <a href="{% url 'dashboard:index' %}" class="bg-gray-900 hover:bg-gray-800 text-white px-8 py-4 text-lg font-bold lg:text-xl rounded-lg w-full md:w-auto text-center">
+          <a href="{% url 'dashboard:index' %}" class="btn-bg-primary btn-bg-hover btn-text px-8 py-4 text-lg font-bold lg:text-xl rounded-lg w-full md:w-auto text-center">
             Dashboard →
           </a>
           {% if request.user.affiliate_profile %}
           <a href="{% url 'affiliates:affiliate_dshbrd' aff_name=request.user.affiliate_profile.name aff_id=request.user.affiliate_profile.id  %}" 
-            class="border border-gray-300 hover:bg-gray-900 hover:text-white font-bold px-8 py-4 text-lg lg:text-xl rounded-lg w-full md:w-auto">
-              <i class="fa-solid fa-users hover:text-white"></i>
+            class="border border-color hover:btn-bg-primary hover:btn-text font-bold px-8 py-4 text-lg lg:text-xl rounded-lg w-full md:w-auto">
+              <i class="fa-solid fa-users hover:btn-text"></i>
               <span class="ms-3">Affiliates →</span>
           </a>
           {% endif %}
@@ -66,19 +66,19 @@
         <div class="grid grid-cols-2 gap-8 text-center mt-12 md:grid-cols-4 px-4 lg:px-20">
             <div>
                 <p class="text-3xl lg:text-4xl font-bold">10,000+</p>
-                <p class="text-gray-500 text-lg lg:text-xl">Active Users</p>
+                <p class="text-tertiary text-lg lg:text-xl">Active Users</p>
             </div>
             <div>
                 <p class="text-3xl lg:text-4xl font-bold">95%</p>
-                <p class="text-gray-500 text-lg lg:text-xl">Success Rate</p>
+                <p class="text-tertiary text-lg lg:text-xl">Success Rate</p>
             </div>
             <div>
                 <p class="text-3xl lg:text-4xl font-bold">50,000+</p>
-                <p class="text-gray-500 text-lg lg:text-xl">Carriers Found</p>
+                <p class="text-tertiary text-lg lg:text-xl">Carriers Found</p>
             </div>
             <div>
                 <p class="text-3xl lg:text-4xl font-bold">90%</p>
-                <p class="text-gray-500 text-lg lg:text-xl">Time Saved</p>
+                <p class="text-tertiary text-lg lg:text-xl">Time Saved</p>
             </div>
         </div>
     </div>
@@ -86,70 +86,70 @@
 
 </div>
 
-<div class="text-center max-w-4xl mx-auto px-4 pt-16 pb-5">
+<div class="text-center max-w-4xl mx-auto px-4 pt-16 pb-5 text-primary">
 	<h2 class="text-3xl md:text-4xl font-bold">
 			Everything You Need to Succeed
 	</h2>
-	<p class="text-gray-500 text-lg md:text-xl mt-5">
+	<p class="text-tertiary text-lg md:text-xl mt-5">
 			Our comprehensive platform provides all the tools and training you need to build a
 			successful dispatch business
 	</p>
 </div>
 
 
-	<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto px-4 pt-16 pb-10">
+	<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto px-4 pt-16 pb-10 text-primary">
         
 		<!-- Carrier Network -->
-		<div class="bg-white p-6 rounded-2xl shadow-md transition-transform duration-300 hover:shadow-lg hover:-translate-y-1 cursor-pointer">
+		<div class="bg-primary p-6 rounded-2xl shadow-md transition-transform duration-300 hover:shadow-lg hover:-translate-y-1 cursor-pointer">
 				<i class="fa-solid fa-truck"></i>
 				<h3 class="font-bold text-lg">Carrier Network</h3>
-				<p class="text-gray-500">Access our extensive network of verified carriers without cold calling</p>
+				<p class="text-tertiary">Access our extensive network of verified carriers without cold calling</p>
 		</div>
 
 		<!-- Nationwide Coverage -->
-		<div class="bg-white p-6 rounded-2xl shadow-md transition-transform duration-300 hover:shadow-lg hover:-translate-y-1 cursor-pointer">
+		<div class="bg-primary p-6 rounded-2xl shadow-md transition-transform duration-300 hover:shadow-lg hover:-translate-y-1 cursor-pointer">
 				<i class="fa-solid fa-globe"></i>
 				<h3 class="font-bold text-lg">Nationwide Coverage</h3>
-				<p class="text-gray-500">Connect with carriers across the whole US</p>
+				<p class="text-tertiary">Connect with carriers across the whole US</p>
 		</div>
 
 		<!-- Time Saving -->
-		<div class="bg-white p-6 rounded-2xl shadow-md transition-transform duration-300 hover:shadow-lg hover:-translate-y-1 cursor-pointer">
+		<div class="bg-primary p-6 rounded-2xl shadow-md transition-transform duration-300 hover:shadow-lg hover:-translate-y-1 cursor-pointer">
 			<i class="fa-solid fa-clock"></i>
 				<h3 class="font-bold text-lg">Time Saving</h3>
-				<p class="text-gray-500">Automate repetitive tasks and focus on growing your business</p>
+				<p class="text-tertiary">Automate repetitive tasks and focus on growing your business</p>
 		</div>
 
 		<!-- Revenue Growth -->
-		<div class="bg-white p-6 rounded-2xl shadow-md transition-transform duration-300 hover:shadow-lg hover:-translate-y-1 cursor-pointer">
+		<div class="bg-primary p-6 rounded-2xl shadow-md transition-transform duration-300 hover:shadow-lg hover:-translate-y-1 cursor-pointer">
 				<i class="fa-solid fa-dollar-sign"></i>
 				<h3 class="font-bold text-lg">Revenue Growth</h3>
-				<p class="text-gray-500">Increase your earnings with efficient dispatching methods</p>
+				<p class="text-tertiary">Increase your earnings with efficient dispatching methods</p>
 		</div>
 
 		<!-- Automation Tools -->
-		<div class="bg-white p-6 rounded-2xl shadow-md transition-transform duration-300 hover:shadow-lg hover:-translate-y-1 cursor-pointer">
+		<div class="bg-primary p-6 rounded-2xl shadow-md transition-transform duration-300 hover:shadow-lg hover:-translate-y-1 cursor-pointer">
 				<i class="fa-solid fa-gear"></i>
 				<h3 class="font-bold text-lg">Automation Tools</h3>
-				<p class="text-gray-500">Streamline your workflow with our powerful automation suite</p>
+				<p class="text-tertiary">Streamline your workflow with our powerful automation suite</p>
 		</div>
 
 		<!-- Expert Training -->
-		<div class="bg-white p-6 rounded-2xl shadow-md transition-transform duration-300 hover:shadow-lg hover:-translate-y-1 cursor-pointer">
+		<div class="bg-primary p-6 rounded-2xl shadow-md transition-transform duration-300 hover:shadow-lg hover:-translate-y-1 cursor-pointer">
 				<i class="fa-solid fa-users"></i>
 				<h3 class="font-bold text-lg">Expert Training</h3>
-				<p class="text-gray-500">Learn from industry experts with proven success records</p>
+				<p class="text-tertiary">Learn from industry experts with proven success records</p>
 		</div>
 
 	</div>
 
-	<div id="how-it-works" class="bg-white py-16 pb-10 px-5">
+	<div id="how-it-works" class="bg-primary py-16 pb-10 px-5 text-primary">
 
 		<div class="text-center max-w-4xl mx-auto px-4 pt-16 pb-5">
 			<h2 class="text-3xl md:text-4xl font-bold">
 				How It Works
 			</h2>
-			<p class="text-gray-500 text-lg md:text-xl mt-5">
+			<p class="text-tertiary text-lg md:text-xl mt-5">
 				Find Carriers as a Dispatcher WITHOUT Cold Calls & Sales Agents
 			</p>
 		</div>
@@ -170,18 +170,18 @@
 	</div>
 
 
-	<div class="text-center max-w-4xl mx-auto px-4 mt-20">
+	<div class="text-center max-w-4xl mx-auto px-4 mt-20 text-primary">
 		<h2 class="text-3xl md:text-4xl font-bold">
 			Success Stories
 		</h2>
-		<p class="text-gray-500 text-lg md:text-xl mt-5">
+		<p class="text-tertiary text-lg md:text-xl mt-5">
 			Join thousands of successful dispatchers who transformed their business with Dispatch Skool
 		</p>
 	</div>
 
-	<div class="flex flex-wrap justify-center gap-6 px-6 py-16">
+	<div class="flex flex-wrap justify-center gap-6 px-6 py-16 text-primary">
     <!-- Testimonial Card 1 -->
-    <div class="max-w-sm bg-white shadow rounded-lg p-6 border">
+    <div class="max-w-sm bg-primary shadow rounded-lg p-6 border">
         <div class="flex items-center mb-2">
             <span class="text-yellow-500 text-xl">⭐</span>
             <span class="text-yellow-500 text-xl">⭐</span>
@@ -189,15 +189,15 @@
             <span class="text-yellow-500 text-xl">⭐</span>
             <span class="text-yellow-500 text-xl">⭐</span>
         </div>
-        <p class="text-gray-700 mb-4">
+        <p class="text-secondary mb-4">
             Dispatch Skool transformed my business. Their no-cold-call method helped me find quality carriers consistently.
         </p>
         <p class="font-bold">Sarah Johnson</p>
-        <p class="text-gray-500 text-sm">Independent Dispatcher</p>
+        <p class="text-tertiary text-sm">Independent Dispatcher</p>
     </div>
 
     <!-- Testimonial Card 2 -->
-    <div class="max-w-sm bg-white shadow rounded-lg p-6 border">
+    <div class="max-w-sm bg-primary shadow rounded-lg p-6 border">
         <div class="flex items-center mb-2">
             <span class="text-yellow-500 text-xl">⭐</span>
             <span class="text-yellow-500 text-xl">⭐</span>
@@ -205,15 +205,15 @@
             <span class="text-yellow-500 text-xl">⭐</span>
             <span class="text-yellow-500 text-xl">⭐</span>
         </div>
-        <p class="text-gray-700 mb-4">
+        <p class="text-secondary mb-4">
             The automation tools saved me countless hours. I've scaled my business 3x since joining Dispatch Skool.
         </p>
         <p class="font-bold">Michael Brown</p>
-        <p class="text-gray-500 text-sm">Dispatch Agency Owner</p>
+        <p class="text-tertiary text-sm">Dispatch Agency Owner</p>
     </div>
 
     <!-- Testimonial Card 3 -->
-    <div class="max-w-sm bg-white shadow rounded-lg p-6 border">
+    <div class="max-w-sm bg-primary shadow rounded-lg p-6 border">
         <div class="flex items-center mb-2">
             <span class="text-yellow-500 text-xl">⭐</span>
             <span class="text-yellow-500 text-xl">⭐</span>
@@ -221,16 +221,16 @@
             <span class="text-yellow-500 text-xl">⭐</span>
             <span class="text-yellow-500 text-xl">⭐</span>
         </div>
-        <p class="text-gray-700 mb-4">
+        <p class="text-secondary mb-4">
             As a beginner, their training was invaluable. I landed my first client within weeks of completing the program.
         </p>
         <p class="font-bold">Lisa Chen</p>
-        <p class="text-gray-500 text-sm">New Dispatcher</p>
+        <p class="text-tertiary text-sm">New Dispatcher</p>
     </div>
 	</div>
 
 
-	<div id="pricing" class="bg-white py-16 px-5">
+	<div id="pricing" class="bg-primary py-16 px-5 text-primary">
 
 		<div class="text-center max-w-4xl mx-auto px-4 mt-20">
 			<h2 class="text-3xl md:text-4xl font-bold">
@@ -240,7 +240,7 @@
 
 		<div class="flex flex-col md:flex-row justify-center gap-8 p-8">
 
-			<div class="relative w-full md:w-1/2 lg:w-1/3 bg-white shadow-lg rounded-2xl p-8 border text-center">
+			<div class="relative w-full md:w-1/2 lg:w-1/3 bg-primary shadow-lg rounded-2xl p-8 border text-center">
 
         <!-- Title -->
         <h2 class="text-2xl font-extrabold">Basic</h2>
@@ -250,7 +250,7 @@
           <span class="text-4xl md:text-5xl font-extrabold text-green-500 -mt-2 z-20">$36/Month</span>
         </div>
 
-        <p class="text-gray-500 text-lg mt-2">Everything you need to scale</p>
+        <p class="text-tertiary text-lg mt-2">Everything you need to scale</p>
 
         <!-- Features -->
         <ul class="text-left my-6 space-y-3 text-lg sm:px-4">
@@ -283,7 +283,7 @@
 
       </div>
 
-      <div class="relative w-full md:w-1/2 lg:w-1/3 bg-white shadow-lg rounded-2xl p-8 border text-center">
+      <div class="relative w-full md:w-1/2 lg:w-1/3 bg-primary shadow-lg rounded-2xl p-8 border text-center">
 
         <!-- Title -->
         <h2 class="text-2xl font-extrabold">Standard</h2>
@@ -293,7 +293,7 @@
           <span class="text-4xl md:text-5xl font-extrabold text-green-500 -mt-2 z-20">$56/Month</span>
         </div>
 
-        <p class="text-gray-500 text-lg mt-2">Everything included in Basic package, plus:</p>
+        <p class="text-tertiary text-lg mt-2">Everything included in Basic package, plus:</p>
 
         <!-- Features -->
         <ul class="text-left my-6 space-y-3 text-lg sm:px-4">
@@ -320,13 +320,13 @@
             <span><i class="fa-brands fa-whatsapp"></i></span> +92 320 1410032
         </a>
         
-        <button class="inline-block text-2xl font-semibold py-3 px-14 mt-5 rounded-xl bg-gray-800 hover:bg-gray-800 text-white">
+        <button class="inline-block text-2xl font-semibold py-3 px-14 mt-5 rounded-xl btn-bg-primary btn-bg-hover btn-text">
           Hot Favourite 🔥
         </button>
 
       </div>
 
-      <div class="relative w-full md:w-1/2 lg:w-1/3 bg-white shadow-lg rounded-2xl p-8 border text-center">
+      <div class="relative w-full md:w-1/2 lg:w-1/3 bg-primary shadow-lg rounded-2xl p-8 border text-center">
 
         <!-- Title -->
         <h2 class="text-2xl font-extrabold">Premium</h2>
@@ -336,7 +336,7 @@
           <span class="text-4xl md:text-5xl font-extrabold text-green-500 -mt-2 z-20">$99/Month</span>
         </div>
 
-        <p class="text-gray-500 text-lg mt-2">Everything included in Standard package, plus:</p>
+        <p class="text-tertiary text-lg mt-2">Everything included in Standard package, plus:</p>
         <p class="text-blue-600 text-xl mt-2">Personalised Coaching for Dispatch Companies directly from <span class="font-bold">M. Ahmad Khalid</span></p>
 
         <!-- Features -->
@@ -356,7 +356,7 @@
         </ul>
 
         
-        <a href="http://www.linkedin.com/in/muhammadahmadkhalid-dispatchskool" target="_blank" rel="noopener noreferrer" class="inline-block text-lg font-semibold py-3 mb-5 px-14 rounded-xl bg-blue-500 hover:bg-blue-600 text-white">
+        <a href="http://www.linkedin.com/in/muhammadahmadkhalid-dispatchskool" target="_blank" rel="noopener noreferrer" class="inline-block text-lg font-semibold py-3 mb-5 px-14 rounded-xl bg-blue-500 hover:bg-blue-600 text-white btn-text">
             <span><i class="fa-brands fa-linkedin"></i></span>&nbsp; M. Ahmad Khalid
         </a>
         <a href="https://wa.me/923201410032" target="_blank" rel="noopener noreferrer" class="inline-block text-lg font-semibold py-3 px-14 rounded-xl bg-green-600 hover:bg-green-700 text-white">
@@ -371,35 +371,35 @@
 
 	</div>
 
-	<div id="contact" class="text-center max-w-4xl mx-auto px-4 pt-20 pb-10">
+	<div id="contact" class="text-center max-w-4xl mx-auto px-4 pt-20 pb-10 text-primary">
 		<h2 class="text-3xl md:text-4xl font-bold">
 			Get In Touch
 		</h2>
-		<p class="text-gray-500 text-lg md:text-xl mt-5">
+		<p class="text-tertiary text-lg md:text-xl mt-5">
 			Have questions? We're here to help you succeed
 		</p>
 	</div>
 
-	<div class="container max-w-5xl mx-auto px-4 py-8">
+	<div class="container max-w-5xl mx-auto px-4 py-8 text-primary">
     <div class="flex flex-col md:flex-row gap-6">
         <!-- Contact Form -->
         <div class="md:w-2/3 w-full">
-					<form method="post" class="bg-white p-6 rounded-lg shadow">
+					<form method="post" class="bg-primary p-6 rounded-lg shadow">
 						{% csrf_token %}
 				
 						<div>
-								{{ form.name|add_class:"w-full p-3 border rounded mb-4 focus:ring focus:ring-gray-200 focus:outline-none" }}
+								{{ form.name|add_class:"w-full p-3 border rounded mb-4 focus:ring focus:ring-gray-200 focus:outline-none bg-secondary" }}
 						</div>
 				
 						<div>
-								{{ form.email|add_class:"w-full p-3 border rounded mb-4 focus:ring focus:ring-gray-200 focus:outline-none" }}
+								{{ form.email|add_class:"w-full p-3 border rounded mb-4 focus:ring focus:ring-gray-200 focus:outline-none bg-secondary" }}
 						</div>
 				
 						<div>
-								{{ form.message|add_class:"w-full p-3 border rounded mb-4 focus:ring focus:ring-gray-200 focus:outline-none" }}
+								{{ form.message|add_class:"w-full p-3 border rounded mb-4 focus:ring focus:ring-gray-200 focus:outline-none bg-secondary" }}
 						</div>
 				
-						<button type="submit" class="w-full bg-gray-900 hover:bg-gray-800 text-white py-3 rounded">
+						<button type="submit" class="w-full btn-bg-primary btn-bg-hover btn-text py-3 rounded">
 								Send Message
 						</button>
 					</form>
@@ -412,19 +412,19 @@
         
         <!-- Contact Information -->
         <div class="md:w-1/3 w-full flex flex-col gap-4">
-            <div class="bg-gray-100 p-6 rounded-lg shadow">
+            <div class="bg-primary p-6 rounded-lg shadow">
                 <h2 class="font-bold text-lg mb-2">Contact Information</h2>
-                <a href="https://wa.me/923201410032" target="_blank" rel="noopener noreferrer" class="flex items-center gap-2 text-green-700 hover:underline">
+                <a href="https://wa.me/923201410032" target="_blank" rel="noopener noreferrer" class="flex items-center gap-2 text-green-700 hover:uline-white">
                     <span><i class="fa-brands fa-whatsapp"></i></span> +92 320 1410032
                 </a>
-                <a href="https://wa.me/923254339279" target="_blank" rel="noopener noreferrer" class="flex items-center gap-2 text-green-700 hover:underline">
+                <a href="https://wa.me/923254339279" target="_blank" rel="noopener noreferrer" class="flex items-center gap-2 text-green-700 hover:uline-white">
                     <span><i class="fa-brands fa-whatsapp"></i></span> +92 325 4339279
                 </a>
             </div>
-            <div class="bg-gray-100 p-6 rounded-lg shadow">
+            <div class="bg-primary p-6 rounded-lg shadow">
                 <h2 class="font-bold text-lg mb-2">Business Hours</h2>
-                <p>Monday - Friday: 10pm - 4am PST</p>
-                <p>Weekend support available via email</p>
+                <p class="text-secondary">Monday - Friday: 5 PM - 2 AM PST</p>
+                <p class="text-secondary">Weekend support available via email</p>
             </div>
         </div>
     </div>

@@ -7,26 +7,26 @@
 
 {% block 'content' %}
 
-<div class="bg-white pt-20">
+<div class="bg-primary pt-20 text-primary">
 		<section class="flex flex-col items-center text-center px-4 md:px-4 lg:px-5 py-6">
-			<span class="text-md font-medium text-gray-700 bg-slate-200 px-4 py-1 rounded-full">
+			<span class="text-md font-medium bg-secondary bg-tertiary px-4 py-1 rounded-full">
 				No Cold Calls, No Sales Agents
 			</span>
-			<h1 class="text-4xl md:text-6xl font-bold text-gray-900 leading-tight mt-4 py-2">
+			<h1 class="text-4xl md:text-6xl font-bold text-primary leading-tight mt-4 py-2">
 				Streamline Your Dispatch Operations
 			</h1>
-			<p class="text-gray-500 text-xl sm:text-2xl md:text-2xl max-w-2xl mt-4">
+			<p class="text-xl sm:text-2xl md:text-2xl max-w-2xl mt-4">
 				Find carriers without cold calling or sales agents. Get started with our intelligent dispatch management platform.
 			</p>
 		</section>
 </div>
 
-<div class="flex items-center justify-center min-h-screen bg-gray-100 my-5">
-  <div class="w-full max-w-2xl bg-white shadow-lg rounded-lg p-6">
+<div class="flex items-center justify-center min-h-screen my-5 text-primary">
+  <div class="w-full max-w-2xl bg-primary shadow-lg rounded-lg p-6">
     
 		<div class="pb-5">
 			<h2 class="text-2xl md:text-3xl font-semibold mt-1 text-center mb-2">Signup Details</h2>
-			<p class="text-gray-500 text-base md:text-xl mb-4 text-center">Please tell us about your dispatch business</p>
+			<p class="text-base md:text-xl mb-4 text-center">Please tell us about your dispatch business</p>
 		</div>
 
 		{% if messages %}
@@ -46,63 +46,63 @@
 			
 			<!-- Row 1 -->
 			<div>
-					<label class="block font-medium text-gray-700">Username *</label>
-					{% render_field form.username class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none" placeholder="Enter your username" %}
+					<label class="block font-medium">Username *</label>
+					{% render_field form.username class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none bg-secondary" placeholder="Enter your username" %}
 			</div>
 			<div>
-					<label class="block font-medium text-gray-700">Email *</label>
-					{% render_field form.email class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none" placeholder="Enter your email" %}
+					<label class="block font-medium">Email *</label>
+					{% render_field form.email class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none bg-secondary" placeholder="Enter your email" %}
 			</div>
 
 			<!-- Row 2 -->
 			<div>
-					<label class="block font-medium text-gray-700">First Name *</label>
-					{% render_field form.first_name class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none" placeholder="Enter your first name" %}
+					<label class="block font-medium">First Name *</label>
+					{% render_field form.first_name class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none bg-secondary" placeholder="Enter your first name" %}
 			</div>
 			<div>
-					<label class="block font-medium text-gray-700">Last Name *</label>
-					{% render_field form.last_name class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none" placeholder="Enter your last name" %}
+					<label class="block font-medium">Last Name *</label>
+					{% render_field form.last_name class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none bg-secondary" placeholder="Enter your last name" %}
 			</div>
 	
 			<!-- Row 3 -->
 			<div>
-					<label class="block font-medium text-gray-700">Password *</label>
-					{% render_field form.password1 class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none" placeholder="Enter password" %}
+					<label class="block font-medium">Password *</label>
+					{% render_field form.password1 class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none bg-secondary" placeholder="Enter password" %}
 			</div>
 			<div>
-					<label class="block font-medium text-gray-700">Confirm Password *</label>
-					{% render_field form.password2 class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none" placeholder="Confirm password" %}
+					<label class="block font-medium">Confirm Password *</label>
+					{% render_field form.password2 class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none bg-secondary" placeholder="Confirm password" %}
 			</div>
 	
 			<!-- Row 4 -->
 			<div>
-					<label class="block font-medium text-gray-700">Company Name *</label>
-					{% render_field form.company_name class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none" placeholder="Your company name" %}
+					<label class="block font-medium">Company Name *</label>
+					{% render_field form.company_name class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none bg-secondary" placeholder="Your company name" %}
 			</div>
 			<div>
-					<label class="block font-medium text-gray-700">Phone Number *</label>
-					{% render_field form.phone_number class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none" placeholder="Your phone number" %}
+					<label class="block font-medium">Phone Number *</label>
+					{% render_field form.phone_number class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none bg-secondary" placeholder="Your phone number" %}
 			</div>
 	
 			<!-- Row 5 -->
 			<div>
-					<label class="block font-medium text-gray-700">Website Link</label>
-					{% render_field form.website_link class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none" placeholder="Company website link" %}
+					<label class="block font-medium">Website Link (Optional)</label>
+					{% render_field form.website_link class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none bg-secondary" placeholder="Company website link" %}
 			</div>
 			<div>
-					<label class="block font-medium text-gray-700">MC Number</label>
-					{% render_field form.mc_number class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none" placeholder="MC Number" %}
+					<label class="block font-medium">MC Number (Optional)</label>
+					{% render_field form.mc_number class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none bg-secondary" placeholder="MC Number" %}
 			</div>
 
       <!-- Row 6 -->
 			<div  class="md:col-span-2">
-					<label class="block font-medium text-gray-700">Please enter a referral code if you have one</label>
-					{% render_field form.referral_code class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none" placeholder="Code123" %}
+					<label class="block font-medium">Please enter a referral code if you have one</label>
+					{% render_field form.referral_code class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none bg-secondary" placeholder="Code123" %}
 			</div>
 	
 			<!-- Submit Button -->
 			<div class="md:col-span-2">
-					<button type="submit" class="w-full bg-gray-900 hover:bg-gray-800 text-white font-medium py-2 rounded-lg">
+					<button type="submit" class="w-full btn-bg-primary btn-bg-hover text-inverted font-medium py-2 rounded-lg">
 							Signup
 					</button>
 			</div>

@@ -13,26 +13,26 @@
 	{% if request.user.subscription.status == "active" %}
 
     <div class="text-center max-w-4xl mx-auto px-4 pt-16 pb-5">
-      <h2 class="text-3xl md:text-4xl font-bold">
+      <h2 class="text-3xl md:text-4xl font-bold text-primary">
         Daily MC Sheets
       </h2>
-      <p class="text-gray-500 text-lg md:text-xl mt-5">
+      <p class="text-tertiary text-lg md:text-xl mt-5">
         You can download the latest FMCSA MC Sheets daily.
         This page stores records of the <strong>up to the past 30 days</strong>. Feel free to access and review any previous sheets whenever you need!
       </p>
     </div>
 
-    <div class="overflow-auto mx-auto p-5 bg-white max-w-6xl mt-5">
+    <div class="overflow-auto mx-auto p-5 bg-primary max-w-6xl mt-5">
       {% if not sheets %}
           <div class="text-center max-w-4xl p-5">
-              <p class="text-gray-500 text-lg mt-6">
+              <p class="text-tertiary text-lg mt-6">
                   No daily sheets uploaded yet. Upload a file to get started!
               </p>
           </div>
       {% else %}
-          <table class="w-full min-w-[600px] border-collapse overflow-x-auto">
+          <table class="w-full min-w-[600px] border-collapse overflow-x-auto text-primary">
               <thead>
-                  <tr class="bg-gray-200">
+                  <tr class="bg-secondary">
                       <th class="text-left p-3">File Name</th>
                       <th class="text-left p-3">Number of Carriers</th>
                       <th class="text-left p-3">Actions</th>
@@ -40,7 +40,7 @@
               </thead>
               <tbody>
                   {% for sheet in sheets %}
-                      <tr class="border-b hover:bg-gray-100">
+                      <tr class="border-b bg-hover-light">
 
                           <!-- File Name -->
                           <td class="p-3">{{ sheet.file.name|cut:"daily_sheets/" }}</td>
@@ -68,20 +68,20 @@
 	{% else %}
 
 		<section class="flex flex-col items-center text-center px-4 md:px-4 lg:px-5 py-6">
-			<span class="text-md font-medium text-gray-700 bg-slate-200 px-4 py-1 rounded-full">
+			<span class="text-md font-medium text-secondary bg-secondary px-4 py-1 rounded-full">
 					Action Required
 			</span>
-			<h1 class="text-2xl md:text-4xl font-bold text-gray-900 leading-tight mt-4 py-2">
+			<h1 class="text-2xl md:text-4xl font-bold text-primary leading-tight mt-4 py-2">
 				Unlock Full Access: Subscribe Now
 			</h1>
-			<p class="text-gray-500 text-xl sm:text-2xl md:text-2xl max-w-lg mt-4">
+			<p class="text-tertiary text-xl sm:text-2xl md:text-2xl max-w-lg mt-4">
 				To continue enjoying our premium features and services, please subscribe.
 			</p>
 		</section>
 
 		<div class="flex flex-col md:flex-row justify-center gap-8 p-8">
 
-			<div class="relative w-full md:w-1/2 lg:w-1/3 bg-white shadow-lg rounded-2xl p-8 border text-center">
+			<div class="relative w-full text-primary md:w-1/2 lg:w-1/3 bg-primary shadow-lg rounded-2xl p-8 border text-center">
 
         <!-- Title -->
         <h2 class="text-2xl font-extrabold">Basic</h2>
@@ -91,7 +91,7 @@
           <span class="text-4xl md:text-5xl font-extrabold text-green-500 -mt-2 z-20">$36/Month</span>
         </div>
 
-        <p class="text-gray-500 text-lg mt-2">Everything you need to scale</p>
+        <p class="text-tertiary text-lg mt-2">Everything you need to scale</p>
 
         <!-- Features -->
         <ul class="text-left my-6 space-y-3 text-lg sm:px-4">
@@ -124,7 +124,7 @@
 
       </div>
 
-      <div class="relative w-full md:w-1/2 lg:w-1/3 bg-white shadow-lg rounded-2xl p-8 border text-center">
+      <div class="relative w-full text-primary md:w-1/2 lg:w-1/3 bg-primary shadow-lg rounded-2xl p-8 border text-center">
 
         <!-- Title -->
         <h2 class="text-2xl font-extrabold">Standard</h2>
@@ -134,7 +134,7 @@
           <span class="text-4xl md:text-5xl font-extrabold text-green-500 -mt-2 z-20">$56/Month</span>
         </div>
 
-        <p class="text-gray-500 text-lg mt-2">Everything included in Basic package, plus:</p>
+        <p class="text-tertiary text-lg mt-2">Everything included in Basic package, plus:</p>
 
         <!-- Features -->
         <ul class="text-left my-6 space-y-3 text-lg sm:px-4">
@@ -161,13 +161,13 @@
             <span><i class="fa-brands fa-whatsapp"></i></span> +92 320 1410032
         </a>
         
-        <button class="inline-block text-2xl font-semibold py-3 px-14 mt-5 rounded-xl bg-gray-800 hover:bg-gray-800 text-white">
+        <button class="inline-block text-2xl font-semibold py-3 px-14 mt-5 rounded-xl btn-bg-primary btn-bg-hover btn-text">
           Hot Favourite 🔥
         </button>
 
       </div>
 
-      <div class="relative w-full md:w-1/2 lg:w-1/3 bg-white shadow-lg rounded-2xl p-8 border text-center">
+      <div class="relative w-full text-primary md:w-1/2 lg:w-1/3 bg-primary shadow-lg rounded-2xl p-8 border text-center">
 
         <!-- Title -->
         <h2 class="text-2xl font-extrabold">Premium</h2>
@@ -177,7 +177,7 @@
           <span class="text-4xl md:text-5xl font-extrabold text-green-500 -mt-2 z-20">$99/Month</span>
         </div>
 
-        <p class="text-gray-500 text-lg mt-2">Everything included in Standard package, plus:</p>
+        <p class="text-tertiary text-lg mt-2">Everything included in Standard package, plus:</p>
         <p class="text-blue-600 text-xl mt-2">Personalised Coaching for Dispatch Companies directly from <span class="font-bold">M. Ahmad Khalid</span></p>
 
         <!-- Features -->

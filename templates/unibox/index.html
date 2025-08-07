@@ -49,7 +49,6 @@
       <div id="threads-container" class="space-y-4">
         <!-- Threads will be injected here -->
       </div>
-      <div id="pagination-container" class="flex justify-center mt-6"></div>
     </main>
 
   </div>
@@ -162,16 +161,12 @@
     let currentAccountId = null;
     let currentThreadId = null;
 
-    function renderThreads(accountId = null, page = 1) {
+    function renderThreads(accountId = null) {
         currentAccountId = accountId;
         let fetchUrl = inboxJsonUrl;
-        const params = new URLSearchParams();
-        // if (accountId) {
-        //     fetchUrl += `?account_id=${accountId}`;
-        // }
-        if (accountId) params.append('account_id', accountId);
-        if (page) params.append('page', page);
-        fetchUrl += `?${params.toString()}`;
+        if (accountId) {
+            fetchUrl += `?account_id=${accountId}`;
+        }
 
         fetch(fetchUrl)
             .then(response => response.json())
@@ -222,54 +217,6 @@
                     allInboxesButton.classList.add('bg-gray-700'); // Highlight 'All Inboxes' with a slightly lighter shade
                 } else {
                     allInboxesButton.classList.add('bg-gray-900'); // Ensure default background when an account is selected
-                }
-
-                // Pagination rendering
-                const paginationContainer = document.getElementById('pagination-container');
-                paginationContainer.innerHTML = '';
-
-                if (data.pagination && data.pagination.num_pages > 1) {
-                  const { current_page, num_pages, has_previous, has_next } = data.pagination;
-
-                  const nav = document.createElement('nav');
-                  nav.setAttribute('aria-label', 'Pagination');
-
-                  const ul = document.createElement('ul');
-                  ul.className = 'inline-flex -space-x-px text-base h-10';
-
-                  const createPageItem = (label, page, isActive = false, isDisabled = false) => {
-                    const li = document.createElement('li');
-                    const a = document.createElement('a');
-                    a.href = '#';
-                    a.className = `flex items-center justify-center px-4 h-10 leading-tight border border-gray-300 ${
-                      isActive ? 'bg-blue-600 text-white' : 'bg-slate-50 text-gray-500 hover:bg-gray-100 hover:text-gray-700'
-                    } ${isDisabled ? 'pointer-events-none opacity-50' : ''}`;
-                    a.textContent = label;
-
-                    if (!isDisabled) {
-                      a.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        renderThreads(currentAccountId, page);
-                      });
-                    }
-
-                    li.appendChild(a);
-                    return li;
-                  };
-
-                  // Previous
-                  ul.appendChild(createPageItem('Previous', current_page - 1, false, !has_previous));
-
-                  // Pages 1 to num_pages
-                  for (let i = 1; i <= num_pages; i++) {
-                    ul.appendChild(createPageItem(i, i, i === current_page));
-                  }
-
-                  // Next
-                  ul.appendChild(createPageItem('Next', current_page + 1, false, !has_next));
-
-                  nav.appendChild(ul);
-                  paginationContainer.appendChild(nav);
                 }
 
                 accountList.innerHTML = '';
@@ -632,7 +579,7 @@
             });
         }
 
-        const threadUrl = `${fetchThreadUrlBase}${parseInt(threadId)}/`;
+        const threadUrl = `${fetchThreadUrlBase}${threadId}/`;
         fetch(threadUrl)
             .then(response => response.json())
             .then(data => {
@@ -718,25 +665,25 @@
         const sendButtonContainer = modal.querySelector('.border-t .flex.items-center.gap-4');
         const initialSendButton = modal.querySelector('.border-t .flex.items-center.gap-4 button');
 
-        // let recipientEmail = null;
-        // if (lastIncomingMessageElement) {
-        //     const senderElement = lastIncomingMessageElement.querySelector('p:nth-child(1)'); // The 'From: sender@email.com' paragraph
-        //     if (senderElement) {
-        //         const senderText = senderElement.textContent;
-        //         // Extract the email address from "From: sender@email.com"
-        //         const emailMatch = senderText.match(/From: (.+)/);
-        //         if (emailMatch && emailMatch[1]) {
-        //             recipientEmail = emailMatch[1].trim();
-        //         }
-        //     }
-        // }
+        let recipientEmail = null;
+        if (lastIncomingMessageElement) {
+            const senderElement = lastIncomingMessageElement.querySelector('p:nth-child(1)'); // The 'From: sender@email.com' paragraph
+            if (senderElement) {
+                const senderText = senderElement.textContent;
+                // Extract the email address from "From: sender@email.com"
+                const emailMatch = senderText.match(/From: (.+)/);
+                if (emailMatch && emailMatch[1]) {
+                    recipientEmail = emailMatch[1].trim();
+                }
+            }
+        }
 
-        // console.log("Extracted recipient email:", recipientEmail);  // Debug log
+        console.log("Extracted recipient email:", recipientEmail);  // Debug log
 
-        // if (!recipientEmail) {
-        //     alert('Could not determine the recipient for the reply.');
-        //     return;
-        // }
+        if (!recipientEmail) {
+            alert('Could not determine the recipient for the reply.');
+            return;
+        }
 
         // Disable the send button and show the loading state
         if (sendButtonContainer && initialSendButton) {
@@ -761,8 +708,7 @@
                 'Content-Type': 'application/x-www-form-urlencoded',
                 'X-CSRFToken': csrfToken,
             },
-            // body: `thread_id=${currentThreadId}&body=${encodeURIComponent(body)}&recipient_email=${encodeURIComponent(recipientEmail)}`,
-            body: `thread_id=${currentThreadId}&body=${encodeURIComponent(body)}`,
+            body: `thread_id=${currentThreadId}&body=${encodeURIComponent(body)}&recipient_email=${encodeURIComponent(recipientEmail)}`,
         })
         .then(response => response.json())
         .then(data => {

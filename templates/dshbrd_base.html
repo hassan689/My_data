@@ -68,10 +68,147 @@
     }
   </style>
 
+  <!-- Theme Toggle Btn -->
+  <style>
+    .checkbox-wrapper-54 input[type="checkbox"] {
+      visibility: hidden;
+      display: none;
+    }
+
+    .checkbox-wrapper-54 *,
+    .checkbox-wrapper-54 ::after,
+    .checkbox-wrapper-54 ::before {
+      box-sizing: border-box;
+    }
+
+    /* The switch - the box around the slider */
+    .checkbox-wrapper-54 .switch {
+      --width-of-switch: 3.5em;
+      --height-of-switch: 2em;
+      /* size of sliding icon -- sun and moon */
+      --size-of-icon: 1.4em;
+      /* it is like a inline-padding of switch */
+      --slider-offset: 0.3em;
+      position: relative;
+      width: var(--width-of-switch);
+      height: var(--height-of-switch);
+      display: inline-block;
+    }
+
+    /* The slider */
+    .checkbox-wrapper-54 .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: #f4f4f5;
+      transition: .4s;
+      border-radius: 30px;
+    }
+
+    .checkbox-wrapper-54 .slider:before {
+      position: absolute;
+      content: "";
+      height: var(--size-of-icon,1.4em);
+      width: var(--size-of-icon,1.4em);
+      border-radius: 20px;
+      left: var(--slider-offset,0.3em);
+      top: 50%;
+      transform: translateY(-50%);
+      background: linear-gradient(40deg,#ff0080,#ff8c00 70%);
+      ;
+    transition: .4s;
+    }
+
+    .checkbox-wrapper-54 input:checked + .slider {
+      background-color: #303136;
+    }
+
+    .checkbox-wrapper-54 input:checked + .slider:before {
+      left: calc(100% - (var(--size-of-icon,1.4em) + var(--slider-offset,0.3em)));
+      background: #303136;
+      /* change the value of second inset in box-shadow to change the angle and direction of the moon  */
+      box-shadow: inset -3px -2px 5px -2px #8983f7, inset -10px -4px 0 0 #a3dafb;
+    }
+  </style>
+
+  <!-- Theme vars -->
+  <style>
+    :root,
+    .light {
+      /* Backgrounds */
+      --bg-primary: #ffffff;
+      --bg-secondary: #f8fafc; /* bg-slate-50 */
+      --bg-tertiary: #f1f5f9; /* bg-slate-200 */
+      --bg-hover-light: #f3f4f6; /* hover:bg-gray-100 */
+      --bg-inverted: #12151a;
+
+      /* Text Colors */
+      --text-primary: #111827; /* text-gray-900 */
+      --text-secondary: #374151; /* text-gray-700 */
+      --text-tertiary: #6b7280; /* text-gray-500 */
+      --text-hover-light: #4b5563; /* md:hover:text-gray-700 */
+      --text-inverted: #f9fafb;
+
+      /* Buttons & Borders */
+      --btn-bg-primary: #1f2937; /* bg-gray-900 */
+      --btn-bg-hover: #111827; /* hover:bg-gray-800 */
+      --btn-text: #ffffff; /* text-white */
+      --border-color: #d1d5db; /* border-gray-300 */
+      --btn-border-hover: #1f2937; /* hover:bg-gray-900 */
+    }
+
+    .dark {
+      /* Backgrounds */
+      --bg-primary: #12151a; /* Equivalent to bg-gray-900 */
+      --bg-secondary: #161a22; /* Equivalent to a darker gray */
+      --bg-tertiary: #374151; /* Equivalent to text-gray-700 */
+      --bg-hover-light: #1f2937; /* A darker hover state */
+      --bg-inverted: #ffffff;
+
+      /* Text Colors */
+      --text-primary: #f9fafb; /* Equivalent to text-white */
+      --text-secondary: #e5e7eb; /* Equivalent to a lighter gray */
+      --text-tertiary: #9ca3af; /* Equivalent to text-gray-400 */
+      --text-hover-light: #d1d5db; /* A lighter hover state */
+      --text-inverted: #111827;
+
+      /* Buttons & Borders */
+      --btn-bg-primary: #f9fafb; /* Equivalent to bg-white */
+      --btn-bg-hover: #f3f4f6; /* A lighter hover state */
+      --btn-text: #1f2937; /* Equivalent to text-gray-900 */
+      --border-color: #4b5563; /* A darker border */
+      --btn-border-hover: #f9fafb; /* A lighter hover state */
+    }
+
+    /* Custom utility classes referencing the variables */
+    .bg-primary { background-color: var(--bg-primary); }
+    .bg-secondary { background-color: var(--bg-secondary); }
+    .bg-tertiary { background-color: var(--bg-tertiary); }
+    .bg-hover-light:hover { background-color: var(--bg-hover-light); }
+    .bg-inverted { color: var(--bg-inverted); }
+
+    .text-primary { color: var(--text-primary); }
+    .text-secondary { color: var(--text-secondary); }
+    .text-tertiary { color: var(--text-tertiary); }
+    .text-hover-light:hover { color: var(--text-hover-light); }
+    .text-inverted { color: var(--text-inverted); }
+
+    .btn-bg-primary { background-color: var(--btn-bg-primary); }
+    .btn-bg-hover:hover { background-color: var(--btn-bg-hover); }
+    .btn-text { color: var(--btn-text); }
+    .border-color { border-color: var(--border-color); }
+    .btn-border-hover:hover { border-color: var(--btn-border-hover); }
+
+  </style>
+
+
 
 </head>
 
-	<body class="bg-slate-50 font-sans">
+	<body class="bg-secondary font-sans">
 		
 		{% include 'dshbrd_sidebar.html' %}
 
@@ -80,7 +217,7 @@
 		{% block 'script' %}{% endblock %}
 
 		<button id="scrollToTopBtn" onclick="scrollToTop()" 
-			class="opacity-0 invisible fixed bottom-5 right-5 w-12 h-12 bg-gray-900 text-white flex items-center justify-center rounded-full shadow-lg hover:bg-gray-800 transition-opacity duration-500 ease-in-out">
+			class="opacity-0 invisible fixed bottom-5 right-5 w-12 h-12 btn-bg-primary text-inverted flex items-center justify-center rounded-full shadow-lg btn-bg-hover transition-opacity duration-500 ease-in-out">
 			<svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path>
 			</svg>
@@ -103,6 +240,54 @@
 				window.scrollTo({ top: 0, behavior: "smooth" });
 			}
 		</script>
+
+
+    <script>
+        const themeToggle = document.getElementById('theme-toggle');
+        const checkbox = document.querySelector('.checkbox-wrapper-54 input[type="checkbox"]');
+        const html = document.documentElement;
+
+        // Set initial theme based on localStorage or system preference
+        const currentTheme = localStorage.getItem('theme');
+        if (currentTheme === 'dark' || (!currentTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+          html.classList.add('dark');
+          if (checkbox) {
+            checkbox.checked = true;
+          }
+        } else {
+          html.classList.add('light');
+        }
+
+        // Handle toggle button click
+        if (themeToggle) {
+          themeToggle.addEventListener('click', () => {
+            if (html.classList.contains('light')) {
+              html.classList.remove('light');
+              html.classList.add('dark');
+              localStorage.setItem('theme', 'dark');
+            } else {
+              html.classList.remove('dark');
+              html.classList.add('light');
+              localStorage.setItem('theme', 'light');
+            }
+          });
+        }
+
+        // Handle the custom checkbox button
+        if (checkbox) {
+          checkbox.addEventListener('change', () => {
+            if (checkbox.checked) {
+              html.classList.remove('light');
+              html.classList.add('dark');
+              localStorage.setItem('theme', 'dark');
+            } else {
+              html.classList.remove('dark');
+              html.classList.add('light');
+              localStorage.setItem('theme', 'light');
+            }
+          });
+        }
+    </script>
 
 
 		<script src="https://cdn.jsdelivr.net/npm/flowbite@3.1.2/dist/flowbite.min.js"></script>

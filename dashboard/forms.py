@@ -173,7 +173,8 @@ class CampaignForm(forms.Form):
         label="Skip These MC Numbers",
         widget=forms.TextInput(attrs={
             'placeholder': 'Type an MC Number and press enter',
-            'id': 'skip-mc-numbers-input'
+            'id': 'skip-mc-numbers-input',
+            'class': 'rounded-lg outline-none text-primary bg-primary w-full'
         })
     )
 

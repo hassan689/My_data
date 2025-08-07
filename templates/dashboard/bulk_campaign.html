@@ -15,16 +15,16 @@
 	{% if request.user.subscription and request.user.subscription.status == "active" and email_accounts_count < 2 %}
 
     <div class="text-center max-w-4xl mx-auto px-4 pt-16 pb-5">
-      <h2 class="text-3xl md:text-4xl font-bold">
+      <h2 class="text-3xl md:text-4xl font-bold text-primary">
         Create <span class="text-blue-500">One Click Launch Bulk Campaigns</span> seemlessly and deploy all your email accounts at once!
       </h2>
     </div>
 
-    <div class="overflow-auto mx-auto p-5 bg-white max-w-6xl mt-5">
-      <p class="text-gray-500 text-lg md:text-xl">
+    <div class="overflow-auto mx-auto p-5 bg-primary max-w-6xl mt-5">
+      <p class="text-tertiary text-lg md:text-xl">
           You don't have enough accounts - Don't worry
       </p>
-      <p class="text-gray-500 text-lg md:text-xl mt-5">
+      <p class="text-tertiary text-lg md:text-xl mt-5">
           The <strong>bulk sender</strong> feature requires <strong>at least two email accounts</strong> to get started. 
           If you have fewer than two accounts, 
           {% if email_accounts_count == 0 %}
@@ -40,19 +40,19 @@
 	{% elif  request.user.subscription and request.user.subscription.status == "active" and email_accounts_count >= 2 %}
 
 		<div class="text-center max-w-4xl mx-auto px-4 pt-16 pb-5">
-			<h2 class="text-3xl md:text-4xl font-bold">
+			<h2 class="text-3xl md:text-4xl font-bold text-primary">
 				Create <span class="text-blue-500">One Click Launch Bulk Campaigns</span> seemlessly and deploy all your email accounts at once!
 			</h2>
-			<p class="text-gray-500 text-lg md:text-xl mt-5">
+			<p class="text-tertiary text-lg md:text-xl mt-5">
 				Reach your ideal customers by <strong>directly landing in their inbox</strong> — our powerful tool delivers your campaign with <strong>utmost precision and accuracy</strong>,
 				maximizing impact while you focus on growing your business.
 			</p>
 
-			<div class="p-6 bg-white border border-gray-300 rounded-lg shadow-md my-6 text-left">
-				<h2 class="text-xl font-semibold text-gray-800">How it Works</h2>
+			<div class="p-6 bg-primary rounded-lg shadow-md my-6 text-left">
+				<h2 class="text-xl font-semibold text-secondary">How it Works</h2>
 		
-				<div class="mt-4 p-4 bg-gray-100 rounded-lg">
-          <ul class="list-disc pl-5">
+				<div class="mt-4 p-4 bg-secondary rounded-lg">
+          <ul class="list-disc pl-5 text-secondary">
             <li>Start by uploading your Excel file that contains all your leads or select from the database.</li>
             <li>The system will show you a list of your connected email accounts.</li>
             <li>You choose which email accounts you want to use for the campaign.</li>
@@ -79,13 +79,13 @@
 			{% csrf_token %}
 				
       <section class="flex flex-col items-center text-center px-4 md:px-4 lg:px-5 py-6 my-5">
-        <span class="text-md font-medium text-gray-700 bg-slate-200 px-4 py-1 rounded-full">
+        <span class="text-md font-medium text-secondary bg-secondary px-4 py-1 rounded-full">
           Step 1
         </span>
-        <h2 class="text-2xl md:text-3xl font-semibold mt-3">
+        <h2 class="text-2xl md:text-3xl font-semibold mt-3 text-primary">
           Select Lead Source
         </h2>
-        <p class="text-gray-500 text-base mt-2">
+        <p class="text-tertiary text-base mt-2">
           Choose <strong>One of the two methods,</strong> how you want to source leads for your campaign. Once done, you can proceed to the next step.
         </p>
       </section>
@@ -93,7 +93,7 @@
       <!-- Choose leads section -->
       <div class="flex flex-col md:flex-row gap-6 w-full max-w-6xl mx-auto">
         <!-- Upload File Box -->
-        <div class="w-full md:w-1/2 p-6 bg-white border border-gray-300 rounded-lg shadow-md focus-within:ring-2 focus-within:ring-blue-500">
+        <div class="w-full md:w-1/2 p-6 bg-primary btn-border-hover rounded-lg shadow-md focus-within:ring-2 focus-within:ring-blue-500">
             <!-- Top Icon -->
             <div class="flex justify-center">
                 <div class="w-12 h-12 flex items-center justify-center rounded-full bg-blue-100 text-blue-500">
@@ -103,8 +103,8 @@
 
             <!-- Title & Description -->
             <div class="mt-4 text-center">
-                <h2 class="text-lg font-medium text-gray-700">Upload Excel File</h2>
-                <p class="text-sm text-yellow-700 py-2">It is recommended that your sheet has upto <strong>300 leads per acccount</strong> only, as it'll help you to <strong>avoid spam</strong>. It should be <strong>only XLSX file.</strong> Support for other formats will be provided later, thank you for cooperation.</p>
+                <h2 class="text-lg font-medium text-secondary">Upload Excel File</h2>
+                <p class="text-sm text-tertiary py-2">It is recommended that your sheet has upto <strong>300 leads per acccount</strong> only, as it'll help you to <strong>avoid spam</strong>. It should be <strong>only XLSX file.</strong> Support for other formats will be provided later, thank you for cooperation.</p>
                 <p class="text-sm text-red-700 py-2">
                     Your file <strong>MUST HAVE</strong> at least an <strong>Email</strong> column. 
                     All other columns (like <strong>Name</strong>, <strong>MC Number</strong>, etc.) 
@@ -113,13 +113,13 @@
             </div>
 
             <!-- Upload Box -->
-            <label class="mt-4 flex flex-col items-center justify-center w-full border-2 border-dashed border-gray-300 rounded-lg py-6 cursor-pointer hover:border-gray-400 focus-within:ring-2 focus-within:ring-blue-500">
+            <label class="mt-4 flex flex-col items-center justify-center w-full border-2 border-dashed btn-border-hover rounded-lg py-6 cursor-pointer hover:border-gray-400 focus-within:ring-2 focus-within:ring-blue-500">
               {{ form.file_upload|attr:"class:hidden" |attr:"onchange:updateFileName(this)" }}
               
               <div class="flex flex-col items-center space-y-2">
-                  <p class="text-sm font-medium text-gray-600">Click to upload or drag and drop</p>
-                  <p class="text-xs text-gray-400">XLSX (max 10MB)</p>
-                  <p id="file-name" class="text-sm text-gray-500"></p> <!-- Display file name -->
+                  <p class="text-sm font-medium text-primary">Click to upload or drag and drop</p>
+                  <p class="text-xs text-secondary">XLSX (max 10MB)</p>
+                  <p id="file-name" class="text-sm text-tertiary"></p> <!-- Display file name -->
               </div>
             </label>
             {% if form.file_upload.errors %}
@@ -128,7 +128,7 @@
         </div>
 
         <!-- Use Database Box -->
-        <div class="w-full md:w-1/2 p-6 bg-white border border-gray-300 rounded-lg shadow-md">
+        <div class="w-full md:w-1/2 p-6 bg-primary btn-border-hover rounded-lg shadow-md">
             <!-- Centered Icon -->
             <div class="flex justify-center">
                 <div class="w-12 h-12 flex items-center justify-center rounded-full bg-blue-100 text-blue-500">
@@ -138,19 +138,19 @@
 
             <!-- Centered Title & Description -->
 							<div class="text-center mt-3">
-									<h2 class="text-lg font-medium text-gray-700">Use Database</h2>
-									<p class="text-sm text-gray-500 mt-5">Simply select the <span class="font-bold">starting MC Number</span> to filter your target carriers. Our system will automatically gather the <span class="font-bold">neighboring leads</span> required, as per you entered into the <span class="font-bold">targets count</span>. Ensuring <span class="font-bold">precise and efficient campaign delivery</span>.</p>
+									<h2 class="text-lg font-medium text-secondary">Use Database</h2>
+									<p class="text-sm text-tertiary mt-5">Simply select the <span class="font-bold">starting MC Number</span> to filter your target carriers. Our system will automatically gather the <span class="font-bold">neighboring leads</span> required, as per you entered into the <span class="font-bold">targets count</span>. Ensuring <span class="font-bold">precise and efficient campaign delivery</span>.</p>
 									<p class="text-sm text-green-600 py-2">Efficiently find your ideal carrier profiles by selecting and <span class="font-bold">applying filters</span> in our database, populated with data directly from the FMCSA.</p>
 							</div>
 
 							<button 
                 id="open-modal-btn" 
                 type="button" 
-                class="mt-4 flex flex-col items-center justify-center w-full border-2 border-dashed border-gray-300 rounded-lg py-10 cursor-pointer hover:border-gray-400"
+                class="mt-4 flex flex-col items-center justify-center w-full border-2 border-dashed btn-border-hover rounded-lg py-10 cursor-pointer hover:border-gray-400"
                 aria-controls="selectFromDbModal" aria-haspopup="dialog"
             >
                 <div class="flex flex-col items-center space-y-20">
-                    <p class="text-sm font-medium text-gray-600">Select from Database</p>
+                    <p class="text-sm font-medium text-primary">Select from Database</p>
                 </div>
               </button>
 
@@ -161,13 +161,13 @@
                 aria-hidden="true" 
                 class="fixed inset-0 z-50 hidden overflow-y-auto bg-black bg-opacity-50 flex items-center justify-center">
               <div 
-                  class="relative w-full max-w-4xl p-6 mx-auto bg-white rounded-lg shadow-lg"
+                  class="relative w-full max-w-4xl p-6 mx-auto bg-primary rounded-lg shadow-lg"
                   role="dialog" aria-modal="true" aria-labelledby="modal-title"
                   style="max-height: 95vh; overflow-y: auto;">
                 <!-- Close button -->
                 <button 
                     type="button" 
-                    class="absolute top-3 right-3 text-gray-400 hover:text-gray-900 focus:outline-none"
+                    class="absolute top-3 right-3 text-secondary hover:text-primary focus:outline-none"
                     id="modal-close-btn"
                     aria-label="Close modal">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
@@ -191,13 +191,13 @@
 
                         <div class="grid md:grid-cols-2 md:gap-x-6">
                           <div>
-                            <label class="block text-sm font-medium text-gray-700">Starting MC Number</label>
-                            {{ form.mc_number|add_class:"mt-1 block w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none" }}
+                            <label class="block text-sm font-medium text-secondary">Starting MC Number</label>
+                            {{ form.mc_number|add_class:"mt-1 block w-full p-3 border focus:ring-gray-500 focus:border-gray-500 rounded-lg outline-none text-primary bg-primary" }}
                           </div>
 
                           <div>
-                            <label class="block text-sm font-medium text-gray-700">Targets Count</label>
-                            {{ form.targets_count|add_class:"mt-1 block w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none" }}
+                            <label class="block text-sm font-medium text-secondary">Targets Count</label>
+                            {{ form.targets_count|add_class:"mt-1 block w-full p-3 border focus:ring-gray-500 focus:border-gray-500 rounded-lg outline-none text-primary bg-primary" }}
                             {% if form.targets_count.errors %}
                               <div class="bg-red-200 p-5 my-3 rounded-xl border-2 border-solid border-red-700"><p class="text-red-700 text-sm">{{ form.targets_count.errors.0 }}</p></div>
                             {% endif %}
@@ -212,22 +212,22 @@
 
                         <div class="grid md:grid-cols-2 md:gap-x-6">
                           <div>
-                            <label class="block text-sm font-medium text-gray-700">Lower Limit of MC Number</label>
-                            {{ form.lower_limit_mc_number|add_class:"mt-1 block w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none" }}
+                            <label class="block text-sm font-medium text-secondary">Lower Limit of MC Number</label>
+                            {{ form.lower_limit_mc_number|add_class:"mt-1 block w-full p-3 border focus:ring-gray-500 focus:border-gray-500 rounded-lg outline-none text-primary bg-primary" }}
                           </div>
 
                           <div>
-                            <label class="block text-sm font-medium text-gray-700">Upper Limit of MC Number</label>
-                            {{ form.upper_limit_mc_number|add_class:"mt-1 block w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none" }}
+                            <label class="block text-sm font-medium text-secondary">Upper Limit of MC Number</label>
+                            {{ form.upper_limit_mc_number|add_class:"mt-1 block w-full p-3 border focus:ring-gray-500 focus:border-gray-500 rounded-lg outline-none text-primary bg-primary" }}
                           </div>
                         </div>
 
                         <div class="mt-6">
-                          <label for="skip-mc-numbers-input" class="block text-sm font-medium text-gray-700 mb-2">
-                            Skip These MC Numbers
+                          <label for="skip-mc-numbers-input" class="block text-sm font-medium text-secondary mb-2">
+                            Skip These MC Numbers (Optional)
                           </label>
                           {{ form.skip_mc_numbers|add_class:"w-full" }}
-                          <p class="text-sm text-gray-500 mt-1">Type an MC Number like "MC 1234567" and press Enter to add. Click x to remove.</p>
+                          <p class="text-sm text-tertiary mt-1 text-yellow-300">Type an MC Number like "MC 1234567" and press Enter to add. Click x to remove.</p>
                           {% if form.skip_mc_numbers.errors %}
                             <div class="bg-red-200 p-5 my-3 rounded-xl border-2 border-solid border-red-700">
                               <p class="text-red-700 text-sm">{{ form.skip_mc_numbers.errors.0 }}</p>
@@ -244,12 +244,12 @@
 
                         <div class="grid md:grid-cols-2 md:gap-x-6">
                           <div>
-                            <label class="block text-sm font-medium text-gray-700">Power Units (Comparison)</label>
-                            {{ form.power_units_comparison|add_class:"mt-1 block w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none" }}
+                            <label class="block text-sm font-medium text-secondary">Power Units (Comparison)</label>
+                            {{ form.power_units_comparison|add_class:"mt-1 block w-full p-3 border focus:ring-gray-500 focus:border-gray-500 rounded-lg outline-none text-primary bg-primary" }}
                           </div>
                           <div>
-                            <label class="block text-sm font-medium text-gray-700">Power Units (Value)</label>
-                            {{ form.power_units_value|add_class:"mt-1 block w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none" }}
+                            <label class="block text-sm font-medium text-secondary">Power Units (Value)</label>
+                            {{ form.power_units_value|add_class:"mt-1 block w-full p-3 border focus:ring-gray-500 focus:border-gray-500 rounded-lg outline-none text-primary bg-primary" }}
                             {% if form.power_units_value.errors %}
                               <div class="bg-red-200 p-5 my-3 rounded-xl border-2 border-solid border-red-700">
                                 <p class="text-red-700 text-sm">{{ form.power_units_value.errors.0 }}</p>
@@ -258,12 +258,12 @@
                           </div>
 
                           <div>
-                            <label class="block text-sm font-medium text-gray-700 mt-5">Drivers (Comparison)</label>
-                            {{ form.drivers_comparison|add_class:"mt-1 block w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none" }}
+                            <label class="block text-sm font-medium text-secondary mt-5">Drivers (Comparison)</label>
+                            {{ form.drivers_comparison|add_class:"mt-1 block w-full p-3 border focus:ring-gray-500 focus:border-gray-500 rounded-lg outline-none text-primary bg-primary" }}
                           </div>
                           <div>
-                            <label class="block text-sm font-medium text-gray-700 mt-5">Drivers (Value)</label>
-                            {{ form.drivers_value|add_class:"mt-1 block w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none" }}
+                            <label class="block text-sm font-medium text-secondary mt-5">Drivers (Value)</label>
+                            {{ form.drivers_value|add_class:"mt-1 block w-full p-3 border focus:ring-gray-500 focus:border-gray-500 rounded-lg outline-none text-primary bg-primary" }}
                             {% if form.drivers_value.errors %}
                               <div class="bg-red-200 p-5 my-3 rounded-xl border-2 border-solid border-red-700">
                                 <p class="text-red-700 text-sm">{{ form.drivers_value.errors.0 }}</p>
@@ -272,50 +272,52 @@
                           </div>
 
                           <div>
-                            <label class="block text-sm font-medium text-gray-700 mt-5">Status</label>
-                            {{ form.status|add_class:"mt-1 block w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none" }}
+                            <label class="block text-sm font-medium text-secondary mt-5">Status</label>
+                            {{ form.status|add_class:"mt-1 block w-full p-3 border focus:ring-gray-500 focus:border-gray-500 rounded-lg outline-none text-primary bg-primary" }}
                           </div>
                           <div>
-                            <label class="block text-sm font-medium text-gray-700 mt-5">Carrier Operation</label>
-                            {{ form.carrier_operation|add_class:"mt-1 block w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none" }}
+                            <label class="block text-sm font-medium text-secondary mt-5">Carrier Operation</label>
+                            {{ form.carrier_operation|add_class:"mt-1 block w-full p-3 border focus:ring-gray-500 focus:border-gray-500 rounded-lg outline-none text-primary bg-primary" }}
                           </div></div>
 
                           <div class="grid md:grid-cols-2 md:gap-x-6 my-5">
                             <div>
-                              <label class="block text-sm font-medium text-gray-700">Cargo Classification</label>
+                              <label class="block text-sm font-medium text-secondary">Cargo Classification</label>
                               {{ form.cargo_classification_search|add_class:"w-full"|attr:"id:id_cargo_classification_search" }}
                               
-                              <p class="text-sm text-gray-600 my-4">
+                              <p class="text-sm text-tertiary mt-1 text-yellow-300">Type your choice and press Enter to add. Click x to remove.</p>
+                              <p class="text-sm text-primary my-4">
                                 You can simply <span class="font-bold">copy, paste</span> from the following examples:
                               </p>
                               <div class="mt-2 flex flex-wrap gap-2 text-xs font-medium">
-                                <span class="px-2 py-1 bg-white border border-gray-300 rounded-md">GENERAL FREIGHT</span>
-                                <span class="px-2 py-1 bg-white border border-gray-300 rounded-md">MOTOR VEHICLES</span>
-                                <span class="px-2 py-1 bg-white border border-gray-300 rounded-md">METAL; SHEETS, COILS, ROLLS</span>
-                                <span class="px-2 py-1 bg-white border border-gray-300 rounded-md">MACHINERY, LARGE OBJECTS</span>
-                                <span class="px-2 py-1 bg-white border border-gray-300 rounded-md">FRESH PRODUCE</span>
-                                <span class="px-2 py-1 bg-white border border-gray-300 rounded-md">REFRIGERATED FOOD</span>
+                                <span class="px-2 py-1 bg-primary btn-border-hover rounded-md text-primary bg-tertiary">GENERAL FREIGHT</span>
+                                <span class="px-2 py-1 bg-primary btn-border-hover rounded-md text-primary bg-tertiary">MOTOR VEHICLES</span>
+                                <span class="px-2 py-1 bg-primary btn-border-hover rounded-md text-primary bg-tertiary">METAL; SHEETS, COILS, ROLLS</span>
+                                <span class="px-2 py-1 bg-primary btn-border-hover rounded-md text-primary bg-tertiary">MACHINERY, LARGE OBJECTS</span>
+                                <span class="px-2 py-1 bg-primary btn-border-hover rounded-md text-primary bg-tertiary">FRESH PRODUCE</span>
+                                <span class="px-2 py-1 bg-primary btn-border-hover rounded-md text-primary bg-tertiary">REFRIGERATED FOOD</span>
                                 <span class="px-2 py-1">etc.</span>
                               </div>
                             </div>
 
                             <div>
-                              <label class="block text-sm font-medium text-gray-700">Cargo Info</label>
+                              <label class="block text-sm font-medium text-secondary">Cargo Info</label>
                               {{ form.cargo_info_search|add_class:"w-full"|attr:"id:id_cargo_info_search" }}
 
-                              <p class="text-sm text-gray-600 my-4">
+                              <p class="text-sm text-tertiary mt-1 text-yellow-300">Type your choice and press Enter to add. Click x to remove.</p>
+                              <p class="text-sm text-primary my-4">
                                 You can simply <span class="font-bold">copy, paste</span> from the following examples:
                               </p>
                               <div class="mt-2 flex flex-wrap gap-2 text-xs font-medium">
-                                <span class="px-2 py-1 bg-white border border-gray-300 rounded-md">Straight Trucks</span>
-                                <span class="px-2 py-1 bg-white border border-gray-300 rounded-md">Trailers</span>
-                                <span class="px-2 py-1 bg-white border border-gray-300 rounded-md">Truck Tractors</span>
-                                <span class="px-2 py-1 bg-white border border-gray-300 rounded-md">Van</span>
-                                <span class="px-2 py-1 bg-white border border-gray-300 rounded-md">Limousine</span>
-                                <span class="px-2 py-1 bg-white border border-gray-300 rounded-md">Mini-Bus</span>
-                                <span class="px-2 py-1 bg-white border border-gray-300 rounded-md">Motor Coach</span>
-                                <span class="px-2 py-1 bg-white border border-gray-300 rounded-md">Hazmat Cargo Tank Trailers</span>
-                                <span class="px-2 py-1 bg-white border border-gray-300 rounded-md">Hazmat Cargo Tank Trucks</span>
+                                <span class="px-2 py-1 bg-primary btn-border-hover rounded-md text-primary bg-tertiary">Straight Trucks</span>
+                                <span class="px-2 py-1 bg-primary btn-border-hover rounded-md text-primary bg-tertiary">Trailers</span>
+                                <span class="px-2 py-1 bg-primary btn-border-hover rounded-md text-primary bg-tertiary">Truck Tractors</span>
+                                <span class="px-2 py-1 bg-primary btn-border-hover rounded-md text-primary bg-tertiary">Van</span>
+                                <span class="px-2 py-1 bg-primary btn-border-hover rounded-md text-primary bg-tertiary">Limousine</span>
+                                <span class="px-2 py-1 bg-primary btn-border-hover rounded-md text-primary bg-tertiary">Mini-Bus</span>
+                                <span class="px-2 py-1 bg-primary btn-border-hover rounded-md text-primary bg-tertiary">Motor Coach</span>
+                                <span class="px-2 py-1 bg-primary btn-border-hover rounded-md text-primary bg-tertiary">Hazmat Cargo Tank Trailers</span>
+                                <span class="px-2 py-1 bg-primary btn-border-hover rounded-md text-primary bg-tertiary">Hazmat Cargo Tank Trucks</span>
                                 <span class="px-2 py-1">etc.</span>
                               </div>
 
@@ -325,7 +327,7 @@
                           <div class="mx-auto text-center max-w-full mt-5">
                             <button 
                               type="button"
-                              class="text-lg font-semibold bg-gray-900 hover:bg-gray-800 text-white py-2 px-4 rounded-full shadow-lg "
+                              class="text-lg font-semibold btn-bg-primary btn-bg-hover btn-text py-2 px-4 rounded-full shadow-lg "
                               onclick="document.getElementById('selectFromDbModal').classList.add('hidden')"
                             >
                               Confirm Selection
@@ -351,7 +353,7 @@
       <div class="container mx-auto px-4 mb-10 text-center">
         <!-- Launch Button -->
         <div class="mt-6">
-            <button type="submit" class="bg-gray-900 hover:bg-gray-800 text-white font-semibold py-3 px-6 rounded-full shadow-lg text-lg">
+            <button type="submit" class="btn-bg-primary btn-bg-hover btn-text font-semibold py-3 px-6 rounded-full shadow-lg text-lg">
                 Submit Leads
             </button>
         </div>
@@ -360,14 +362,14 @@
 		</form>
 
     <section id="reset-button" class="flex flex-col items-center text-center px-4 md:px-4 lg:px-5 py-6 my-5 hidden">
-      <span class="text-md font-medium text-gray-700 bg-slate-200 px-4 py-1 rounded-full">
+      <span class="text-md font-medium text-secondary bg-secondary px-4 py-1 rounded-full">
         Step 1
       </span>
-      <h2 class="text-2xl md:text-3xl font-semibold mt-3">
+      <h2 class="text-2xl md:text-3xl font-semibold mt-3 text-secondary">
         Select Lead Source
       </h2>
       <!-- Reset Button (Initially Hidden) -->
-      <a href="{% url 'dashboard:bulk_campaign' %}" class="border border-gray-300 hover:bg-gray-900 hover:text-white mt-5 w-72 font-semibold py-3 px-6 rounded-full shadow-lg text-lg">
+      <a href="{% url 'dashboard:bulk_campaign' %}" class="border btn-bg-primary btn-text mt-5 w-72 font-semibold py-3 px-6 rounded-full shadow-lg text-lg">
         Reset Leads 🔁
       </a>  
     </section>
@@ -386,22 +388,22 @@
 
         <!-- Email Accounts Select -->
         <section class="flex flex-col items-center text-center px-4 md:px-4 lg:px-5 py-6 mt-20">
-          <span class="text-md font-medium text-gray-700 bg-slate-200 px-4 py-1 rounded-full">
+          <span class="text-md font-medium text-secondary bg-secondary px-4 py-1 rounded-full">
             Step 2
           </span>
-          <h2 class="text-2xl md:text-3xl font-semibold mt-3">
+          <h2 class="text-2xl md:text-3xl font-semibold mt-3 text-primary">
             Select Your Email Accounts
           </h2>
-          <p class="text-gray-500 text-base mt-2">
+          <p class="text-tertiary text-base mt-2">
             Select the email accounts you want to use for this bulk action and the number of leads you want that specific account to target.
           </p>
         </section>
 
         <div class="container mx-auto px-4 max-w-6xl mb-20">
-          <div class="bg-white border border-gray-300 rounded-lg shadow-md">
+          <div class="bg-primary border btn-border-hover rounded-lg shadow-md">
             <div class="p-6">
               <h2 class="text-xl font-semibold mb-4 flex items-center justify-between">
-                <span>Select Email Accounts and Assign Lead Counts</span>
+                <span class="text-secondary">Select Email Accounts and Assign Lead Counts</span>
                 <span id="lead-summary" class="text-red-600 text-sm font-medium ml-4 whitespace-nowrap">
                   Make sure that the number of leads you assign here are equal to the leads you submitted earlier! 
                 </span>
@@ -412,7 +414,7 @@
                 <!-- Table Starts -->
                 <table class="w-full table-auto border border-gray-200 rounded-md overflow-hidden">
 
-                  <thead class="bg-gray-100 text-gray-700 text-sm">
+                  <thead class="bg-hover-light text-secondary text-sm">
 
                     <!-- Table Headers -->
                     <tr>
@@ -422,7 +424,7 @@
 
                   </thead>
                 
-                  <tbody class="text-sm text-gray-900">
+                  <tbody class="text-sm text-primary">
                     <!-- Select All Row -->
                     <tr>
                       <th colspan="2" class="px-4 py-2 text-left">
@@ -431,12 +433,12 @@
                             type="checkbox"
                             name="select_all"
                             id="select_all_checkbox"
-                            class="mr-2 border-gray-300 bg-gray-300 rounded-md hover:cursor-pointer"
+                            class="mr-2 btn-border-hover bg-gray-300 rounded-md hover:cursor-pointer"
                             onclick="toggleAllAccounts(this)"
                           >
                           <span class="font-medium text-blue-600 hover:cursor-pointer">
                             Select All Accounts and Auto-Distribute Leads 
-                            <span class="text-gray-500">(No need to enter leads for each account)</span>
+                            <span class="text-tertiary">(No need to enter leads for each account)</span>
                           </span>
                         </label>
                       </th>
@@ -449,7 +451,7 @@
                               type="checkbox"
                               name="selected_accounts"
                               value="{{ account.id }}"
-                              class="account-checkbox mr-2 border-gray-300 bg-gray-300 rounded-md hover:cursor-pointer"
+                              class="account-checkbox mr-2 btn-border-hover bg-gray-300 rounded-md hover:cursor-pointer"
                               id="checkbox_{{ account.id }}"
                               onclick="toggleLeadInput({{ account.id }})"
                             >
@@ -460,7 +462,7 @@
                           <input
                             type="number"
                             name="emails_for_account_{{ account.id }}"
-                            class="w-full border border-gray-300 rounded-lg px-3 py-2 hidden"
+                            class="w-full border bg-primary text-primary rounded-lg px-3 py-2 hidden"
                             placeholder="Number of leads to assign to {{ account.email_address }}"
                             min="1"
                             id="lead_input_{{ account.id }}"
@@ -480,13 +482,13 @@
         
         <!-- Set Delay -->
         <section class="flex flex-col max-w-2xl mx-auto items-center text-center px-4 md:px-4 lg:px-5 py-6 mt-20">
-					<span class="text-md font-medium text-gray-700 bg-slate-200 px-4 py-1 rounded-full">
+					<span class="text-md font-medium text-secondary bg-secondary px-4 py-1 rounded-full">
 						Step 3
 					</span>
-					<h2 class="text-2xl md:text-3xl font-semibold mt-3">
+					<h2 class="text-2xl md:text-3xl font-semibold mt-3 text-primary">
 						Set Delay
 					</h2>
-					<p class="text-gray-500 text-base mt-2">
+					<p class="text-tertiary text-base mt-2">
 						Number of seconds to wait between each email send.  
             The system will select a <span class="font-bold">random value between</span> the minimum and maximum range you specify.  
             This is done to <span class="font-bold">mimic natural human behavior</span> when sending campaigns.
@@ -494,11 +496,11 @@
 				</section>
 
         <div class="container mx-auto px-4 max-w-2xl mb-20">
-          <div class="bg-white border border-gray-300 rounded-lg shadow-md">
+          <div class="bg-primary btn-border-hover rounded-lg shadow-md">
         
             <div class="grid grid-cols-1 gap-4 p-6">
               <div>
-                {% render_field form.min_delay class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none" %}
+                {% render_field form.min_delay class="w-full border btn-border-hover rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none bg-primary text-primary" %}
                 {% if form.min_delay.errors %}
                   <div class="bg-red-200 p-5 my-3 rounded-xl border-2 border-solid border-red-700">
                     <p class="text-red-700 text-sm">{{ form.min_delay.errors|first }}</p>
@@ -506,7 +508,7 @@
                 {% endif %}
               </div>
               <div>
-                {% render_field form.max_delay class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none" %}
+                {% render_field form.max_delay class="w-full border btn-border-hover rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none bg-primary text-primary" %}
                 {% if form.max_delay.errors %}
                   <div class="bg-red-200 p-5 my-3 rounded-xl border-2 border-solid border-red-700">
                     <p class="text-red-700 text-sm">{{ form.max_delay.errors|first }}</p>
@@ -518,20 +520,20 @@
         </div>
 
         <section class="flex flex-col max-w-2xl mx-auto items-center text-center px-4 md:px-4 lg:px-5">
-					<h2 class="text-2xl md:text-3xl font-semibold mt-3">
+					<h2 class="text-2xl md:text-3xl font-semibold mt-3 text-primary">
 						Schedule Campaign
 					</h2>
-					<p class="text-gray-500 text-base my-5">
+					<p class="text-tertiary text-base my-5">
             <span class="font-bold">Optional: </span>Select a <span class="font-bold">future date and time (your local time)</span> to launch this campaign.
           </p>
 				</section>
 
         <div class="container mx-auto px-4 max-w-2xl mb-20">
-          <div class="bg-white border border-gray-300 rounded-lg shadow-md">
+          <div class="bg-primary rounded-lg shadow-md">
         
             <div class="p-6">
               <div>
-                {% render_field form.schedule_launch_datetime class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none" %}
+                {% render_field form.schedule_launch_datetime class="w-full border rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none bg-primary text-primary" %}
                 {% if form.schedule_launch_datetime.errors %}
                   <div class="bg-red-200 p-5 my-3 rounded-xl border-2 border-solid border-red-700">
                     <p class="text-red-700 text-sm">{{ form.schedule_launch_datetime.errors|first }}</p>
@@ -550,13 +552,13 @@
         
         <!-- Enter email subject and body -->
         <section class="flex flex-col items-center text-center px-4 md:px-4 lg:px-5 py-6 mt-10">
-          <span class="text-md font-medium text-gray-700 bg-slate-200 px-4 py-1 rounded-full">
+          <span class="text-md font-medium text-secondary bg-secondary px-4 py-1 rounded-full">
             Step 4
           </span>
-          <h2 class="text-2xl md:text-3xl font-semibold mt-3">
+          <h2 class="text-2xl md:text-3xl font-semibold mt-3 text-primary">
             Craft your Email
           </h2>
-          <p class="text-gray-500 text-base mt-2">
+          <p class="text-tertiary text-base mt-2">
             Customize the message that will be sent to your leads
           </p>
         </section>
@@ -564,13 +566,13 @@
         <div class="container mx-auto px-4 pt-8 pb-4 max-w-6xl">
 
           <!-- Guidelines & Tips Box -->
-          <div class="p-6 bg-white border border-gray-300 rounded-lg shadow-md my-6">
-            <h2 class="text-xl font-semibold text-gray-800">Guidelines & Tips</h2>
-            <p class="text-gray-500">Best practices for effective campaigns</p>
+          <div class="p-6 bg-primary rounded-lg shadow-md my-6">
+            <h2 class="text-xl font-semibold text-secondary">Guidelines & Tips</h2>
+            <p class="text-tertiary">Best practices for effective campaigns</p>
 
-            <div class="mt-4 p-4 bg-gray-100 rounded-lg">
-                <h3 class="text-sm font-semibold text-gray-700">General Instructions</h3>
-                <ul class="mt-2 text-sm text-gray-600 space-y-1">
+            <div class="mt-4 p-4 bg-secondary rounded-lg">
+                <h3 class="text-sm font-semibold text-secondary">General Instructions</h3>
+                <ul class="mt-2 text-sm text-primary space-y-1">
                     <li>• Keep your message clear and concise</li>
                     <li>• Personalize whenever possible</li>
                     <li>• Include a clear call-to-action</li>
@@ -581,47 +583,47 @@
           </div>
               
           <!-- Campaign Message Box -->
-          <div class="p-6 bg-white border border-gray-300 rounded-lg shadow-md">
-              <h2 class="text-xl font-semibold text-gray-800">Campaign Message</h2>
-              <p class="text-gray-500">Create a compelling message for your campaign</p>
+          <div class="p-6 bg-primary rounded-lg shadow-md">
+              <h2 class="text-xl font-semibold text-secondary">Campaign Message</h2>
+              <p class="text-tertiary">Create a compelling message for your campaign</p>
 
               
-              <div class="my-4 p-4 bg-gray-100 rounded-lg">
-                <h3 class="text-base font-bold text-gray-700">Personalization Guide</h3>
-                <p class="mt-2 text-sm text-gray-600">
+              <div class="my-4 p-4 bg-secondary rounded-lg">
+                <h3 class="text-base font-bold text-secondary">Personalization Guide</h3>
+                <p class="mt-2 text-sm text-primary">
                   <span class="font-bold text-blue-600">If you are using your custom sheet</span>: To personalize your message, use <strong>[column_name]</strong> where <span class="font-semibold">column_name matches exactly the column header from your uploaded file.</span>
                 </p>
-                <p class="text-sm text-gray-600 mt-4">
+                <p class="text-sm text-primary mt-4">
                   <span class="font-bold text-green-600">If you are using our database</span>, the following columns are available for personalization:
                 </p>
                 <div class="mt-2 flex flex-wrap gap-2 text-xs font-medium">
-                  <span class="px-2 py-1 bg-white border border-gray-300 rounded-md">[MC Number]</span>
-                  <span class="px-2 py-1 bg-white border border-gray-300 rounded-md">[Legal Name]</span>
-                  <span class="px-2 py-1 bg-white border border-gray-300 rounded-md">[Email]</span>
-                  <span class="px-2 py-1 bg-white border border-gray-300 rounded-md">[U.S DOT]</span>
-                  <span class="px-2 py-1 bg-white border border-gray-300 rounded-md">[VMT Year]</span>
-                  <span class="px-2 py-1 bg-white border border-gray-300 rounded-md">[Power Units]</span>
-                  <span class="px-2 py-1 bg-white border border-gray-300 rounded-md">[DUNS Number]</span>
-                  <span class="px-2 py-1 bg-white border border-gray-300 rounded-md">[Drivers]</span>
-                  <span class="px-2 py-1 bg-white border border-gray-300 rounded-md">[Telephone]</span>
-                  <span class="px-2 py-1 bg-white border border-gray-300 rounded-md">[Address]</span>
-                  <span class="px-2 py-1 bg-white border border-gray-300 rounded-md">[Cargo Classifications]</span>
+                  <span class="px-2 py-1 bg-primary btn-border-hover rounded-md text-primary bg-tertiary">[MC Number]</span>
+                  <span class="px-2 py-1 bg-primary btn-border-hover rounded-md text-primary bg-tertiary">[Legal Name]</span>
+                  <span class="px-2 py-1 bg-primary btn-border-hover rounded-md text-primary bg-tertiary">[Email]</span>
+                  <span class="px-2 py-1 bg-primary btn-border-hover rounded-md text-primary bg-tertiary">[U.S DOT]</span>
+                  <span class="px-2 py-1 bg-primary btn-border-hover rounded-md text-primary bg-tertiary">[VMT Year]</span>
+                  <span class="px-2 py-1 bg-primary btn-border-hover rounded-md text-primary bg-tertiary">[Power Units]</span>
+                  <span class="px-2 py-1 bg-primary btn-border-hover rounded-md text-primary bg-tertiary">[DUNS Number]</span>
+                  <span class="px-2 py-1 bg-primary btn-border-hover rounded-md text-primary bg-tertiary">[Drivers]</span>
+                  <span class="px-2 py-1 bg-primary btn-border-hover rounded-md text-primary bg-tertiary">[Telephone]</span>
+                  <span class="px-2 py-1 bg-primary btn-border-hover rounded-md text-primary bg-tertiary">[Address]</span>
+                  <span class="px-2 py-1 bg-primary btn-border-hover rounded-md text-primary bg-tertiary">[Cargo Classifications]</span>
                 </div>
               </div>
 
 
 
               <div class="mt-4">
-                <label class="block text-sm font-medium text-gray-700 mb-1">Email Subject</label>
+                <label class="block text-sm font-medium text-secondary mb-1">Email Subject</label>
                 
                 <div class="flex items-center gap-4">
-                  {{ form.email_subject|add_class:"w-2/3 p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none" }}
+                  {{ form.email_subject|add_class:"w-2/3 p-3 border focus:ring-gray-500 focus:border-gray-500 rounded-lg outline-none text-primary bg-primary" }}
 
                   <div class="flex items-center space-x-2">
                     {{ form.track_campaign|add_class:"sr-only toggle-input" }}
                     
                     <label for="{{ form.track_campaign.id_for_label }}" class="toggle-label"></label>
-                    <span class="text-base text-gray-900">Track Open Rate</span>
+                    <span class="text-base text-primary">Track Open Rate</span>
                     <span class="ml-2 text-xs font-semibold bg-green-100 text-green-800 px-2 py-0.5 rounded-full">New</span>
                   </div>
                 </div>
@@ -634,8 +636,8 @@
               </div>
 
               <div class="mt-4">
-                <label class="block text-sm font-medium text-gray-700">Email Body</label>
-                <div class="mt-1 w-full border border-gray-300 rounded-lg focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500">
+                <label class="block text-sm font-medium text-secondary">Email Body</label>
+                <div class="mt-1 w-full border rounded-lg focus-within:ring-2 focus-within:ring-gray-500 focus-within:border-gray-500">
                     {{ form.email_body }}
                 </div>
                 {% if form.email_body.errors %}
@@ -648,10 +650,10 @@
 
         <!-- Launch Button -->
         <section class="flex flex-col items-center text-center px-4 md:px-4 lg:px-5 py-6 my-5">
-          <span class="text-md font-medium text-gray-700 bg-slate-200 px-4 py-1 rounded-full">
+          <span class="text-md font-medium text-secondary bg-secondary px-4 py-1 rounded-full">
             Step 5
           </span>
-          <h2 class="text-2xl md:text-3xl font-semibold mt-3">
+          <h2 class="text-2xl md:text-3xl font-semibold mt-3 text-primary">
             Ready to Launch
           </h2>
         </section>
@@ -666,7 +668,7 @@
           <!-- Submit button -->
           <div id="step-2-submit" class="container mx-auto px-4 mb-10 text-center">
             <div class="mt-6">
-              <button type="submit" class="bg-gray-900 hover:bg-gray-800 text-white font-semibold py-3 px-6 rounded-full shadow-lg text-lg">
+              <button type="submit" class="btn-bg-primary btn-bg-hover btn-text font-semibold py-3 px-6 rounded-full shadow-lg text-lg">
                 Launch Bulk Campaign 🚀
               </button>
             </div>
@@ -687,20 +689,20 @@
   {% else %}    
 
 		<section class="flex flex-col items-center text-center px-4 md:px-4 lg:px-5 py-6">
-			<span class="text-md font-medium text-gray-700 bg-slate-200 px-4 py-1 rounded-full">
+			<span class="text-md font-medium text-secondary bg-secondary px-4 py-1 rounded-full">
 					Action Required
 			</span>
-			<h1 class="text-2xl md:text-4xl font-bold text-gray-900 leading-tight mt-4 py-2">
+			<h1 class="text-2xl md:text-4xl font-bold text-primary leading-tight mt-4 py-2">
 				Unlock Full Access: Subscribe Now
 			</h1>
-			<p class="text-gray-500 text-xl sm:text-2xl md:text-2xl max-w-lg mt-4">
+			<p class="text-tertiary text-xl sm:text-2xl md:text-2xl max-w-lg mt-4">
 				To continue enjoying our premium features and services, please subscribe.
 			</p>
 		</section>
 
 		<div class="flex flex-col md:flex-row justify-center gap-8 p-8">
 
-			<div class="relative w-full md:w-1/2 lg:w-1/3 bg-white shadow-lg rounded-2xl p-8 border text-center">
+			<div class="relative w-full text-primary md:w-1/2 lg:w-1/3 bg-primary shadow-lg rounded-2xl p-8 border text-center">
 
         <!-- Title -->
         <h2 class="text-2xl font-extrabold">Basic</h2>
@@ -710,7 +712,7 @@
           <span class="text-4xl md:text-5xl font-extrabold text-green-500 -mt-2 z-20">$36/Month</span>
         </div>
 
-        <p class="text-gray-500 text-lg mt-2">Everything you need to scale</p>
+        <p class="text-tertiary text-lg mt-2">Everything you need to scale</p>
 
         <!-- Features -->
         <ul class="text-left my-6 space-y-3 text-lg sm:px-4">
@@ -743,7 +745,7 @@
 
       </div>
 
-      <div class="relative w-full md:w-1/2 lg:w-1/3 bg-white shadow-lg rounded-2xl p-8 border text-center">
+      <div class="relative w-full text-primary md:w-1/2 lg:w-1/3 bg-primary shadow-lg rounded-2xl p-8 border text-center">
 
         <!-- Title -->
         <h2 class="text-2xl font-extrabold">Standard</h2>
@@ -753,7 +755,7 @@
           <span class="text-4xl md:text-5xl font-extrabold text-green-500 -mt-2 z-20">$56/Month</span>
         </div>
 
-        <p class="text-gray-500 text-lg mt-2">Everything included in Basic package, plus:</p>
+        <p class="text-tertiary text-lg mt-2">Everything included in Basic package, plus:</p>
 
         <!-- Features -->
         <ul class="text-left my-6 space-y-3 text-lg sm:px-4">
@@ -780,13 +782,13 @@
             <span><i class="fa-brands fa-whatsapp"></i></span> +92 320 1410032
         </a>
         
-        <button class="inline-block text-2xl font-semibold py-3 px-14 mt-5 rounded-xl bg-gray-800 hover:bg-gray-800 text-white">
+        <button class="inline-block text-2xl font-semibold py-3 px-14 mt-5 rounded-xl btn-bg-primary btn-bg-hover btn-text">
           Hot Favourite 🔥
         </button>
 
       </div>
 
-      <div class="relative w-full md:w-1/2 lg:w-1/3 bg-white shadow-lg rounded-2xl p-8 border text-center">
+      <div class="relative w-full text-primary md:w-1/2 lg:w-1/3 bg-primary shadow-lg rounded-2xl p-8 border text-center">
 
         <!-- Title -->
         <h2 class="text-2xl font-extrabold">Premium</h2>
@@ -796,7 +798,7 @@
           <span class="text-4xl md:text-5xl font-extrabold text-green-500 -mt-2 z-20">$99/Month</span>
         </div>
 
-        <p class="text-gray-500 text-lg mt-2">Everything included in Standard package, plus:</p>
+        <p class="text-tertiary text-lg mt-2">Everything included in Standard package, plus:</p>
         <p class="text-blue-600 text-xl mt-2">Personalised Coaching for Dispatch Companies directly from <span class="font-bold">M. Ahmad Khalid</span></p>
 
         <!-- Features -->

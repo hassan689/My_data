@@ -1,73 +1,85 @@
 
-<button data-drawer-target="logo-sidebar" data-drawer-toggle="logo-sidebar" aria-controls="logo-sidebar" type="button" class="inline-flex items-center p-2 mt-2 ms-3 text-sm text-gray-500 rounded-lg sm:hidden hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-200 dark:text-gray-400 dark:hover:bg-gray-700 dark:focus:ring-gray-600">
+<button data-drawer-target="logo-sidebar" data-drawer-toggle="logo-sidebar" aria-controls="logo-sidebar" type="button" class="inline-flex items-center p-2 mt-2 ms-3 text-sm text-tertiary rounded-lg sm:hidden bg-hover-light focus:outline-none focus:ring-2 focus:ring-gray-200">
   <span class="sr-only">Open sidebar</span>
   <svg class="w-6 h-6" aria-hidden="true" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
   <path clip-rule="evenodd" fill-rule="evenodd" d="M2 4.75A.75.75 0 012.75 4h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 4.75zm0 10.5a.75.75 0 01.75-.75h7.5a.75.75 0 010 1.5h-7.5a.75.75 0 01-.75-.75zM2 10a.75.75 0 01.75-.75h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 10z"></path>
   </svg>
 </button>
 
-<aside id="logo-sidebar" class="fixed top-0 left-0 z-40 w-72 h-screen transition-transform -translate-x-full sm:translate-x-0 bg-white" aria-label="Sidebar">
-  <div class="h-full px-3 py-4 overflow-y-auto bg-white">
+<aside id="logo-sidebar" class="fixed top-0 left-0 z-40 w-72 h-screen transition-transform -translate-x-full sm:translate-x-0 bg-primary" aria-label="Sidebar">
+  <div class="h-full px-3 py-4 overflow-y-auto bg-primary">
     <a href="{% url 'main:index' %}" class="flex items-center space-x-3 rtl:space-x-reverse p-5">
-      <span class="self-center text-2xl font-bold whitespace-nowrap text-gray-900 italic">Dispatch Skool</span>
+      <span class="self-center text-2xl font-bold whitespace-nowrap text-primary italic">Dispatch Skool</span>
     </a>
     <ul class="space-y-2 font-medium border-t border-gray-200 mt-3">
-        <li class="mt-5">
-          <a href="{% url 'dashboard:index' %}" class="flex items-center p-2 text-gray-900 rounded-lg hover:bg-gray-100 group">
-              <svg class="w-5 h-5 text-gray-500 transition duration-75 group-hover:text-gray-900" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 22 21">
-                <path d="M16.975 11H10V4.025a1 1 0 0 0-1.066-.998 8.5 8.5 0 1 0 9.039 9.039.999.999 0 0 0-1-1.066h.002Z"/>
-                <path d="M12.5 0c-.157 0-.311.01-.565.027A1 1 0 0 0 11 1.02V10h8.975a1 1 0 0 0 1-.935c.013-.188.028-.374.028-.565A8.51 8.51 0 0 0 12.5 0Z"/>
-              </svg>
-              <span class="ms-3">Dashboard</span>
-          </a>
-        </li>
-				<li>
-					<a href="{% url 'dashboard:email_account' %}" class="flex items-center p-2 text-gray-900 rounded-lg hover:bg-gray-100 group">
-						<svg class="shrink-0 w-5 h-5 text-gray-500 transition duration-75 group-hover:text-gray-900" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 20 20">
-								<path d="m17.418 3.623-.018-.008a6.713 6.713 0 0 0-2.4-.569V2h1a1 1 0 1 0 0-2h-2a1 1 0 0 0-1 1v2H9.89A6.977 6.977 0 0 1 12 8v5h-2V8A5 5 0 1 0 0 8v6a1 1 0 0 0 1 1h8v4a1 1 0 0 0 1 1h2a1 1 0 0 0 1-1v-4h6a1 1 0 0 0 1-1V8a5 5 0 0 0-2.582-4.377ZM6 12H4a1 1 0 0 1 0-2h2a1 1 0 0 1 0 2Z"/>
-						</svg>
-						<span class="flex-1 ms-3 whitespace-nowrap">Add Email Account</span>
-					</a>
-				</li>
-				<li>
-					<a href="{% url 'dashboard:daily_sheets' %}" class="flex items-center p-2 text-gray-900 rounded-lg hover:bg-gray-100 group">
-						<i class="fa-solid fa-file-excel shrink-0 w-5 h-5 text-gray-500 transition duration-75 group-hover:text-gray-900"></i>
-						<span class="flex-1 ms-3 whitespace-nowrap">Daily MC Sheets</span>
-					</a>
-				</li>
-        <li>
-          <a href="{% url 'dashboard:bulk_campaign' %}" class="flex items-center p-2 text-gray-900 rounded-lg hover:bg-gray-100 group">
-            <i class="fa-solid fa-rocket shrink-0 w-5 h-5 text-gray-500 transition duration-75 group-hover:text-gray-900"></i>
-            <span class="flex-1 ms-3 whitespace-nowrap">1 Click Bulk Campaign</span>
-          </a>
-        </li>
-        <li>
-          <a href="{% url 'dashboard:campaign_records' %}" class="flex items-center p-2 text-gray-900 rounded-lg hover:bg-gray-100 group">
-            <i class="fa-solid fa-chart-simple shrink-0 w-5 h-5 text-gray-500 transition duration-75 group-hover:text-gray-900"></i>
-            <span class="flex-1 ms-3 whitespace-nowrap">Campaign Analytics</span>
-            <span class="ml-2 text-xs font-semibold bg-green-100 text-green-800 px-2 py-0.5 rounded-full">New</span>
-          </a>
-        </li>
-        <li>
-          <a href="{% url 'unibox:index' %}" class="flex items-center p-2 text-gray-900 rounded-lg hover:bg-gray-100 group">
-            <i class="fa-solid fa-comments shrink-0 w-5 h-5 text-gray-500 transition duration-75 group-hover:text-gray-900"></i>
-            <span class="flex-1 ms-3 whitespace-nowrap">Unified Inboxes</span>
-            <span class="ml-2 text-xs font-semibold bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">Coming Soon</span>
-          </a>
-        </li>
-				<li>
-					<form method="post" action="{% url 'users:logout' %}" class="flex items-center p-2 text-gray-900 rounded-lg hover:cursor-pointer hover:bg-gray-100 group">
-							{% csrf_token %}
-							<svg class="shrink-0 w-5 h-5 mr-4 text-gray-500 transition duration-75 group-hover:text-gray-900" 
-									aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 18 16">
-									<path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-											d="M1 8h11m0 0L8 4m4 4-4 4m4-11h3a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-3"/>
-							</svg>
-							<button type="submit" class="whitespace-nowrap text-gray-900">
-									Logout
-							</button>
-					</form>
-			</li>
-  </ul>
+      <li>
+        <div class="checkbox-wrapper-54 mt-3 flex items-center gap-2 ml-4">
+          <p class="text-primary">Theme</p>
+          <label class="switch">
+            <input type="checkbox">
+            <span class="slider"></span>
+          </label>
+        </div>
+      </li>
+    </ul>
+    <ul class="space-y-2 font-medium border-t border-gray-200 mt-3">
+      <li class="mt-5">
+        <a href="{% url 'dashboard:index' %}" class="flex items-center p-2 text-primary rounded-lg bg-hover-light group">
+            <svg class="w-5 h-5 text-tertiary transition duration-75 group-hover:text-primary" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 22 21">
+              <path d="M16.975 11H10V4.025a1 1 0 0 0-1.066-.998 8.5 8.5 0 1 0 9.039 9.039.999.999 0 0 0-1-1.066h.002Z"/>
+              <path d="M12.5 0c-.157 0-.311.01-.565.027A1 1 0 0 0 11 1.02V10h8.975a1 1 0 0 0 1-.935c.013-.188.028-.374.028-.565A8.51 8.51 0 0 0 12.5 0Z"/>
+            </svg>
+            <span class="ms-3">Dashboard</span>
+        </a>
+      </li>
+      <li>
+        <a href="{% url 'dashboard:email_account' %}" class="flex items-center p-2 text-primary rounded-lg bg-hover-light group">
+          <svg class="shrink-0 w-5 h-5 text-tertiary transition duration-75 group-hover:text-primary" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 20 20">
+              <path d="m17.418 3.623-.018-.008a6.713 6.713 0 0 0-2.4-.569V2h1a1 1 0 1 0 0-2h-2a1 1 0 0 0-1 1v2H9.89A6.977 6.977 0 0 1 12 8v5h-2V8A5 5 0 1 0 0 8v6a1 1 0 0 0 1 1h8v4a1 1 0 0 0 1 1h2a1 1 0 0 0 1-1v-4h6a1 1 0 0 0 1-1V8a5 5 0 0 0-2.582-4.377ZM6 12H4a1 1 0 0 1 0-2h2a1 1 0 0 1 0 2Z"/>
+          </svg>
+          <span class="flex-1 ms-3 whitespace-nowrap">Add Email Account</span>
+        </a>
+      </li>
+      <li>
+        <a href="{% url 'dashboard:daily_sheets' %}" class="flex items-center p-2 text-primary rounded-lg bg-hover-light group">
+          <i class="fa-solid fa-file-excel shrink-0 w-5 h-5 text-tertiary transition duration-75 group-hover:text-primary"></i>
+          <span class="flex-1 ms-3 whitespace-nowrap">Daily MC Sheets</span>
+        </a>
+      </li>
+      <li>
+        <a href="{% url 'dashboard:bulk_campaign' %}" class="flex items-center p-2 text-primary rounded-lg bg-hover-light group">
+          <i class="fa-solid fa-rocket shrink-0 w-5 h-5 text-tertiary transition duration-75 group-hover:text-primary"></i>
+          <span class="flex-1 ms-3 whitespace-nowrap">1 Click Bulk Campaign</span>
+        </a>
+      </li>
+      <li>
+        <a href="{% url 'dashboard:campaign_records' %}" class="flex items-center p-2 text-primary rounded-lg bg-hover-light group">
+          <i class="fa-solid fa-chart-simple shrink-0 w-5 h-5 text-tertiary transition duration-75 group-hover:text-primary"></i>
+          <span class="flex-1 ms-3 whitespace-nowrap">Campaign Analytics</span>
+          <span class="ml-2 text-xs font-semibold bg-green-100 text-green-800 px-2 py-0.5 rounded-full">New</span>
+        </a>
+      </li>
+      <li>
+        <a href="{% url 'unibox:index' %}" class="flex items-center p-2 text-primary rounded-lg bg-hover-light group">
+          <i class="fa-solid fa-comments shrink-0 w-5 h-5 text-tertiary transition duration-75 group-hover:text-primary"></i>
+          <span class="flex-1 ms-3 whitespace-nowrap">Unified Inboxes</span>
+          <span class="ml-2 text-xs font-semibold bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">Coming Soon</span>
+        </a>
+      </li>
+      <li>
+        <form method="post" action="{% url 'users:logout' %}" class="flex items-center p-2 text-primary rounded-lg hover:cursor-pointer bg-hover-light group">
+            {% csrf_token %}
+            <svg class="shrink-0 w-5 h-5 mr-4 text-tertiary transition duration-75 group-hover:text-primary" 
+                aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 18 16">
+                <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                    d="M1 8h11m0 0L8 4m4 4-4 4m4-11h3a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-3"/>
+            </svg>
+            <button type="submit" class="whitespace-nowrap text-primary">
+                Logout
+            </button>
+        </form>
+      </li>
+    </ul>
   </div>
 </aside>
+
