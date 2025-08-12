@@ -6,7 +6,7 @@ from django.core.paginator import Paginator
 
 from users.models import EmailAccount
 from leads_data.models import Lead, DailySheet
-from .models import GmailToken, CampaignRecord
+from .models import GmailToken, CampaignRecord, EmailOpen
 from .forms import EmailAccountForm, CampaignForm, BulkCampaignForm
 from .tasks import send_emails_chunk_celery_task, send_account_attach_notif_email
 from django.db.models import Q, F, Value, IntegerField, OuterRef, Subquery, Prefetch
@@ -803,20 +803,30 @@ def bulk_campaign(request):
 
 
 @require_safe # Ensures the view only responds to GET requests
-def track_open(request, campaign_id):
-    """
-    View to track email open events.
-    """
+def track_open(request, unique_id):
     try:
-        campaign = CampaignRecord.objects.get(id=campaign_id)
-        campaign.open_rate = F('open_rate') + 1
-        campaign.save(update_fields=['open_rate'])
-        print(f"Tracking pixel hit for campaign {campaign_id}. Open rate updated.")
-    except CampaignRecord.DoesNotExist:
-        # Silently fail if the campaign doesn't exist to avoid errors for the user
+        # Get the specific email log entry
+        email_log = EmailOpen.objects.get(unique_id=unique_id)
+        
+        # Check if this email has already been marked as opened
+        if not email_log.is_opened:
+            campaign = email_log.campaign
+            
+            # Atomically increment the open rate
+            campaign.open_rate = F('open_rate') + 1
+            campaign.save(update_fields=['open_rate'])
+            
+            # Mark the log entry as opened to prevent future increments
+            email_log.is_opened = True
+            email_log.save(update_fields=['is_opened'])
+            
+            print(f"Tracking pixel hit for campaign {campaign.id}, unique email {unique_id}. Open rate updated.")
+    
+    except EmailOpen.DoesNotExist:
+        # Fail silently if the unique ID is invalid
         pass
     
-    # Return a 1x1 transparent GIF to the client
+    # Return a 1x1 transparent GIF
     response = HttpResponse(
         b'GIF89a\x01\x00\x01\x00\x80\x00\x00\xff\xff\xff\x00\x00\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;',
         content_type='image/gif'
@@ -837,7 +847,7 @@ def campaign_records(request):
         # track_campaign=True
     ).order_by('-launch_time')
     
-    # Paginate the results, 50 records per page
+    # Paginate the results, 20 cords per page
     paginator = Paginator(campaign_list, 20)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)

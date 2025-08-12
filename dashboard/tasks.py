@@ -3,7 +3,7 @@ import re
 from django.core.mail import EmailMultiAlternatives, get_connection, send_mail, EmailMessage
 from users.models import EmailAccount, CustomUser
 from unibox.models import EmailThread, OutgoingEmailMessage
-from dashboard.models import GmailToken, CampaignRecord
+from dashboard.models import GmailToken, CampaignRecord, EmailOpen
 import random
 from growth_skool.celery import app
 from django.utils import timezone
@@ -126,8 +126,16 @@ def send_emails_chunk_celery_task(email_account_id, leads, subject, body, min_de
             time.sleep(delay)
 
             if campaign.track_campaign:
-                pixel_url = reverse('dashboard:track_open', kwargs={'campaign_id': campaign.id})
+
+                unique_id = uuid.uuid4()
+                pixel_url = reverse('dashboard:track_open', kwargs={'unique_id': unique_id})
                 pixel_link = urljoin(settings.BASE_URL, pixel_url)
+
+                email_log = EmailOpen.objects.create(
+                    campaign=campaign,
+                    recipient_email=lead['Email'],
+                    unique_identifier = unique_id
+                )
 
                 tracking_pixel = f'<img src="{pixel_link}" width="1" height="1" style="display:none;" alt="">'
                 personalized_body += tracking_pixel

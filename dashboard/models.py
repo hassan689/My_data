@@ -98,3 +98,13 @@ class CampaignRecord(models.Model):
         verbose_name_plural = "Campaign Launch Records"
 
 
+
+class EmailOpen(models.Model):
+    campaign = models.ForeignKey(CampaignRecord, on_delete=models.CASCADE)
+    recipient_email = models.CharField(max_length=255)
+    unique_identifier = models.UUIDField(unique=True)
+    is_opened = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"Open for {self.recipient_email} in Campaign {self.campaign.id}"
+
