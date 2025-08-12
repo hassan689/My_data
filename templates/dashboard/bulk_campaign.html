@@ -4,7 +4,22 @@
 {% load custom_filters %}
 {% block 'title' %}Dispatch Skool - Bulk Campaign{% endblock %}
 
-{% block 'head' %}{{ form.media }}{% endblock %}
+{% block 'head' %}
+    {{ form.media }}
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const form = document.querySelector('form');
+            const datetimeInput = document.querySelector('input[name="schedule_launch_datetime"]');
+            const timezoneInput = document.createElement('input');
+            timezoneInput.type = 'hidden';
+            timezoneInput.name = 'user_timezone';
+            timezoneInput.value = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Karachi'; // Fallback
+            form.appendChild(timezoneInput);
+
+            if (!form || !datetimeInput) return;
+        });
+    </script>
+{% endblock %}
 
 {% load widget_tweaks %}
 
@@ -597,20 +612,19 @@
                   <span class="font-bold text-green-600">If you are using our database</span>, the following columns are available for personalization:
                 </p>
                 <div class="mt-2 flex flex-wrap gap-2 text-xs font-medium">
-                  <span class="px-2 py-1 bg-primary btn-border-hover rounded-md text-primary bg-tertiary">[MC Number]</span>
-                  <span class="px-2 py-1 bg-primary btn-border-hover rounded-md text-primary bg-tertiary">[Legal Name]</span>
-                  <span class="px-2 py-1 bg-primary btn-border-hover rounded-md text-primary bg-tertiary">[Email]</span>
-                  <span class="px-2 py-1 bg-primary btn-border-hover rounded-md text-primary bg-tertiary">[U.S DOT]</span>
-                  <span class="px-2 py-1 bg-primary btn-border-hover rounded-md text-primary bg-tertiary">[VMT Year]</span>
-                  <span class="px-2 py-1 bg-primary btn-border-hover rounded-md text-primary bg-tertiary">[Power Units]</span>
-                  <span class="px-2 py-1 bg-primary btn-border-hover rounded-md text-primary bg-tertiary">[DUNS Number]</span>
-                  <span class="px-2 py-1 bg-primary btn-border-hover rounded-md text-primary bg-tertiary">[Drivers]</span>
-                  <span class="px-2 py-1 bg-primary btn-border-hover rounded-md text-primary bg-tertiary">[Telephone]</span>
-                  <span class="px-2 py-1 bg-primary btn-border-hover rounded-md text-primary bg-tertiary">[Address]</span>
-                  <span class="px-2 py-1 bg-primary btn-border-hover rounded-md text-primary bg-tertiary">[Cargo Classifications]</span>
+                  <span class="px-2 py-1 bg-white rounded-md">[MC Number]</span>
+                  <span class="px-2 py-1 bg-white rounded-md">[Legal Name]</span>
+                  <span class="px-2 py-1 bg-white rounded-md">[Email]</span>
+                  <span class="px-2 py-1 bg-white rounded-md">[U.S DOT]</span>
+                  <span class="px-2 py-1 bg-white rounded-md">[VMT Year]</span>
+                  <span class="px-2 py-1 bg-white rounded-md">[Power Units]</span>
+                  <span class="px-2 py-1 bg-white rounded-md">[DUNS Number]</span>
+                  <span class="px-2 py-1 bg-white rounded-md">[Drivers]</span>
+                  <span class="px-2 py-1 bg-white rounded-md">[Telephone]</span>
+                  <span class="px-2 py-1 bg-white rounded-md">[Address]</span>
+                  <span class="px-2 py-1 bg-white rounded-md">[Cargo Classifications]</span>
                 </div>
               </div>
-
 
 
               <div class="mt-4">
@@ -946,24 +960,6 @@
       if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
         modal.classList.add('hidden');
       }
-    });
-  </script>
-
-  <!-- Detect local time -->
-  <script>
-    document.addEventListener('DOMContentLoaded', function () {
-      const form = document.querySelector('form');
-      const datetimeInput = document.querySelector('input[name="schedule_launch_datetime"]');
-
-      if (!form || !datetimeInput) return;
-
-      form.addEventListener('submit', function (e) {
-        if (datetimeInput.value) {
-          const localDate = new Date(datetimeInput.value);
-          const utcDateString = localDate.toISOString().slice(0, 16); // format like "2025-08-01T04:26"
-          datetimeInput.value = utcDateString;
-        }
-      });
     });
   </script>
 

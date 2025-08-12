@@ -4,6 +4,7 @@ from users.models import EmailAccount
 from django_ckeditor_5.widgets import CKEditor5Widget
 from django.forms.widgets import DateTimeInput
 from datetime import timezone as dt_timezone
+import pytz
 # from ckeditor_uploader.widgets import CKEditorUploadingWidget 
 
 class EmailAccountForm(forms.ModelForm):
@@ -57,33 +58,32 @@ class CampaignForm(forms.Form):
         widget=forms.TextInput(attrs={'placeholder': 'Hello [Legal Name] - [MC Number] - Some Big Offer'})
     )
     email_body = forms.CharField(
-        widget=CKEditor5Widget(config_name='default'),  # Integrate CKEditor 5
-        # widget=CKEditorUploadingWidget(),
+        widget=CKEditor5Widget(config_name='default'),
         required=True
     )
     file_upload = forms.FileField(
-        required=False, 
+        required=False,
         widget=forms.ClearableFileInput(attrs={'class': 'hidden'})
     )
     lower_limit_mc_number = forms.CharField(
-        max_length=10, 
-        required=False, 
+        max_length=10,
+        required=False,
         widget=forms.TextInput(attrs={'placeholder': 'Lower Limit MC Number, e.g: 1600000'})
     )
     upper_limit_mc_number = forms.CharField(
-        max_length=10, 
-        required=False, 
+        max_length=10,
+        required=False,
         widget=forms.TextInput(attrs={'placeholder': 'Upper Limit MC Number, e.g: 1600300'})
     )
     mc_number = forms.CharField(
-        max_length=10, 
-        required=False, 
+        max_length=10,
+        required=False,
         widget=forms.TextInput(attrs={'placeholder': 'Enter Starting MC Number'})
     )
     targets_count = forms.IntegerField(
         required=False,
         widget=forms.NumberInput(attrs={'placeholder': 'Number of targets you want to select'})
-		)
+    )
     min_delay = forms.IntegerField(
         required=False,
         min_value=0,
@@ -93,8 +93,6 @@ class CampaignForm(forms.Form):
         required=False,
         widget=forms.NumberInput(attrs={'placeholder': 'Maximum Delay'}),
     )
-
-    # Power Units Filter
     power_units_comparison = forms.ChoiceField(
         choices=[
             ('lt', 'Less than'),
@@ -109,8 +107,6 @@ class CampaignForm(forms.Form):
         label="Power Units (Value)",
         widget=forms.NumberInput(attrs={'placeholder': 'Enter number of power units'})
     )
-
-    # Drivers Filter
     drivers_comparison = forms.ChoiceField(
         choices=[
             ('lt', 'Less than'),
@@ -125,8 +121,6 @@ class CampaignForm(forms.Form):
         label="Drivers (Value)",
         widget=forms.NumberInput(attrs={'placeholder': 'Enter number of drivers'})
     )
-
-    # Status Filter
     status = forms.ChoiceField(
         choices=[
             ('', '---------'), # Optional empty choice for "any"
@@ -136,8 +130,6 @@ class CampaignForm(forms.Form):
         required=False,
         label="Status"
     )
-
-    # Carrier Operation Filter
     carrier_operation = forms.ChoiceField(
         choices=[
             ('', '---------'), # Optional empty choice for "any"
@@ -148,26 +140,22 @@ class CampaignForm(forms.Form):
         required=False,
         label="Carrier Operation"
     )
-
     cargo_classification_search = forms.CharField(
         max_length=255,
         required=False,
         label="Cargo Classification Search",
         widget=forms.TextInput(attrs={'placeholder': 'e.g., General Freight, Refrigerated Food'})
     )
-
     cargo_info_search = forms.CharField(
         max_length=255,
         required=False,
         label="Cargo Info Search",
         widget=forms.TextInput(attrs={'placeholder': 'e.g., Straight Trucks, Truck Tractors, Trailers etc.'})
     )
-
     schedule_launch_datetime = forms.DateTimeField(
         required=False,
         widget=DateTimePickerInput(),
     )
-
     skip_mc_numbers = forms.CharField(
         required=False,
         label="Skip These MC Numbers",
@@ -177,9 +165,8 @@ class CampaignForm(forms.Form):
             'class': 'rounded-lg outline-none text-primary bg-primary w-full'
         })
     )
-
     track_campaign = forms.BooleanField(
-        required=False, 
+        required=False,
         label="Track Email Opens",
         widget=forms.CheckboxInput()
     )
@@ -189,7 +176,7 @@ class CampaignForm(forms.Form):
         super().__init__(*args, **kwargs)
 
         if self.user and self.user.on_free_trial:
-            self.fields['mc_number'].widget.attrs['disabled'] = True  # Restrict free trial users
+            self.fields['mc_number'].widget.attrs['disabled'] = True
 
     def clean(self):
         cleaned_data = super().clean()
@@ -235,23 +222,24 @@ class CampaignForm(forms.Form):
 
         # Schedule datetime validation
         if schedule_launch_datetime:
-            try:
-                if timezone.is_naive(schedule_launch_datetime):
-                    schedule_launch_datetime = timezone.make_aware(schedule_launch_datetime, dt_timezone.utc)
-                else:
-                    schedule_launch_datetime = schedule_launch_datetime.astimezone(dt_timezone.utc)
+            now_utc = timezone.now()
+            if timezone.is_naive(schedule_launch_datetime):
+                try:
+                    user_timezone = pytz.timezone(cleaned_data.get('user_timezone', 'Asia/Karachi'))
+                    scheduled_time = timezone.make_aware(schedule_launch_datetime, user_timezone)
+                except pytz.exceptions.UnknownTimeZoneError:
+                    scheduled_time = timezone.make_aware(schedule_launch_datetime, timezone.get_current_timezone())
+            else:
+                scheduled_time = schedule_launch_datetime
 
-
-                if schedule_launch_datetime <= timezone.now():
-                    self.add_error('schedule_launch_datetime', "Scheduled time must be in the future.")
-                else:
-                    cleaned_data['schedule_launch_datetime'] = schedule_launch_datetime
-
-            except Exception as e:
-                self.add_error('schedule_launch_datetime', f"Invalid date/time: {e}")
+            scheduled_time_utc = scheduled_time.astimezone(dt_timezone.utc)
+            if scheduled_time_utc <= now_utc:
+                self.add_error('schedule_launch_datetime', "Scheduled time must be in the future.")
+            else:
+                # Store as Karachi time for scheduling
+                cleaned_data['schedule_launch_datetime'] = scheduled_time.astimezone(pytz.timezone('Asia/Karachi'))
 
         return cleaned_data
-
 
 
 class BulkCampaignForm(CampaignForm):
@@ -294,19 +282,23 @@ class BulkCampaignForm(CampaignForm):
 
         # Schedule datetime validation
         if schedule_launch_datetime:
-            try:
-                if timezone.is_naive(schedule_launch_datetime):
-                    schedule_launch_datetime = timezone.make_aware(schedule_launch_datetime, dt_timezone.utc)
-                else:
-                    schedule_launch_datetime = schedule_launch_datetime.astimezone(dt_timezone.utc)
+            now_utc = timezone.now()
+            if timezone.is_naive(schedule_launch_datetime):
+                try:
+                    user_timezone = pytz.timezone(cleaned_data.get('user_timezone', 'Asia/Karachi'))
+                    scheduled_time = timezone.make_aware(schedule_launch_datetime, user_timezone)
+                except pytz.exceptions.UnknownTimeZoneError:
+                    scheduled_time = timezone.make_aware(schedule_launch_datetime, timezone.get_current_timezone())
+            else:
+                scheduled_time = schedule_launch_datetime
 
-                if schedule_launch_datetime <= timezone.now():
-                    self.add_error('schedule_launch_datetime', "Scheduled time must be in the future.")
-                else:
-                    cleaned_data['schedule_launch_datetime'] = schedule_launch_datetime
+            scheduled_time_utc = scheduled_time.astimezone(dt_timezone.utc)
+            if scheduled_time_utc <= now_utc:
+                self.add_error('schedule_launch_datetime', "Scheduled time must be in the future.")
+            else:
+                # Store as Karachi time for scheduling
+                cleaned_data['schedule_launch_datetime'] = scheduled_time.astimezone(pytz.timezone('Asia/Karachi'))
 
-            except Exception as e:
-                self.add_error('schedule_launch_datetime', f"Invalid date/time: {e}")
 
         # Bypass account allocation check if 'select_all' is true
         is_select_all = self.data.get('select_all') in ['true', 'on', '1']

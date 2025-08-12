@@ -4,7 +4,7 @@ from django.db.models import F, ExpressionWrapper, DecimalField
 
 @admin.register(Subscription)
 class SubscriptionAdmin(admin.ModelAdmin):
-    list_display = ("user", "company_name", "start_date", "end_date", "status", "renewal_count", "paid_amount",)
+    list_display = ("user", "is_referred", "start_date", "end_date", "status", "renewal_count", "paid_amount",)
     search_fields = ("user__username", "user__email")
     list_filter = ("status",)
     ordering = ("-start_date",)
@@ -16,6 +16,11 @@ class SubscriptionAdmin(admin.ModelAdmin):
 
     company_name.admin_order_field = "user__company_name"  # Allows sorting by company_name
     company_name.short_description = "Company Name"  # Sets a readable column name in the admin panel
+
+    def is_referred(self, obj):
+        return obj.user.referred_by is not None  # True if referred, False otherwise
+    is_referred.boolean = True  # Makes it display as a green check or red cross
+    is_referred.short_description = "Referred User"
 
 
 @admin.register(Revenue)

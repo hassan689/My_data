@@ -396,3 +396,38 @@ def clear_successful_task_results():
     return f"Deleted {deleted} successful task results"
 
 
+
+@app.task(name="dashboard.tasks.check_processing_campaign_count")
+def check_processing_campaign_count():
+    """
+    Checks the number of processing campaigns and sends an alert if the threshold is met.
+    """
+    PROCESSING_CAMPAIGN_THRESHOLD = 110
+    
+    processing_count = CampaignRecord.objects.filter(status='processing').count()
+
+    if processing_count >= PROCESSING_CAMPAIGN_THRESHOLD:
+        subject = f"⚠️ Alert: High Number of Processing Campaigns ({processing_count})"
+        body = (
+            f"Hello,\n\n"
+            f"This is an automated alert. The number of active campaigns with 'processing' status has reached {processing_count}.\n"
+            f"This is approaching the Celery worker limit of 120.\n\n"
+            f"Please check the server load and campaign queue.\n\n"
+            f"Regards,\nThe DispatchSkool Team"
+        )
+        
+        # Replace with your email address
+        recipient_list = ['abdullahatif132@gmail.com'] 
+        
+        try:
+            send_mail(
+                subject,
+                body,
+                settings.DEFAULT_FROM_EMAIL,
+                recipient_list,
+                fail_silently=False,
+            )
+        except Exception as e:
+            print(f"Failed to send processing campaign count alert email: {e}")
+
+
