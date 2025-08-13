@@ -128,7 +128,7 @@ def send_emails_chunk_celery_task(email_account_id, leads, subject, body, min_de
             if campaign.track_campaign:
 
                 unique_id = uuid.uuid4()
-                pixel_url = reverse('dashboard:track_open', kwargs={'unique_id': unique_id})
+                pixel_url = reverse('dashboard:track_open', kwargs={'unique_identifier': unique_id})
                 pixel_link = urljoin(settings.BASE_URL, pixel_url)
 
                 email_log = EmailOpen.objects.create(

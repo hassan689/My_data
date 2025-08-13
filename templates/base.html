@@ -3,6 +3,21 @@
 <!DOCTYPE html>
 <html lang="en" class="scroll-smooth">
 <head>
+
+  <script>
+    (function() {
+      const theme = localStorage.getItem('theme');
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const html = document.documentElement;
+
+      if (theme === 'dark' || (!theme && prefersDark)) {
+        html.classList.add('dark');
+      } else {
+        html.classList.add('light');
+      }
+    })();
+  </script>
+
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title>{% block 'title' %}{% endblock %}</title>
@@ -187,50 +202,35 @@
 		</script>
 
     <script>
+      document.addEventListener('DOMContentLoaded', () => {
         const themeToggle = document.getElementById('theme-toggle');
         const checkbox = document.querySelector('.checkbox-wrapper-54 input[type="checkbox"]');
         const html = document.documentElement;
 
-        // Set initial theme based on localStorage or system preference
-        const currentTheme = localStorage.getItem('theme');
-        if (currentTheme === 'dark' || (!currentTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-          html.classList.add('dark');
-          if (checkbox) {
-            checkbox.checked = true;
-          }
-        } else {
-          html.classList.add('light');
+        // Set initial checkbox state
+        if (html.classList.contains('dark') && checkbox) {
+          checkbox.checked = true;
         }
 
-        // Handle toggle button click
+        // Handle theme toggle button
         if (themeToggle) {
           themeToggle.addEventListener('click', () => {
-            if (html.classList.contains('light')) {
-              html.classList.remove('light');
-              html.classList.add('dark');
-              localStorage.setItem('theme', 'dark');
-            } else {
-              html.classList.remove('dark');
-              html.classList.add('light');
-              localStorage.setItem('theme', 'light');
-            }
+            html.classList.toggle('dark');
+            html.classList.toggle('light');
+            localStorage.setItem('theme', html.classList.contains('dark') ? 'dark' : 'light');
+            if (checkbox) checkbox.checked = html.classList.contains('dark');
           });
         }
 
-        // Handle the custom checkbox button
+        // Handle checkbox switch
         if (checkbox) {
           checkbox.addEventListener('change', () => {
-            if (checkbox.checked) {
-              html.classList.remove('light');
-              html.classList.add('dark');
-              localStorage.setItem('theme', 'dark');
-            } else {
-              html.classList.remove('dark');
-              html.classList.add('light');
-              localStorage.setItem('theme', 'light');
-            }
+            html.classList.toggle('dark', checkbox.checked);
+            html.classList.toggle('light', !checkbox.checked);
+            localStorage.setItem('theme', checkbox.checked ? 'dark' : 'light');
           });
         }
+      });
     </script>
 
 

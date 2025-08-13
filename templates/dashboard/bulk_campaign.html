@@ -220,7 +220,7 @@
                         </div>
 
                         <div class="relative inline-flex items-center justify-center w-full">
-                          <h2 class="text-base md:text-base my-6">
+                          <h2 class="text-base md:text-base my-6 text-blue-600">
                             Or select a range of MC numbers so that the leads will be collected in that range
                           </h2>
                         </div>
@@ -242,7 +242,7 @@
                             Skip These MC Numbers (Optional)
                           </label>
                           {{ form.skip_mc_numbers|add_class:"w-full" }}
-                          <p class="text-sm text-tertiary mt-1 text-yellow-300">Type an MC Number like "MC 1234567" and press Enter to add. Click x to remove.</p>
+                          <p class="text-sm text-tertiary mt-1 text-yellow-600">Type an MC Number like "MC 1234567" and press Enter to add. Click x to remove.</p>
                           {% if form.skip_mc_numbers.errors %}
                             <div class="bg-red-200 p-5 my-3 rounded-xl border-2 border-solid border-red-700">
                               <p class="text-red-700 text-sm">{{ form.skip_mc_numbers.errors.0 }}</p>
@@ -300,7 +300,7 @@
                               <label class="block text-sm font-medium text-secondary">Cargo Classification</label>
                               {{ form.cargo_classification_search|add_class:"w-full"|attr:"id:id_cargo_classification_search" }}
                               
-                              <p class="text-sm text-tertiary mt-1 text-yellow-300">Type your choice and press Enter to add. Click x to remove.</p>
+                              <p class="text-sm text-tertiary mt-1 text-yellow-600">Type your choice and press Enter to add. Click x to remove.</p>
                               <p class="text-sm text-primary my-4">
                                 You can simply <span class="font-bold">copy, paste</span> from the following examples:
                               </p>
@@ -319,7 +319,7 @@
                               <label class="block text-sm font-medium text-secondary">Cargo Info</label>
                               {{ form.cargo_info_search|add_class:"w-full"|attr:"id:id_cargo_info_search" }}
 
-                              <p class="text-sm text-tertiary mt-1 text-yellow-300">Type your choice and press Enter to add. Click x to remove.</p>
+                              <p class="text-sm text-tertiary mt-1 text-yellow-600">Type your choice and press Enter to add. Click x to remove.</p>
                               <p class="text-sm text-primary my-4">
                                 You can simply <span class="font-bold">copy, paste</span> from the following examples:
                               </p>

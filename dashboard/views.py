@@ -803,10 +803,10 @@ def bulk_campaign(request):
 
 
 @require_safe # Ensures the view only responds to GET requests
-def track_open(request, unique_id):
+def track_open(request, unique_identifier):
     try:
         # Get the specific email log entry
-        email_log = EmailOpen.objects.get(unique_id=unique_id)
+        email_log = EmailOpen.objects.get(unique_identifier=unique_identifier)
         
         # Check if this email has already been marked as opened
         if not email_log.is_opened:
@@ -820,7 +820,7 @@ def track_open(request, unique_id):
             email_log.is_opened = True
             email_log.save(update_fields=['is_opened'])
             
-            print(f"Tracking pixel hit for campaign {campaign.id}, unique email {unique_id}. Open rate updated.")
+            print(f"Tracking pixel hit for campaign {campaign.id}, unique email {unique_identifier}. Open rate updated.")
     
     except EmailOpen.DoesNotExist:
         # Fail silently if the unique ID is invalid

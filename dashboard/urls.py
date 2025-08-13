@@ -13,7 +13,7 @@ urlpatterns = [
     path('emergency-stop/<int:email_account_id>/', views.emergency_stop, name='emergency_stop'),
     path('resume-stopped/<int:email_account_id>/', views.resume_stopped, name='resume_stopped'),
     path('campaign-statuses/', views.campaign_statuses, name='campaign_statuses'),
-    path('track/<uuid:unique_id>/', views.track_open, name='track_open'),
+    path('track/<uuid:unique_identifier>/', views.track_open, name='track_open'),
     path('campaign-records/', views.campaign_records, name='campaign_records'),
     path('delete-campaign-records/<int:cmpn_id>/', views.delete_campaign, name='delete_campaign'),
 
