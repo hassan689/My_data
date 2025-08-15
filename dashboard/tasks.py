@@ -131,11 +131,14 @@ def send_emails_chunk_celery_task(email_account_id, leads, subject, body, min_de
                 pixel_url = reverse('dashboard:track_open', kwargs={'unique_identifier': unique_id})
                 pixel_link = urljoin(settings.BASE_URL, pixel_url)
 
-                email_log = EmailOpen.objects.create(
-                    campaign=campaign,
-                    recipient_email=lead['Email'],
-                    unique_identifier = unique_id
-                )
+                try:
+                    email_log = EmailOpen.objects.create(
+                        campaign=campaign,
+                        recipient_email=lead['Email'],
+                        unique_identifier = unique_id
+                    )
+                except Exception as e:
+                    print(f"Exception dring email log entry: {e}")
 
                 tracking_pixel = f'<img src="{pixel_link}" width="1" height="1" style="display:none;" alt="">'
                 personalized_body += tracking_pixel
@@ -438,4 +441,14 @@ def check_processing_campaign_count():
         except Exception as e:
             print(f"Failed to send processing campaign count alert email: {e}")
 
+
+
+@app.task(name="dashboard.tasks.cleanup_email_opens")
+def cleanup_email_opens():
+    """
+    Deletes all EmailOpen instances where is_opened=True.
+    Intended to be run monthly.
+    """
+    deleted_count, _ = EmailOpen.objects.filter(is_opened=True).delete()
+    return f"Deleted {deleted_count} opened email records."
 

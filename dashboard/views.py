@@ -18,7 +18,9 @@ from django.conf import settings
 from django.core.cache import cache
 from django.utils.timezone import now
 from datetime import datetime
+from django.core.mail import send_mail
 from django.utils.timezone import make_naive
+from django.db import transaction
 
 from google_secrets import *
 from urllib.parse import quote_plus
@@ -802,36 +804,77 @@ def bulk_campaign(request):
     })
 
 
-@require_safe # Ensures the view only responds to GET requests
+
+@require_safe
 def track_open(request, unique_identifier):
     try:
-        # Get the specific email log entry
-        email_log = EmailOpen.objects.get(unique_identifier=unique_identifier)
-        
-        # Check if this email has already been marked as opened
-        if not email_log.is_opened:
-            campaign = email_log.campaign
-            
-            # Atomically increment the open rate
-            campaign.open_rate = F('open_rate') + 1
-            campaign.save(update_fields=['open_rate'])
-            
-            # Mark the log entry as opened to prevent future increments
-            email_log.is_opened = True
-            email_log.save(update_fields=['is_opened'])
-            
-            print(f"Tracking pixel hit for campaign {campaign.id}, unique email {unique_identifier}. Open rate updated.")
-    
+        with transaction.atomic():
+            email_log = (
+                EmailOpen.objects
+                .select_for_update()  # Locks row until transaction ends
+                .get(unique_identifier=unique_identifier)
+            )
+
+            # Detect suspicious proxy/preload hits
+            ua = request.META.get('HTTP_USER_AGENT', '').lower()
+            ip = request.META.get('REMOTE_ADDR', '')
+
+            suspicious_patterns = [
+                'applemail',        # Apple Mail Privacy Protection
+                'googleimageproxy', # Gmail image proxy
+                'outlook',          # Outlook image cache proxy
+                'yahoo',            # Yahoo Mail proxy
+                'samsung',          # Samsung Email client
+            ]
+
+            if any(pattern in ua for pattern in suspicious_patterns):
+                print(f"⚠️ Suspicious open detected for {email_log.recipient_email} (UA: {ua}, IP: {ip})")
+                email_log.suspicious_open = True
+                email_log.save(update_fields=['suspicious_open'])
+                return _gif_response()  # Exit without increment
+
+            # If real open (idempotent due to DB row lock)
+            if not email_log.is_opened:
+                campaign = email_log.campaign
+                campaign.open_rate = F('open_rate') + 1
+                campaign.save(update_fields=['open_rate'])
+
+                email_log.is_opened = True
+                email_log.save(update_fields=['is_opened'])
+
+
     except EmailOpen.DoesNotExist:
-        # Fail silently if the unique ID is invalid
-        pass
-    
-    # Return a 1x1 transparent GIF
+        try:
+            send_mail(
+                subject="EmailOpen record not found",
+                message = (
+                    f"The tracking pixel was hit with an unknown unique_identifier:\n\n"
+                    f"{unique_identifier}\n\n"
+                    f"IP: {request.META.get('REMOTE_ADDR', '')}\n"
+                    f"User-Agent: {request.META.get('HTTP_USER_AGENT', '')}"
+                ),
+                from_email=settings.EMAIL_HOST_USER,
+                recipient_list=["abdullahatif132@gmail.com"],
+                fail_silently=True,
+            )
+        except Exception as e:
+            print(f"⚠️ Failed to send error notification email: {e}")
+
+    return _gif_response()
+
+
+
+def _gif_response():
     response = HttpResponse(
-        b'GIF89a\x01\x00\x01\x00\x80\x00\x00\xff\xff\xff\x00\x00\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;',
+        b'GIF89a\x01\x00\x01\x00\x80\x00\x00\xff\xff\xff\x00\x00\x00,\x00\x00\x00\x00'
+        b'\x01\x00\x01\x00\x00\x02\x02D\x01\x00;',
         content_type='image/gif'
     )
+    response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response['Pragma'] = 'no-cache'
+    response['Expires'] = '0'
     return response
+
 
 
 ######################################## Email accounts creation and dashboard views

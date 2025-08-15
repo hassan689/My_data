@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import GmailToken, CampaignRecord
+from .models import GmailToken, CampaignRecord, EmailOpen
 from django.utils import timezone
 
 @admin.register(GmailToken)
@@ -48,5 +48,11 @@ class CampaignRecordAdmin(admin.ModelAdmin):
 
     display_launch_or_schedule_time.short_description = 'Launch/Schedule Time'
     display_launch_or_schedule_time.admin_order_field = 'launch_time' # Allows sorting by launch_time
+
+
+@admin.register(EmailOpen)
+class EmailOpenAdmin(admin.ModelAdmin):
+    list_display = ('campaign', 'is_opened')
+    list_filter = ('is_opened',)
 
 
