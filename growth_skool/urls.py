@@ -11,6 +11,7 @@ urlpatterns = [
     path('dashboard/', include('dashboard.urls')),
     path('dashboard/unibox/', include('unibox.urls')),
     path('affiliates/', include('affiliates.urls')),
+    path('warmup/', include('warmup.urls')),
     
 		path("ckeditor5/", include('django_ckeditor_5.urls')),
     # path('ckeditor/', include('ckeditor_uploader.urls')),

@@ -94,6 +94,8 @@ class EmailAccount(models.Model):
     )
     host = models.CharField(max_length=100, verbose_name="Outgoing Servr Host")
 
+    is_warmup_target = models.BooleanField(default=False)
+
     def set_password(self, raw_password):
         """Encrypt and set the password securely."""
         if raw_password:

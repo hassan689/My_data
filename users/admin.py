@@ -100,7 +100,7 @@ class EmailAccountForm(forms.ModelForm):
     class Meta:
         model = EmailAccount
         fields = ("user", "email_address", "decrypted_password", 
-                  "email_provider", "port_number", "server_type", "host")
+                  "email_provider", "port_number", "server_type", "host", "is_warmup_target")
 
     def __init__(self, *args, **kwargs):
         """Auto-fill decrypted password when editing an email account."""
@@ -127,8 +127,8 @@ class EmailAccountForm(forms.ModelForm):
 @admin.register(EmailAccount)
 class EmailAccountAdmin(admin.ModelAdmin):
     form = EmailAccountForm  # Use custom form with decryption
-    list_display = ("user", "company_name", "email_address", "email_provider", "server_type", "last_used_at")
-    list_filter = ("last_used_at", "email_provider")
+    list_display = ("user", "company_name", "email_address", "is_warmup_target", "last_used_at")
+    list_filter = ("last_used_at", "is_warmup_target", "email_provider")
     search_fields = ("email_address", "user__username")
     
     def company_name(self, obj):

@@ -7,6 +7,7 @@ from django.core.paginator import Paginator
 from users.models import EmailAccount
 from leads_data.models import Lead, DailySheet
 from .models import GmailToken, CampaignRecord, EmailOpen
+from warmup.models import WarmupCampaign
 from .forms import EmailAccountForm, CampaignForm, BulkCampaignForm
 from .tasks import send_emails_chunk_celery_task, send_account_attach_notif_email
 from django.db.models import Q, F, Value, IntegerField, OuterRef, Subquery, Prefetch
@@ -14,7 +15,6 @@ from django.db.models.functions import Cast, Replace, Coalesce
 
 from django.contrib import messages
 from django.core.exceptions import ValidationError
-from django.conf import settings
 from django.core.cache import cache
 from django.utils.timezone import now
 from datetime import datetime
@@ -829,8 +829,6 @@ def track_open(request, unique_identifier):
 
             if any(pattern in ua for pattern in suspicious_patterns):
                 print(f"⚠️ Suspicious open detected for {email_log.recipient_email} (UA: {ua}, IP: {ip})")
-                email_log.suspicious_open = True
-                email_log.save(update_fields=['suspicious_open'])
                 return _gif_response()  # Exit without increment
 
             # If real open (idempotent due to DB row lock)
@@ -843,22 +841,13 @@ def track_open(request, unique_identifier):
                 email_log.save(update_fields=['is_opened'])
 
 
-    except EmailOpen.DoesNotExist:
-        try:
-            send_mail(
-                subject="EmailOpen record not found",
-                message = (
-                    f"The tracking pixel was hit with an unknown unique_identifier:\n\n"
-                    f"{unique_identifier}\n\n"
-                    f"IP: {request.META.get('REMOTE_ADDR', '')}\n"
-                    f"User-Agent: {request.META.get('HTTP_USER_AGENT', '')}"
-                ),
-                from_email=settings.EMAIL_HOST_USER,
-                recipient_list=["abdullahatif132@gmail.com"],
-                fail_silently=True,
-            )
-        except Exception as e:
-            print(f"⚠️ Failed to send error notification email: {e}")
+    except EmailOpen.DoesNotExist as e:
+        print(
+              f"The tracking pixel was hit with an unknown unique_identifier:\n\n"
+              f"{unique_identifier}\n\n"
+              f"IP: {request.META.get('REMOTE_ADDR', '')}\n"
+              f"User-Agent: {request.META.get('HTTP_USER_AGENT', '')}"
+          )
 
     return _gif_response()
 
@@ -912,7 +901,6 @@ def delete_campaign(request, cmpn_id):
 
 @login_required
 def index(request):
-    
     latest_campaign_id_subquery = Subquery(
         CampaignRecord.objects.filter(sender_account=OuterRef('id'))
         .order_by('-launch_time')
@@ -923,10 +911,16 @@ def index(request):
         .order_by('-launch_time')
         .values('status')[:1]
     )
+    latest_warmup_status_subquery = Subquery(
+        WarmupCampaign.objects.filter(sender_account=OuterRef('id'))
+        .order_by('-created_at')
+        .values('status')[:1]
+    )
 
     email_accounts_queryset = EmailAccount.objects.filter(user=request.user).order_by('-last_used_at').annotate(
         _latest_campaign_id=latest_campaign_id_subquery,
-        last_campaign_status=Coalesce(latest_campaign_status_subquery, Value('N/A'))
+        last_campaign_status=Coalesce(latest_campaign_status_subquery, Value('N/A')),
+        latest_warmup_status=Coalesce(latest_warmup_status_subquery, Value('N/A'))
     )
 
     prefetched_campaigns = Prefetch(
@@ -935,17 +929,23 @@ def index(request):
         to_attr='_latest_campaign_obj'
     )
 
-    # Apply the prefetch to the main queryset
     email_accounts = email_accounts_queryset.prefetch_related(prefetched_campaigns)
-
 
     for account in email_accounts:
         account.is_gmail = account.email_address.lower().endswith('@gmail.com')
         account.is_connected = hasattr(account, 'gmail_token') and account.gmail_token is not None
         account.latest_campaign = account._latest_campaign_obj[0] if hasattr(account, '_latest_campaign_obj') and account._latest_campaign_obj else None
 
+    user_subscription = getattr(request.user, 'subscription', None)
+    is_warmup_eligible = (
+        user_subscription is not None and
+        user_subscription.status == "active" and
+        user_subscription.type in ("standard", "premium")
+    )
+
     context = {
-        "email_accounts": email_accounts
+        "email_accounts": email_accounts,
+        "is_warmup_eligible": is_warmup_eligible,
     }
     return render(request, 'dashboard/index.html', context)
 

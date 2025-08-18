@@ -4,12 +4,12 @@ from django.db.models import F, ExpressionWrapper, DecimalField
 
 @admin.register(Subscription)
 class SubscriptionAdmin(admin.ModelAdmin):
-    list_display = ("user", "is_referred", "start_date", "end_date", "status", "renewal_count", "paid_amount",)
+    list_display = ("user", "is_referred", "start_date", "end_date", "status", "type", "renewal_count", "paid_amount",)
     search_fields = ("user__username", "user__email")
-    list_filter = ("status",)
+    list_filter = ("status", "type",)
     ordering = ("-start_date",)
     readonly_fields = ("renewal_count",)
-    list_editable = ("status", "paid_amount",)
+    list_editable = ("status", "paid_amount", "type",)
     
     def company_name(self, obj):
         return obj.user.company_name  # Accessing company_name from related CustomUser model

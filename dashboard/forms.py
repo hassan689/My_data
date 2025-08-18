@@ -16,7 +16,7 @@ class EmailAccountForm(forms.ModelForm):
 
     class Meta:
         model = EmailAccount
-        fields = ["email_address", "decrypted_password", "email_provider", "port_number", "server_type", "host"]
+        fields = ["email_address", "decrypted_password", "email_provider", "port_number", "server_type", "host", "is_warmup_target"]
 
     def __init__(self, *args, **kwargs):
         """Auto-fill decrypted password when editing an email account."""

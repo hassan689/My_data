@@ -16,6 +16,12 @@ class Subscription(models.Model):
         default="active",
     )
 
+    type = models.CharField(
+        max_length=50,
+        choices=[("basic", "Basic"), ("standard", "Standard"), ("premium", "Premium")],
+        default="Basic", null=True, blank=True,
+    )
+
     paid_amount = models.DecimalField(
         max_digits=10, decimal_places=2, null=True, blank=True,
     )

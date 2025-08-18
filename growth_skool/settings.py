@@ -49,6 +49,7 @@ INSTALLED_APPS = [
 		'dashboard.apps.DashboardConfig',
     'unibox.apps.UniboxConfig',
     'affiliates.apps.AffiliatesConfig',
+    'warmup.apps.WarmupConfig',
 
 		'widget_tweaks',
 		# 'django_q',

@@ -14,6 +14,7 @@ from django_celery_results.models import TaskResult
 from django.utils.timezone import now, timedelta
 from django.urls import reverse
 from urllib.parse import urljoin
+from django.utils.encoding import force_str
 
 email_regex = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
 
@@ -362,9 +363,11 @@ def send_account_attach_notif_email(email_account_id, user_id):
             from_email = email_account.email_address
             recipient_list = [user.email]
 
+            body_encoded = force_str(body, 'utf-8', errors='replace')
+
             # Create and send email
             email_message = EmailMessage(
-                subject, body, from_email, recipient_list, connection=connection
+                subject, body_encoded, from_email, recipient_list, connection=connection
             )
             email_message.send()
             connection.close()
@@ -374,8 +377,8 @@ def send_account_attach_notif_email(email_account_id, user_id):
             subject = "Email account configuration failure"
             body = (
                 f"Hello {user.first_name},\n\n"
+                f"Error during email attach: {e}\n\n"
                 f"This is to notify you that your email account {email_account.email_address} "
-                f"\nError during email attach: {e} \n"
                 "could not be configured with Dispatch Skool. This is likely due to incorrect credentials entered. Please refer to the provided instructions on the add account page and try 'updating' the account you were trying to attach.\n\n"
                 "In case of any problems, feel free to reach out.\n\n"
                 "Best Regards,\nThe Dispatch Skool Team."
@@ -383,11 +386,13 @@ def send_account_attach_notif_email(email_account_id, user_id):
             from_email = settings.EMAIL_HOST_USER
             recipient_list = [user.email]
 
+            body_encoded = force_str(body, 'utf-8', errors='replace')
+
             email_message = EmailMessage(
                 subject,
-                body,
+                body_encoded,
                 from_email,
-                recipient_list,
+                recipient_list
             )
             email_message.send()
 
@@ -446,9 +451,14 @@ def check_processing_campaign_count():
 @app.task(name="dashboard.tasks.cleanup_email_opens")
 def cleanup_email_opens():
     """
-    Deletes all EmailOpen instances where is_opened=True.
-    Intended to be run monthly.
+    Deletes EmailOpen entries where:
+    - is_opened=False
+    - timestamp older than 30 days
     """
-    deleted_count, _ = EmailOpen.objects.filter(is_opened=True).delete()
-    return f"Deleted {deleted_count} opened email records."
+    cutoff_date = timezone.now() - timedelta(days=30)
+    deleted_count, _ = EmailOpen.objects.filter(
+        is_opened=False,
+        timestamp__lt=cutoff_date
+    ).delete()
+    return f"Deleted {deleted_count} old undopened email records."
 

@@ -96,6 +96,16 @@
                       class="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600 text-center">
                       Launch Campaign
                     </a>
+                    
+                    {% if is_warmup_eligible and account.latest_warmup_status != "Active" %}
+                      {% if request.user.is_superuser %}
+                      <a href="{% url 'warmup:start_warmup_view' email_account_id=account.id %}" 
+                        class="bg-lime-600 text-white px-3 py-1 rounded hover:bg-lime-700 text-center">
+                        Enable Warmup
+                      </a>
+                      {% endif %}
+                    {% endif %}
+                    
                     {% comment %}
                     {% if account.is_gmail and not account.is_connected %}
                         <a href="{% url 'dashboard:oauth_start' account.id %}" 

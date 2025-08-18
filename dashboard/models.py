@@ -104,6 +104,7 @@ class EmailOpen(models.Model):
     recipient_email = models.CharField(max_length=255)
     unique_identifier = models.UUIDField(unique=True)
     is_opened = models.BooleanField(default=False)
+    timestamp = models.DateTimeField(auto_now_add=True, blank=True, null=True)
 
     def __str__(self):
         return f"Open for {self.recipient_email} in Campaign {self.campaign.id}"
