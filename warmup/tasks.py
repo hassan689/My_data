@@ -133,13 +133,27 @@ def send_warmup_step(campaign_id, step_number):
                     'final_topic': 'Dispatch Skool Auto-Warmup Campaign',
                     'our_final_strategy': 'Automation',
                 }
+
+                appended_message = """\n\n\n
+                This email is part of the Dispatch Skool Auto-Warmup Campaign. 
+                The purpose of this campaign is to warm up your email sending reputation. 
+                We do this by sending and receiving messages between a private pool of verified accounts. 
+                This activity mimics natural human conversation, which helps major email providers like Google 
+                and Microsoft see your account as trustworthy. By participating, your account's deliverability will improve, 
+                ensuring your legitimate emails reach their intended recipients rather than landing in spam folders.\n\n
+
+                Regards,
+                The Dispatch Skool Team
+                """
                 
                 personalized_subject = personalize_template(template['subject'], personalization_data)
                 personalized_body = personalize_template(template['body'], personalization_data)
+
+                personalized_body_with_note = personalized_body + appended_message
                 
                 msg = EmailMultiAlternatives(
                     subject=personalized_subject,
-                    body=personalized_body,
+                    body=personalized_body_with_note,
                     from_email=sender_account.email_address,
                     to=[recipient_account.email_address],
                     connection=connection
@@ -191,12 +205,26 @@ def send_warmup_step(campaign_id, step_number):
                     'our_final_strategy': 'Automation',
                 }
                 
+                appended_message = """\n\n\n
+                This email is part of the Dispatch Skool Auto-Warmup Campaign. 
+                The purpose of this campaign is to warm up your email sending reputation. 
+                We do this by sending and receiving messages between a private pool of verified accounts. 
+                This activity mimics natural human conversation, which helps major email providers like Google 
+                and Microsoft see your account as trustworthy. By participating, your account's deliverability will improve, 
+                ensuring your legitimate emails reach their intended recipients rather than landing in spam folders.\n\n
+
+                Regards,
+                The Dispatch Skool Team
+                """
+                
                 personalized_subject = personalize_template(template['subject'], personalization_data)
                 personalized_body = personalize_template(template['body'], personalization_data)
 
+                personalized_body_with_note = personalized_body + appended_message
+                
                 msg = EmailMultiAlternatives(
                     subject=personalized_subject,
-                    body=personalized_body,
+                    body=personalized_body_with_note,
                     from_email=sender_account.email_address,
                     to=[recipient_account.email_address],
                     connection=connection
@@ -211,6 +239,8 @@ def send_warmup_step(campaign_id, step_number):
                         msg.send()
                     else:
                         raise e
+                    
+                time.sleep(random.randint(30, 600))
 
                 WarmupMessage.objects.create(
                     campaign=campaign,

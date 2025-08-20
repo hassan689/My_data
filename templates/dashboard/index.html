@@ -98,12 +98,12 @@
                     </a>
                     
                     {% if is_warmup_eligible and account.latest_warmup_status != "Active" %}
-                      {% if request.user.is_superuser %}
                       <a href="{% url 'warmup:start_warmup_view' email_account_id=account.id %}" 
                         class="bg-lime-600 text-white px-3 py-1 rounded hover:bg-lime-700 text-center">
-                        Enable Warmup
+                        Activate Auto-Warmup
                       </a>
-                      {% endif %}
+                    {% elif account.latest_warmup_status == "Active" %}
+                      <div class="px-2 py-1 rounded font-semibold bg-lime-100 text-lime-800">Warmup Active</div>
                     {% endif %}
                     
                     {% comment %}
