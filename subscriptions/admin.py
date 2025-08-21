@@ -2,25 +2,42 @@ from django.contrib import admin
 from .models import Subscription, Revenue
 from django.db.models import F, ExpressionWrapper, DecimalField
 
+class ReferredUserFilter(admin.SimpleListFilter):
+    title = 'Referred User'  # Human-readable title
+    parameter_name = 'referred_user'  # URL parameter
+
+    def lookups(self, request, model_admin):
+        return (
+            ('yes', 'Yes'),
+            ('no', 'No'),
+        )
+
+    def queryset(self, request, queryset):
+        if self.value() == 'yes':
+            return queryset.exclude(user__referred_by__isnull=True)
+        if self.value() == 'no':
+            return queryset.filter(user__referred_by__isnull=True)
+
 @admin.register(Subscription)
 class SubscriptionAdmin(admin.ModelAdmin):
     list_display = ("user", "is_referred", "start_date", "end_date", "status", "type", "renewal_count", "paid_amount",)
     search_fields = ("user__username", "user__email")
-    list_filter = ("status", "type",)
+    list_filter = ("status", "type", ReferredUserFilter,)
     ordering = ("-start_date",)
     readonly_fields = ("renewal_count",)
     list_editable = ("status", "paid_amount", "type",)
     
     def company_name(self, obj):
-        return obj.user.company_name  # Accessing company_name from related CustomUser model
+        return obj.user.company_name
 
-    company_name.admin_order_field = "user__company_name"  # Allows sorting by company_name
-    company_name.short_description = "Company Name"  # Sets a readable column name in the admin panel
+    company_name.admin_order_field = "user__company_name"
+    company_name.short_description = "Company Name"
 
     def is_referred(self, obj):
-        return obj.user.referred_by is not None  # True if referred, False otherwise
-    is_referred.boolean = True  # Makes it display as a green check or red cross
+        return obj.user.referred_by is not None
+    is_referred.boolean = True
     is_referred.short_description = "Referred User"
+
 
 
 @admin.register(Revenue)

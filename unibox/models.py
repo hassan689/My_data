@@ -18,8 +18,8 @@ class EmailThread(models.Model):
         return f"{self.email2} -> {self.subject}" # email 2 is favoured to be the owner of the thread, since its on the receiving side for the inboxes
 
     def get_ordered_messages(self):
-        incoming = list(self.incoming_messages.all())
-        outgoing = list(self.outgoing_messages.all())
+        incoming = list(self.incoming_messages.all().prefetch_related('attachments'))
+        outgoing = list(self.outgoing_messages.all().prefetch_related('attachments'))
 
         # Annotate each with a common timestamp attribute for sorting
         for msg in incoming:

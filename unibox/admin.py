@@ -7,6 +7,7 @@ from django.db.models import Count, F, ExpressionWrapper, IntegerField
 class EmailThreadAdmin(admin.ModelAdmin):
     list_display = ('id', 'mailbox', 'subject', 'email1', 'email2', 'total_messages', 'is_read')
     search_fields = ('subject', 'email1', 'email2')
+    list_filter = ('email2', 'is_read',)
 
     def get_queryset(self, request):
         queryset = super().get_queryset(request)

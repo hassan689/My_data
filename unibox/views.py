@@ -30,7 +30,7 @@ def index(request):
     )
     account_id = request.GET.get('account_id')
     page_number = request.GET.get('page', 1)
-    threads_per_page = 10
+    threads_per_page = 25
 
     # Step 3: Get all mailbox instances corresponding to the user’s email accounts
     user_mailboxes = GmailToken.objects.filter(email_account__in=email_accounts.values_list('id', flat=True))
@@ -58,7 +58,7 @@ def index(request):
     threads = threads.annotate(
         latest_incoming_timestamp=Max('incoming_messages__received_at')
     ).order_by(
-        'is_read', '-latest_incoming_timestamp'
+        '-latest_incoming_timestamp'
     ).select_related(
         'mailbox__email_account'
     ).prefetch_related(
@@ -172,6 +172,15 @@ def get_thread_messages(request, thread_id):
     subject_prefixes = r"^(Re:|Fwd:|FW:|AW:|SV:)\s*"
 
     for msg in messages:
+        # Build the attachments data for each message
+        attachments_data = []
+        for attachment in msg.attachments.all():
+            attachments_data.append({
+                "filename": attachment.filename,
+                "size": attachment.size,
+                "url": attachment.file.url
+            })
+
         serialized_messages.append({
             "id": msg.id,
             "subject": msg.subject,
@@ -181,7 +190,8 @@ def get_thread_messages(request, thread_id):
             "message_id": msg.message_id,
             "in_reply_to": msg.in_reply_to,
             "timestamp": msg._timestamp.isoformat() if msg._timestamp else None,
-            "direction": "incoming" if hasattr(msg, 'received_at') else "outgoing"
+            "direction": "incoming" if hasattr(msg, 'received_at') else "outgoing",
+            "attachments": attachments_data # Add the attachments data
         })
         if re.match(subject_prefixes, msg.subject, re.IGNORECASE) and not re.match(subject_prefixes, updated_subject, re.IGNORECASE):
             updated_subject = msg.subject
@@ -226,103 +236,101 @@ def delete_thread(request, thread_id):
     return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
 
 
+@require_POST
 @login_required
 def reply(request):
-    if request.method == 'POST':
-        thread_id = request.POST.get('thread_id')
-        body = request.POST.get('body')
-        recipient_email = request.POST.get('recipient_email')  # May be missing from frontend now
+    thread_id = request.POST.get('thread_id')
+    body = request.POST.get('body')
+    recipient_email = request.POST.get('recipient_email')
+    
+    # Access the file from request.FILES
+    uploaded_file = request.FILES.get('attachment')
 
-        if not thread_id or not body:
-            return JsonResponse({'status': 'error', 'message': 'Missing required data.'}, status=400)
+    if not thread_id or not body or not recipient_email:
+        return JsonResponse({'status': 'error', 'message': 'Missing required data.'}, status=400)
+
+    try:
+        thread = get_object_or_404(EmailThread, id=thread_id)
+
+        # Verify the thread belongs to the current user's mailbox
+        user_email_accounts = EmailAccount.objects.filter(user=request.user)
+        if not user_email_accounts.filter(email_address=thread.mailbox.email_account.email_address).exists():
+            return JsonResponse({'status': 'error', 'message': 'Permission denied for this thread.'}, status=403)
+
+        email_account = thread.mailbox.email_account
+        sender_email = email_account.email_address
+
+        connection = get_connection(
+            backend="django.core.mail.backends.smtp.EmailBackend",
+            host=email_account.host,
+            port=email_account.port_number,
+            username=sender_email,
+            password=email_account.get_password(),
+            use_tls=email_account.server_type == "TLS",
+            use_ssl=email_account.server_type == "SSL",
+        )
 
         try:
-            thread = get_object_or_404(EmailThread, id=thread_id)
-
-            # Verify the thread belongs to the current user's mailbox
-            user_email_addresses = EmailAccount.objects.filter(user=request.user).values_list('email_address', flat=True)
-            if thread.mailbox.email_account.email_address not in user_email_addresses:
-                return JsonResponse({'status': 'error', 'message': 'Permission denied for this thread.'}, status=403)
-
-            # Determine the sender of the reply
-            email_account = thread.mailbox.email_account
-            sender_email = email_account.email_address
-
-            last_incoming = thread.incoming_messages.order_by('-received_at').first()
-
-            print("=== DEBUGGING REPLY ===")
-            print("Sender:", sender_email)
-            print("Thread.email1:", thread.email1)
-            print("Thread.email2:", thread.email2)
-            print("Last incoming sender:", last_incoming.sender if last_incoming else "None")
-
-            if not recipient_email or recipient_email == sender_email:
-                return JsonResponse({'status': 'error', 'message': 'This thread does not have a valid recipient.'}, status=400)
-
-            # SMTP credentials and connection
-            decrypted_password = email_account.get_password()
-            use_tls = email_account.server_type == "TLS"
-            use_ssl = email_account.server_type == "SSL"
-
-            connection = get_connection(
-                backend="django.core.mail.backends.smtp.EmailBackend",
-                host=email_account.host,
-                port=email_account.port_number,
-                username=sender_email,
-                password=decrypted_password,
-                use_tls=use_tls,
-                use_ssl=use_ssl,
-            )
-
-            try:
-                connection.open()
-            except Exception as e:
-                return JsonResponse({'status': 'error', 'message': f'Could not connect to SMTP server: {e}'}, status=500)
-
-            subject = f"{thread.subject}"
-            to_email = [recipient_email]
-            message_id = make_msgid(idstring=uuid.uuid4().hex, domain='dispatchskool.com')
-
-            latest_incoming = thread.incoming_messages.order_by('-received_at').first()
-            in_reply_to = latest_incoming.message_id if latest_incoming else None
-
-            msg = EmailMultiAlternatives(
-                subject=subject,
-                body=body,
-                from_email=sender_email,
-                to=to_email,
-                connection=connection
-            )
-            msg.attach_alternative(body, "text/html")
-            msg.extra_headers = {'Message-ID': message_id}
-            if in_reply_to:
-                msg.extra_headers['In-Reply-To'] = in_reply_to
-                msg.extra_headers['References'] = in_reply_to
-
-            msg.send()
-            connection.close()
-
-            # Save the outgoing message
-            OutgoingEmailMessage.objects.create(
-                thread=thread,
-                subject=subject,
-                body=body,
-                recipient=recipient_email,
-                sender=sender_email,
-                message_id=message_id,
-                in_reply_to=in_reply_to
-            )
-
-            return JsonResponse({'status': 'success'})
-
-        except EmailAccount.DoesNotExist:
-            return JsonResponse({'status': 'error', 'message': 'Email account not found.'}, status=404)
-        except EmailThread.DoesNotExist:
-            return JsonResponse({'status': 'error', 'message': 'Thread not found.'}, status=404)
+            connection.open()
         except Exception as e:
-            if 'authentication failed' in str(e).lower():
-                return JsonResponse({'status': 'error', 'message': f'Authentication failed: {e}'}, status=401)
-            return JsonResponse({'status': 'error', 'message': f'Failed to send reply: {e}'}, status=500)
-    else:
-        return JsonResponse({'status': 'error', 'message': 'Method not allowed'}, status=405)
+            return JsonResponse({'status': 'error', 'message': f'Could not connect to SMTP server: {e}'}, status=500)
+
+        subject = f"Re: {thread.subject}" if not thread.subject.startswith("Re:") else thread.subject
+        to_email = [recipient_email]
+        message_id = make_msgid(idstring=uuid.uuid4().hex, domain='dispatchskool.com')
+
+        latest_incoming = thread.incoming_messages.order_by('-received_at').first()
+        in_reply_to = latest_incoming.message_id if latest_incoming else None
+
+        msg = EmailMultiAlternatives(
+            subject=subject,
+            body=body,
+            from_email=sender_email,
+            to=to_email,
+            connection=connection
+        )
+        msg.extra_headers = {
+            'Message-ID': message_id,
+            'In-Reply-To': in_reply_to,
+            'References': in_reply_to,
+        }
+
+        # Attach the file if it was uploaded
+        if uploaded_file:
+            msg.attach(uploaded_file.name, uploaded_file.read(), uploaded_file.content_type)
+
+        msg.send()
+        connection.close()
+
+        # Save the outgoing message
+        outgoing_message = OutgoingEmailMessage.objects.create(
+            thread=thread,
+            subject=subject,
+            body=body,
+            recipient=recipient_email,
+            sender=sender_email,
+            message_id=message_id,
+            in_reply_to=in_reply_to
+        )
+
+        # Save the attachment model instance if a file was uploaded
+        if uploaded_file:
+            Attachment.objects.create(
+                outgoing_message=outgoing_message,
+                file=uploaded_file,
+                filename=uploaded_file.name,
+                mime_type=uploaded_file.content_type,
+                size=uploaded_file.size
+            )
+
+        return JsonResponse({'status': 'success'})
+
+    except EmailAccount.DoesNotExist:
+        return JsonResponse({'status': 'error', 'message': 'Email account not found.'}, status=404)
+    except EmailThread.DoesNotExist:
+        return JsonResponse({'status': 'error', 'message': 'Thread not found.'}, status=404)
+    except Exception as e:
+        if 'authentication failed' in str(e).lower():
+            return JsonResponse({'status': 'error', 'message': 'Authentication failed.'}, status=401)
+        return JsonResponse({'status': 'error', 'message': f'Failed to send reply: {e}'}, status=500)
 

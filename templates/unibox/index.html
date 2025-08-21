@@ -13,19 +13,19 @@
 
   {% if request.user.on_free_trial or request.user.subscription.status == "active" %}
 
-  <div class="flex h-screen bg-slate-50">
+  <div class="flex h-screen bg-secondary">
     <!-- Sidebar -->
-    <aside class="w-80 border-l-8 bg-white">
+    <aside class="w-80 border-l-8 bg-primary">
       <div class="p-5">
-        <h1 class="text-2xl font-bold italic text-gray-900">Unified Inbox</h1>
-        <p class="text-sm text-gray-500 mt-1">Manage all your accounts</p>
+        <h1 class="text-2xl font-bold italic text-primary">Unified Inbox</h1>
+        <p class="text-sm text-tertiary mt-1">Manage all your accounts</p>
       </div>
 
       <div class="p-4">
           <button id="all-inboxes-btn" onclick="renderThreads(null)"
-              class="flex items-center justify-between w-full bg-gray-900 text-white px-4 py-2 rounded-lg font-medium">
+              class="flex items-center justify-between w-full px-4 py-2 rounded-lg font-medium">
               <div class="flex items-center gap-2">
-                  <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <svg class="w-5 h-5 text-primary" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round"
                           d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                   </svg>
@@ -36,7 +36,7 @@
       </div>
 
       <div class="px-4">
-        <h3 class="text-sm text-gray-500 font-medium mb-2">Accounts</h3>
+        <h3 class="text-sm text-tertiary font-medium mb-2">Accounts</h3>
         <ul id="account-list" class="mt-4 space-y-2">
         </ul>
       </div>
@@ -49,21 +49,25 @@
       <div id="threads-container" class="space-y-4">
         <!-- Threads will be injected here -->
       </div>
+
+      <div id="pagination-controls" class="flex justify-center items-center p-4">
+      </div>
+
     </main>
 
   </div>
 
   <!-- Thread display in Modal -->
   <div id="threadModal" class="fixed inset-0 bg-black/30 flex items-center justify-center z-50 hidden">
-    <div class="bg-white w-full max-w-3xl rounded-xl shadow-xl overflow-hidden flex flex-col">
+    <div class="bg-primary w-full max-w-3xl rounded-xl shadow-xl overflow-hidden flex flex-col">
       <!-- Header -->
       <div class="flex justify-between items-center p-4 border-b">
-        <h3 class="text-lg font-semibold text-gray-900" id="modalThreadTitle">Email Thread</h3>
+        <h3 class="text-lg font-semibold text-primary" id="modalThreadTitle">Email Thread</h3>
         <div class="flex items-center space-x-3">
-          <button id="toggleReadBtn" class="text-sm px-3 py-1 border rounded text-gray-700 hover:bg-gray-100">
+          <button id="toggleReadBtn" class="text-sm px-3 py-1 border rounded text-secondary bg-hover-light">
             Switch Read Status
           </button>
-          <button id="closeModal" class="text-gray-500 hover:text-gray-700 text-2xl leading-none">&times;</button>
+          <button id="closeModal" class="text-tertiary hover:text-secondary text-2xl leading-none">&times;</button>
         </div>
       </div>
 
@@ -75,14 +79,15 @@
 
       <!-- Reply -->
       <div class="border-t p-4">
-        <textarea id="replyBox" class="w-full p-3 border rounded-lg bg-gray-50" placeholder="Type your reply..."></textarea>
-        
-        <div class="flex items-center gap-4 mt-2">
-          <button class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Send</button>
-          <p id="sendingNotice" class="text-yellow-700 text-sm hidden">
-            This might take a few seconds. Please be patient.
-          </p>
-        </div>
+          <textarea id="replyBox" class="w-full p-3 border rounded-lg bg-primary" placeholder="Type your reply..."></textarea>
+          
+          <div class="flex items-center gap-4 mt-2">
+            <div id="fileInputContainer" class="flex items-center gap-2">
+              </div>
+            <div id="sendButtonContainer" class="flex-1 text-right">
+              <button class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Send</button>
+            </div>
+          </div>
       </div>
     </div>
   </div>
@@ -103,40 +108,8 @@
 
   {% else %}
 
-  <section class="flex flex-col items-center text-center px-4 md:px-4 lg:px-5 py-6">
-    <span class="text-md font-medium text-gray-700 bg-slate-200 px-4 py-1 rounded-full">
-      Action Required
-    </span>
-    <h1 class="text-2xl md:text-4xl font-bold text-gray-900 leading-tight mt-4 py-2">
-      Your Subscription Has Expired
-    </h1>
-    <p class="text-gray-500 text-xl sm:text-2xl md:text-2xl max-w-2xl mt-4">
-      Please renew your subscription to continue enjoying our premium features and services.
-    </p>
-  </section>
-
-  <div class="flex flex-col md:flex-row justify-center gap-8 p-8">
-
-    <!-- Pro Plan -->
-    <div class="w-full md:w-1/2 lg:w-1/3 bg-white shadow-lg rounded-2xl p-8 border text-center">
-      <h2 class="text-2xl font-extrabold">All Features Included</h2>
-      <p class="text-4xl md:text-5xl font-extrabold mt-3">$99/month</p>
-      <p class="text-gray-500 text-lg mt-2">Everything you need to scale</p>
-      <ul class="text-left my-6 space-y-3 text-lg sm:px-16">
-        <li>✔ Automated Carrier Outreach</li>
-        <li>✔ Full carrier database access</li>
-        <li>✔ Onboarding Automation</li>
-        <li>✔ Daily MC Sheet Updates</li>
-        <li>✔ Priority Support</li>
-        <li>✔ Custom templates</li>
-      </ul>
-      <a href="{% url 'main:price_page' %}"
-        class="mt-16 bg-gray-900 hover:bg-gray-800 text-white text-lg font-semibold py-3 px-10 md:px-24 rounded-xl">
-        Get Started
-      </a>
-    </div>
-  </div>
-
+  {% include 'price_base.html' %}
+  
   {% endif %}
 
 
@@ -161,278 +134,136 @@
     let currentAccountId = null;
     let currentThreadId = null;
 
-    function renderThreads(accountId = null) {
-        currentAccountId = accountId;
-        let fetchUrl = inboxJsonUrl;
-        if (accountId) {
-            fetchUrl += `?account_id=${accountId}`;
-        }
+    function renderThreads(accountId = null, page = 1) {
+    currentAccountId = accountId;
+    const threadsContainer = document.getElementById('threads-container');
+    const paginationControls = document.getElementById('pagination-controls');
 
-        fetch(fetchUrl)
-            .then(response => response.json())
-            .then(data => {
-                console.log('Data received:', data); // Debugging
+    threadsContainer.innerHTML = '';
+    paginationControls.innerHTML = '';
 
-                const threadsContainer = document.getElementById('threads-container');
-                const modal = document.getElementById('threadModal');
-                const modalTitle = document.getElementById('modalThreadTitle');
-                const modalMessages = document.getElementById('modalMessages');
-                const closeModalBtn = document.getElementById('closeModal');
-                const accountList = document.getElementById('account-list');
-                const allInboxesBtn = document.getElementById('all-inboxes-btn');
-                let allInboxesDot = allInboxesBtn.querySelector('.unread-dot');
-                const inboxTitle = document.getElementById('inbox-title'); // You might need this in your HTML
+    const url = `${inboxJsonUrl}?page=${page}` + (accountId ? `&account_id=${accountId}` : '');
 
-                threadsContainer.innerHTML = '';
-                accountList.innerHTML = '';
+    fetch(url)
+        .then(response => response.json())
+        .then(data => {
+            console.log('Data received:', data);
 
-                let hasAnyUnread = false;
-                data.email_accounts.forEach(account => {
-                    if (account.unread_count > 0) {
-                        hasAnyUnread = true;
-                    }
-                });
+            const modal = document.getElementById('threadModal');
+            const modalTitle = document.getElementById('modalThreadTitle');
+            const modalMessages = document.getElementById('modalMessages');
+            const closeModalBtn = document.getElementById('closeModal');
+            const accountList = document.getElementById('account-list');
+            const allInboxesBtn = document.getElementById('all-inboxes-btn');
+            let allInboxesDot = allInboxesBtn.querySelector('.unread-dot');
+            const inboxTitle = document.getElementById('inbox-title');
 
-                if (hasAnyUnread) {
-                    if (!allInboxesDot) {
-                        allInboxesDot = document.createElement('div');
-                        allInboxesDot.className = 'unread-dot w-3 h-3 rounded-full bg-white absolute top-1/2 right-2 -translate-y-1/2';
-                        allInboxesBtn.style.position = 'relative';
-                        allInboxesBtn.appendChild(allInboxesDot);
-                    }
-                } else if (allInboxesDot) {
-                    allInboxesDot.remove();
+            let hasAnyUnread = false;
+            data.email_accounts.forEach(account => {
+                if (account.unread_count > 0) {
+                    hasAnyUnread = true;
                 }
+            });
 
-                const activeAccount = data.email_accounts.find(acc => acc.id === parseInt(accountId));
-                if (activeAccount && inboxTitle) {
-                    inboxTitle.textContent = `Inbox: ${activeAccount.email_address}`;
-                } else if (inboxTitle) {
-                    inboxTitle.textContent = 'All Inboxes';
+            if (hasAnyUnread) {
+                if (!allInboxesDot) {
+                    allInboxesDot = document.createElement('div');
+                    allInboxesDot.className = 'unread-dot w-3 h-3 rounded-full bg-blue-500 absolute top-1/2 right-2 -translate-y-1/2';
+                    allInboxesBtn.style.position = 'relative';
+                    allInboxesBtn.appendChild(allInboxesDot);
                 }
+            } else if (allInboxesDot) {
+                allInboxesDot.remove();
+            }
 
-                const allInboxesButton = document.getElementById('all-inboxes-btn');
-                allInboxesButton.classList.remove('bg-blue-100', 'border-l-4', 'border-blue-500', 'font-semibold', 'bg-gray-700'); // Remove potential highlighting
-                if (currentAccountId === null) {
-                    allInboxesButton.classList.add('bg-gray-700'); // Highlight 'All Inboxes' with a slightly lighter shade
+            const activeAccount = data.email_accounts.find(acc => acc.id === parseInt(accountId));
+            if (activeAccount && inboxTitle) {
+                inboxTitle.textContent = `Inbox: ${activeAccount.email_address}`;
+            } else if (inboxTitle) {
+                inboxTitle.textContent = 'All Inboxes';
+            }
+
+            // Correctly set classes for "All Inboxes" button
+            const allInboxesText = allInboxesBtn.querySelector('.flex.items-center.gap-2');
+            
+            // First, reset classes to avoid conflicts
+            allInboxesBtn.classList.remove('bg-tertiary', 'font-semibold', 'btn-bg-primary', 'text-secondary');
+            allInboxesText.classList.remove('text-primary', 'text-secondary');
+
+            if (currentAccountId === null) {
+                // Active state
+                allInboxesBtn.classList.add('bg-tertiary', 'font-semibold');
+                allInboxesText.classList.add('text-primary');
+            } else {
+                // Inactive state
+                allInboxesBtn.classList.add('bg-primary', 'hover:bg-hover-light', 'text-secondary');
+                allInboxesText.classList.add('text-secondary');
+            }
+
+
+            accountList.innerHTML = '';
+            data.email_accounts.forEach(account => {
+                const listItem = document.createElement('li');
+                const isSelected = parseInt(accountId) === account.id;
+
+                // Base classes for the list item
+                let baseClasses = 'account-item text-sm rounded-full px-4 py-2 cursor-pointer transition flex justify-between items-center relative';
+                
+                // Active vs. Inactive state
+                if (isSelected) {
+                    baseClasses += ' bg-tertiary font-semibold text-primary';
                 } else {
-                    allInboxesButton.classList.add('bg-gray-900'); // Ensure default background when an account is selected
+                    baseClasses += ' bg-primary text-secondary hover:bg-hover-light';
                 }
 
-                accountList.innerHTML = '';
-                data.email_accounts.forEach(account => {
-                    const listItem = document.createElement('li');
-                    listItem.className = 'account-item text-sm text-gray-800 bg-white rounded-full px-4 py-2 cursor-pointer hover:bg-blue-100 transition flex justify-between items-center relative';
-                    listItem.innerHTML = `<span>${account.email_address}</span>`;
-                    if (account.unread_count > 0) {
-                        const unreadDot = document.createElement('div');
-                        unreadDot.className = 'unread-dot w-3 h-3 rounded-full bg-blue-500 absolute top-1/2 right-2 -translate-y-1/2';
-                        listItem.appendChild(unreadDot);
-                    }
-                    listItem.dataset.accountId = account.id;
+                listItem.className = baseClasses;
+                
+                // Add border for selected item
+                if (isSelected) {
+                    listItem.classList.add('border-l-4', 'border-color');
+                }
 
-                    listItem.classList.remove('bg-blue-100', 'border-l-4', 'border-blue-500', 'font-semibold');
-                    if (parseInt(accountId) === account.id) {
-                        listItem.classList.add('bg-blue-100', 'border-l-4', 'border-blue-500', 'font-semibold');
-                    } else {
-                        listItem.classList.add('bg-white');
-                    }
 
-                    listItem.addEventListener('click', () => {
-                        document.querySelectorAll('.account-item').forEach(item => {
-                            item.classList.remove('bg-blue-100', 'border-l-4', 'border-blue-500', 'font-semibold');
-                            item.classList.add('bg-white');
-                        });
-                        allInboxesButton.classList.remove('bg-gray-700'); // Unhighlight 'All Inboxes'
-                        allInboxesButton.classList.add('bg-gray-900');
-                        listItem.classList.add('bg-blue-100', 'border-l-4', 'border-blue-500', 'font-semibold');
-                        renderThreads(account.id);
-                    });
-                    accountList.appendChild(listItem);
+                listItem.innerHTML = `<span>${account.email_address}</span>`;
+                if (account.unread_count > 0) {
+                    const unreadDot = document.createElement('div');
+                    unreadDot.className = 'unread-dot w-3 h-3 rounded-full bg-blue-500 absolute top-1/2 right-2 -translate-y-1/2';
+                    listItem.appendChild(unreadDot);
+                }
+                listItem.dataset.accountId = account.id;
+
+                listItem.addEventListener('click', () => {
+                    renderThreads(account.id);
                 });
+                accountList.appendChild(listItem);
+            });
 
-                threadsContainer.innerHTML = '';
-                if (data.threads && data.threads.length > 0) {
-                  // data.threads.forEach(thread => {
-                    
-                  //     const latestMessage = thread.messages[thread.messages.length - 1];
-                  //     const card = document.createElement('div');
-                  //     card.className = 'relative border border-gray-200 rounded-lg shadow-xl p-4 cursor-pointer hover:bg-gray-50 transition mb-2';
-                  //     card.dataset.threadId = thread.id;
-                  //     card.dataset.read = thread.is_read;
-
-                  //     const cornerContainer = document.createElement('div');
-                  //     cornerContainer.className = 'absolute top-2 right-2 flex items-center gap-2';
-
-                  //     // Blue unread dot
-                  //     if (!thread.is_read) {
-                  //         const unreadDot = document.createElement('div');
-                  //         unreadDot.className = 'w-3 h-3 rounded-full bg-blue-500';
-                  //         cornerContainer.appendChild(unreadDot);
-                  //     }
-
-                  //     // Delete button (🗑️)
-                  //     const deleteBtn = document.createElement('button');
-                  //     deleteBtn.innerHTML = `
-                  //         <button type="button" class="text-red-700 hover:text-white border border-red-700 hover:bg-red-700 focus:ring-2 focus:outline-none focus:ring-red-300 font-medium rounded-md text-xs px-3 py-1.5 text-center me-2 mb-2">
-                  //           Delete Thread
-                  //         </button>
-                  //     `;
-                  //     deleteBtn.className = 'text-gray-400 hover:text-red-600 text-sm';
-                  //     // deleteBtn.title = 'Delete Thread';
-                  //     deleteBtn.addEventListener('click', (event) => {
-                  //         event.stopPropagation(); // Prevent triggering thread open
-                  //         if (confirm('Are you sure you want to delete this thread?')) {
-                  //             deleteThread(thread.id);
-                  //         }
-                  //     });
-                  //     cornerContainer.appendChild(deleteBtn);
-
-                  //     card.appendChild(cornerContainer);
-
-                  //     card.dataset.accountId = thread.email_account_id;
-
-                  //     if (thread.is_read) {
-                  //         card.classList.add('bg-gray-100', 'hover:bg-gray-200');
-                  //     } else {
-                  //         card.classList.add('bg-white', 'hover:bg-gray-50');
-                  //     }
-
-                  //     const inboxInfo = document.createElement('p');
-                  //     inboxInfo.className = 'text-sm text-blue-500';
-                  //     inboxInfo.textContent = `INBOX: ${thread.email2 || 'N/A'}`;
-                  //     card.appendChild(inboxInfo);
-
-                  //     const subjectEl = document.createElement('h3');
-                  //     subjectEl.className = 'text-md font-semibold text-gray-900 mt-1';
-                  //     subjectEl.textContent = thread.subject || '(No Subject)';
-                  //     card.appendChild(subjectEl);
-
-                  //     try {
-                  //         const date = new Date(latestMessage.timestamp);
-                  //         const dateTimeEl = document.createElement('p');
-                  //         dateTimeEl.className = 'text-sm text-gray-400';
-                  //         dateTimeEl.textContent = date.toLocaleString();
-                  //         card.appendChild(dateTimeEl);
-                  //     } catch (e) {
-                  //         // just continue silently
-                  //     }
-
-
-                  //     const previewEl = document.createElement('p');
-                  //     previewEl.className = 'text-sm text-gray-700 mt-2 line-clamp-2';
-                  //     previewEl.textContent = latestMessage.body?.slice(0, 150) || '(No message content)'; // Using the latest message's body
-                  //     card.appendChild(previewEl);
-
-                  //     card.addEventListener('click', () => {
-                  //         const threadId = card.dataset.threadId;
-                  //         const toggleUrl = `${toggleReadUrl}${threadId}/`;
-                  //         const csrfToken = getCsrfToken();
-                  //         const toggleReadBtn = document.getElementById('toggleReadBtn');
-
-                  //         // Only toggle if unread
-                  //         if (card.dataset.read === "false") {
-                  //             fetch(toggleUrl, {
-                  //                 method: 'POST',
-                  //                 headers: {
-                  //                     'Content-Type': 'application/json',
-                  //                     'X-CSRFToken': csrfToken
-                  //                 }
-                  //             })
-                  //             .then(response => response.json())
-                  //             .then(data => {
-                  //                 if (data.status === 'success') {
-                  //                     // Reload the thread list after marking as read
-                  //                     renderThreads(currentAccountId);
-                  //                 } else {
-                  //                     console.error('Failed to toggle read status:', data.message);
-                  //                 }
-                  //             })
-                  //             .catch(error => {
-                  //                 console.error('Error toggling read status:', error);
-                  //             });
-                  //         }
-
-                  //         openThreadModal(threadId);
-
-                  //         fetch(toggleUrl, {
-                  //             method: 'POST',
-                  //             headers: {
-                  //                 'Content-Type': 'application/json',
-                  //                 'X-CSRFToken': csrfToken
-                  //             }
-                  //         })
-                  //         .then(response => response.json())
-                  //         .then(data => {
-                  //             if (toggleReadBtn && typeof data.is_read !== 'undefined') {
-                  //                 // Set the initial button label based on current read status
-                  //                 toggleReadBtn.textContent = data.is_read ? 'Switch Read Status' : 'Switch Read Status';
-
-                  //                 // Replace button to clear old listeners
-                  //                 const newBtn = toggleReadBtn.cloneNode(true);
-                  //                 toggleReadBtn.parentNode.replaceChild(newBtn, toggleReadBtn);
-
-                  //                 newBtn.addEventListener('click', () => {
-                  //                     const csrfToken = getCsrfToken();
-                  //                     const toggleUrl = `${toggleReadUrl}${threadId}/`;
-
-                  //                     fetch(toggleUrl, {
-                  //                         method: 'POST',
-                  //                         headers: {
-                  //                             'Content-Type': 'application/json',
-                  //                             'X-CSRFToken': csrfToken
-                  //                         }
-                  //                     })
-                  //                     .then(response => response.json())
-                  //                     .then(toggleData => {
-                  //                         if (toggleData.status === 'success') {
-                  //                             // Flip the button label immediately after toggle
-                  //                             newBtn.textContent = toggleData.is_read ? 'Switch Read Status' : 'Switch Read Status';
-
-                  //                             // Refresh modal and threads list
-                  //                             openThreadModal(threadId);
-                  //                             renderThreads(currentAccountId);
-                  //                         } else {
-                  //                             console.error('Failed to toggle read status:', toggleData.message);
-                  //                         }
-                  //                     })
-                  //                     .catch(error => {
-                  //                         console.error('Error toggling read status:', error);
-                  //                     });
-                  //                 });
-                  //             }
-                  //         });
-
-
-                  //     });
-                  //     threadsContainer.appendChild(card);
-                  // });
-                  data.threads.forEach(thread => {
+            threadsContainer.innerHTML = '';
+            if (data.threads && data.threads.length > 0) {
+                data.threads.forEach(thread => {
                     try {
                         const latestMessage = thread.messages[thread.messages.length - 1];
                         const card = document.createElement('div');
-                        card.className = 'relative border border-gray-200 rounded-lg shadow-xl p-4 cursor-pointer hover:bg-gray-50 transition mb-2';
+                        card.className = 'relative border border-gray-200 rounded-lg shadow-xl p-4 cursor-pointer hover:bg-primary transition mb-2';
                         card.dataset.threadId = thread.id;
                         card.dataset.read = thread.is_read;
 
                         const cornerContainer = document.createElement('div');
                         cornerContainer.className = 'absolute top-2 right-2 flex items-center gap-2';
 
-                        // Blue unread dot
                         if (!thread.is_read) {
                             const unreadDot = document.createElement('div');
                             unreadDot.className = 'w-3 h-3 rounded-full bg-blue-500';
                             cornerContainer.appendChild(unreadDot);
                         }
 
-                        // Delete button (🗑️)
                         const deleteBtn = document.createElement('button');
                         deleteBtn.innerHTML = `
-                            <button type="button" class="text-red-700 hover:text-white border border-red-700 hover:bg-red-700 focus:ring-2 focus:outline-none focus:ring-red-300 font-medium rounded-md text-xs px-3 py-1.5 text-center me-2 mb-2">
+                            <button type="button" class="text-red-700 hover:btn-text border border-red-700 hover:bg-red-700 focus:ring-2 focus:outline-none focus:ring-red-300 font-medium rounded-md text-xs px-3 py-1.5 text-center me-2 mb-2">
                               Delete Thread
                             </button>
                         `;
-                        deleteBtn.className = 'text-gray-400 hover:text-red-600 text-sm';
+                        deleteBtn.className = 'text-secondary hover:text-red-600 text-sm';
                         deleteBtn.addEventListener('click', (event) => {
                             event.stopPropagation();
                             if (confirm('Are you sure you want to delete this thread?')) {
@@ -446,9 +277,9 @@
                         card.dataset.accountId = thread.email_account_id;
 
                         if (thread.is_read) {
-                            card.classList.add('bg-gray-100', 'hover:bg-gray-200');
+                            card.classList.add('bg-secondary', 'btn-border-hover');
                         } else {
-                            card.classList.add('bg-white', 'hover:bg-gray-50');
+                            card.classList.add('bg-primary', 'hover:bg-primary');
                         }
 
                         const inboxInfo = document.createElement('p');
@@ -457,20 +288,15 @@
                         card.appendChild(inboxInfo);
 
                         const subjectEl = document.createElement('h3');
-                        subjectEl.className = 'text-md font-semibold text-gray-900 mt-1';
+                        subjectEl.className = 'text-md font-semibold text-primary mt-1';
                         subjectEl.textContent = thread.subject || '(No Subject)';
                         card.appendChild(subjectEl);
 
                         const date = new Date(latestMessage.timestamp);
                         const dateTimeEl = document.createElement('p');
-                        dateTimeEl.className = 'text-sm text-gray-400';
+                        dateTimeEl.className = 'text-sm text-secondary';
                         dateTimeEl.textContent = date.toLocaleString();
                         card.appendChild(dateTimeEl);
-
-                        const previewEl = document.createElement('p');
-                        previewEl.className = 'text-sm text-gray-700 mt-2 line-clamp-2';
-                        previewEl.textContent = latestMessage.body?.slice(0, 150) || '(No message content)';
-                        card.appendChild(previewEl);
 
                         card.addEventListener('click', () => {
                             const threadId = card.dataset.threadId;
@@ -550,15 +376,89 @@
                     }
                 });
 
+            } else {
+                threadsContainer.innerHTML = '<p class="text-tertiary p-5 text-center bg-primary">No threads available.</p>';
+            }
+
+            // --- Pagination Controls ---
+            const pagination = data.pagination;
+            if (pagination.num_pages > 1) {
+                const nav = document.createElement('nav');
+                nav.className = 'mt-6 flex justify-center';
+                nav.setAttribute('aria-label', 'Page navigation');
+
+                const ul = document.createElement('ul');
+                ul.className = 'inline-flex -space-x-px text-sm';
+                nav.appendChild(ul);
+
+                // Previous button
+                if (pagination.has_previous) {
+                    const li = document.createElement('li');
+                    const a = document.createElement('a');
+                    a.className = 'flex items-center justify-center px-3 h-8 leading-tight text-primary bg-primary border border-secondary rounded-s-lg hover:bg-secondary hover:text-primary';
+                    a.href = '#';
+                    a.textContent = 'Previous';
+                    a.onclick = (e) => {
+                        e.preventDefault();
+                        renderThreads(accountId, pagination.current_page - 1);
+                    };
+                    li.appendChild(a);
+                    ul.appendChild(li);
                 } else {
-                  threadsContainer.innerHTML = '<p class="text-gray-500 p-5 text-center bg-white">No threads available.</p>';
-              }
+                    const li = document.createElement('li');
+                    const span = document.createElement('span');
+                    span.className = 'flex items-center justify-center px-3 h-8 leading-tight text-primary bg-primary border border-secondary rounded-s-lg opacity-50 cursor-not-allowed';
+                    span.textContent = 'Previous';
+                    li.appendChild(span);
+                    ul.appendChild(li);
+                }
 
-                closeModalBtn.addEventListener('click', () => modal.classList.add('hidden'));
-            })
-            .catch(error => console.error("Error fetching data:", error));
-    }
+                // Page numbers
+                for (let i = 1; i <= pagination.num_pages; i++) {
+                    const li = document.createElement('li');
+                    const element = document.createElement(i === pagination.current_page ? 'span' : 'a');
+                    element.textContent = i;
+                    if (i === pagination.current_page) {
+                        element.className = 'flex items-center justify-center px-3 h-8 text-blue-600 border border-secondary bg-secondary font-bold';
+                    } else {
+                        element.className = 'flex items-center justify-center px-3 h-8 leading-tight text-primary bg-primary border border-secondary hover:bg-secondary hover:text-primary';
+                        element.href = '#';
+                        element.onclick = (e) => {
+                            e.preventDefault();
+                            renderThreads(accountId, i);
+                        };
+                    }
+                    li.appendChild(element);
+                    ul.appendChild(li);
+                }
 
+                // Next button
+                if (pagination.has_next) {
+                    const li = document.createElement('li');
+                    const a = document.createElement('a');
+                    a.className = 'flex items-center justify-center px-3 h-8 leading-tight text-primary bg-primary border border-secondary rounded-e-lg hover:bg-secondary hover:text-primary';
+                    a.href = '#';
+                    a.textContent = 'Next';
+                    a.onclick = (e) => {
+                        e.preventDefault();
+                        renderThreads(accountId, pagination.current_page + 1);
+                    };
+                    li.appendChild(a);
+                    ul.appendChild(li);
+                } else {
+                    const li = document.createElement('li');
+                    const span = document.createElement('span');
+                    span.className = 'flex items-center justify-center px-3 h-8 leading-tight text-primary bg-primary border border-secondary rounded-e-lg opacity-50 cursor-not-allowed';
+                    span.textContent = 'Next';
+                    li.appendChild(span);
+                    ul.appendChild(li);
+                }
+                paginationControls.appendChild(nav);
+            }
+            closeModalBtn.addEventListener('click', () => modal.classList.add('hidden'));
+        })
+        .catch(error => console.error("Error fetching data:", error));
+}
     function openThreadModal(threadId) {
         currentThreadId = threadId; // Set the currentThreadId when the modal is opened
         const modal = document.getElementById('threadModal');
@@ -566,8 +466,31 @@
         const modalMessages = document.getElementById('modalMessages');
         const replyBox = document.getElementById('replyBox');
         const sendingNotice = document.getElementById('sendingNotice');
-        const sendButtonContainer = modal.querySelector('.border-t .flex.items-center.gap-4');
-        const initialSendButton = modal.querySelector('.border-t .flex.items-center.gap-4 button');
+
+        // Add this new part to display the file input and handle its change event
+        const fileInputContainer = document.getElementById('fileInputContainer');
+        if (fileInputContainer) {
+            fileInputContainer.innerHTML = `
+                <input type="file" id="attachmentInput" class="hidden">
+                <label for="attachmentInput" class="cursor-pointer text-gray-500 hover:text-gray-700">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13.5" />
+                    </svg>
+                </label>
+                <span id="fileNameDisplay" class="text-sm text-gray-500"></span>
+            `;
+
+            // Add a listener to update the displayed file name
+            const attachmentInput = document.getElementById('attachmentInput');
+            const fileNameDisplay = document.getElementById('fileNameDisplay');
+            attachmentInput.addEventListener('change', function() {
+                if (this.files.length > 0) {
+                    fileNameDisplay.textContent = this.files[0].name;
+                } else {
+                    fileNameDisplay.textContent = '';
+                }
+            });
+        }
 
         if (replyBox) {
             replyBox.addEventListener('input', function() {
@@ -587,17 +510,36 @@
                 modalMessages.innerHTML = '';
                 data.messages.forEach(message => {
                     const isIncoming = message.direction === 'incoming';
-                    const bubbleBgColor = isIncoming ? 'bg-gray-100' : 'bg-blue-200';
-                    const bubbleTextColor = 'text-gray-800';
+                    const bubbleBgColor = isIncoming ? 'bg-secondary' : 'bg-tertiary';
+                    const bubbleTextColor = 'text-secondary';
                     const alignmentClass = isIncoming ? 'self-start' : 'self-end';
+
+                    let attachmentsHtml = '';
+                    if (message.attachments && message.attachments.length > 0) {
+                        attachmentsHtml = '<div class="mt-2 w-full flex flex-col gap-1">';
+                        message.attachments.forEach(attachment => {
+                            // Create a file size string
+                            const sizeInKB = (attachment.size / 1024).toFixed(2);
+                            attachmentsHtml += `
+                                <div class="bg-gray-100 dark:bg-gray-700 p-2 rounded-lg flex items-center justify-between gap-2">
+                                    <a href="${attachment.url}" download="${attachment.filename}" class="flex-grow text-blue-600 hover:underline cursor-pointer font-medium">
+                                        ${attachment.filename}
+                                    </a>
+                                    <p class="text-xs text-gray-500 dark:text-gray-400">${sizeInKB} KB</p>
+                                </div>
+                            `;
+                        });
+                        attachmentsHtml += '</div>';
+                    }
 
                     const messageDiv = `
                         <div class="mb-2 w-full flex ${alignmentClass} flex-col items-${isIncoming ? 'start' : 'end'}">
-                            <p class="text-xs text-gray-500 mb-1">${isIncoming ? 'From' : 'From'}: ${message.sender}</p>
+                            <p class="text-xs text-tertiary mb-1">${isIncoming ? 'From' : 'From'}: ${message.sender}</p>
                             <div class="${bubbleBgColor} ${bubbleTextColor} rounded-lg p-3 max-w-fit break-words">
                                 <p class="mt-1">${message.body}</p>
+                                ${attachmentsHtml}
                             </div>
-                            <p class="text-xs text-gray-500 mt-1">${new Date(message.timestamp).toLocaleString()}</p>
+                            <p class="text-xs text-tertiary mt-1">${new Date(message.timestamp).toLocaleString()}</p>
                         </div>
                     `;
                     modalMessages.innerHTML += messageDiv;
@@ -647,8 +589,11 @@
 
     function sendReply() {
         const body = document.getElementById('replyBox').value;
-        if (!body.trim()) {
-            alert('Please enter a reply.');
+        const attachmentInput = document.getElementById('attachmentInput');
+        const attachmentFile = attachmentInput.files[0];
+
+        if (!body.trim() && !attachmentFile) {
+            alert('Please enter a reply or attach a file.');
             return;
         }
 
@@ -658,19 +603,16 @@
             return;
         }
 
-        const modal = document.getElementById('threadModal');
+        // Get the recipient's email
         const modalMessagesElement = document.getElementById('modalMessages');
-        const messageElements = modalMessagesElement.querySelectorAll('.self-start'); // Get all incoming message bubbles
-        const lastIncomingMessageElement = messageElements[messageElements.length - 1]; // Get the last one
-        const sendButtonContainer = modal.querySelector('.border-t .flex.items-center.gap-4');
-        const initialSendButton = modal.querySelector('.border-t .flex.items-center.gap-4 button');
+        const messageElements = modalMessagesElement.querySelectorAll('.self-start');
+        const lastIncomingMessageElement = messageElements[messageElements.length - 1];
 
         let recipientEmail = null;
         if (lastIncomingMessageElement) {
-            const senderElement = lastIncomingMessageElement.querySelector('p:nth-child(1)'); // The 'From: sender@email.com' paragraph
+            const senderElement = lastIncomingMessageElement.querySelector('p:nth-child(1)');
             if (senderElement) {
                 const senderText = senderElement.textContent;
-                // Extract the email address from "From: sender@email.com"
                 const emailMatch = senderText.match(/From: (.+)/);
                 if (emailMatch && emailMatch[1]) {
                     recipientEmail = emailMatch[1].trim();
@@ -678,69 +620,72 @@
             }
         }
 
-        console.log("Extracted recipient email:", recipientEmail);  // Debug log
-
         if (!recipientEmail) {
             alert('Could not determine the recipient for the reply.');
             return;
         }
 
-        // Disable the send button and show the loading state
-        if (sendButtonContainer && initialSendButton) {
-            const loadingButtonHTML = `
-                <button disabled type="button" class="text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center me-2 inline-flex items-center">
-                    <svg aria-hidden="true" role="status" class="inline w-4 h-4 me-3 text-white animate-spin" viewBox="0 0 100 101" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M100 50.5908C100 78.2051 77.6142 100.591 50 100.591C22.3858 100.591 0 78.2051 0 50.5908C0 22.9766 22.3858 0.59082 50 0.59082C77.6142 0.59082 100 22.9766 100 50.5908ZM9.08144 50.5908C9.08144 73.1895 27.4013 91.5094 50 91.5094C72.5987 91.5094 90.9186 73.1895 90.9186 50.5908C90.9186 27.9921 72.5987 9.67226 50 9.67226C27.4013 9.67226 9.08144 27.9921 9.08144 50.5908Z" fill="#E5E7EB"/>
-                        <path d="M93.9676 39.0409C96.393 38.4038 97.8624 35.9116 97.0079 33.5539C95.2932 28.8227 92.871 24.3692 89.8167 20.348C85.8452 15.1192 80.8826 10.7238 75.2124 7.41289C69.5422 4.10194 63.2754 1.94025 56.7698 1.05124C51.7666 0.367541 46.6976 0.446843 41.7345 1.27873C39.2613 1.69328 37.813 4.19778 38.4501 6.62326C39.0873 9.04874 41.5694 10.4717 44.0505 10.1071C47.8511 9.54855 51.7191 9.52689 55.5402 10.0491C60.8642 10.7766 65.9928 12.5457 70.6331 15.2552C75.2735 17.9648 79.3347 21.5619 82.5849 25.841C84.9175 28.9121 86.7997 32.2913 88.1811 35.8758C89.083 38.2158 91.5421 39.6781 93.9676 39.0409Z" fill="currentColor"/>
-                    </svg>
-                    Sending...
-                </button>
-            `;
-            sendButtonContainer.innerHTML = loadingButtonHTML;
+        // Use FormData to send both text and file
+        const formData = new FormData();
+        formData.append('thread_id', currentThreadId);
+        formData.append('body', body);
+        formData.append('recipient_email', recipientEmail);
+        if (attachmentFile) {
+            formData.append('attachment', attachmentFile);
         }
+        
+        // Disable the send button and show loading state
+        const sendButtonContainer = document.getElementById('sendButtonContainer');
+        const originalSendButton = sendButtonContainer.innerHTML;
+        sendButtonContainer.innerHTML = `<button disabled type="button" class="btn-text bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center me-2 inline-flex items-center">
+            <svg aria-hidden="true" role="status" class="inline w-4 h-4 me-3 btn-text animate-spin" viewBox="0 0 100 101" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M100 50.5908C100 78.2051 77.6142 100.591 50 100.591C22.3858 100.591 0 78.2051 0 50.5908C0 22.9766 22.3858 0.59082 50 0.59082C77.6142 0.59082 100 22.9766 100 50.5908ZM9.08144 50.5908C9.08144 73.1895 27.4013 91.5094 50 91.5094C72.5987 91.5094 90.9186 73.1895 90.9186 50.5908C90.9186 27.9921 72.5987 9.67226 50 9.67226C27.4013 9.67226 9.08144 27.9921 9.08144 50.5908Z" fill="#E5E7EB"/>
+                <path d="M93.9676 39.0409C96.393 38.4038 97.8624 35.9116 97.0079 33.5539C95.2932 28.8227 92.871 24.3692 89.8167 20.348C85.8452 15.1192 80.8826 10.7238 75.2124 7.41289C69.5422 4.10194 63.2754 1.94025 56.7698 1.05124C51.7666 0.367541 46.6976 0.446843 41.7345 1.27873C39.2613 1.69328 37.813 4.19778 38.4501 6.62326C39.0873 9.04874 41.5694 10.4717 44.0505 10.1071C47.8511 9.54855 51.7191 9.52689 55.5402 10.0491C60.8642 10.7766 65.9928 12.5457 70.6331 15.2552C75.2735 17.9648 79.3347 21.5619 82.5849 25.841C84.9175 28.9121 86.7997 32.2913 88.1811 35.8758C89.083 38.2158 91.5421 39.6781 93.9676 39.0409Z" fill="currentColor"/>
+            </svg>
+            Sending...
+        </button>`;
 
-        const csrfToken = getCsrfToken();
-        const replyUrl = "{% url 'unibox:reply' %}"; // Ensure this URL is correctly defined
+        const replyUrl = "{% url 'unibox:reply' %}";
 
         fetch(replyUrl, {
             method: 'POST',
+            body: formData, // Send FormData object
+            // The browser automatically sets Content-Type header for FormData
             headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'X-CSRFToken': csrfToken,
+                'X-CSRFToken': getCsrfToken(),
             },
-            body: `thread_id=${currentThreadId}&body=${encodeURIComponent(body)}&recipient_email=${encodeURIComponent(recipientEmail)}`,
         })
         .then(response => response.json())
         .then(data => {
             // Revert the button to its original state
-            if (sendButtonContainer) {
-                sendButtonContainer.innerHTML = `<button class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Send</button>`;
-                const newSendButton = sendButtonContainer.querySelector('button');
-                if (newSendButton) {
-                    newSendButton.addEventListener('click', sendReply);
-                }
+            sendButtonContainer.innerHTML = originalSendButton;
+            const newSendButton = sendButtonContainer.querySelector('button');
+            if (newSendButton) {
+                newSendButton.addEventListener('click', sendReply);
             }
 
             if (data.status === 'success') {
-                document.getElementById('replyBox').value = ''; // Clear the reply box
-                openThreadModal(currentThreadId); // Re-fetch and re-render the thread
+                document.getElementById('replyBox').value = '';
+                if (attachmentInput) {
+                    attachmentInput.value = ''; // Clear the file input
+                    document.getElementById('fileNameDisplay').textContent = '';
+                }
+                openThreadModal(currentThreadId);
             } else {
                 alert(`Reply failed: ${data.message}`);
             }
         })
         .catch(error => {
-            // Revert the button to its original state on error as well
-            if (sendButtonContainer) {
-                sendButtonContainer.innerHTML = `<button class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Send</button>`;
-                const newSendButton = sendButtonContainer.querySelector('button');
-                if (newSendButton) {
-                    newSendButton.addEventListener('click', sendReply);
-                }
+            // Revert the button on error
+            sendButtonContainer.innerHTML = originalSendButton;
+            const newSendButton = sendButtonContainer.querySelector('button');
+            if (newSendButton) {
+                newSendButton.addEventListener('click', sendReply);
             }
             console.error('Error sending reply:', error);
             alert('Failed to send reply. Please try again.');
         });
-      }
+    }
 
     function deleteThread(threadId) {
 
@@ -777,7 +722,6 @@
     line-height: inherit; /* Ensure vertical centering of dot */
   }
 </style>
-
 
 
 {% endblock %}

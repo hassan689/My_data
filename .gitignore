@@ -6,3 +6,4 @@ data/
 django_email.log
 media/
 google_secrets.py
+static/imgs/

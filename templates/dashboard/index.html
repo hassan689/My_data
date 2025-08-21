@@ -79,11 +79,11 @@
 						{% for account in email_accounts %}
 						<tr class="border-b bg-hover-light">
 								<!-- Email -->
-								<td class="p-3">{{ account.email_address }}</td>
+								<td class="py-3 px-1">{{ account.email_address }}</td>
                 
 								<!-- Update Button -->
-								<td class="p-3">
-                  <div class="flex flex-col md:flex-row md:space-x-5 space-y-2 md:space-y-0">
+								<td class="py-3 px-1">
+                  <div class="flex flex-col md:flex-row md:space-x-3 space-y-2 md:space-y-0">
                     <a href="{% url 'dashboard:email_account_update' account.id %}" 
                       class="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 text-center">
                       Update
@@ -103,21 +103,22 @@
                         Activate Auto-Warmup
                       </a>
                     {% elif account.latest_warmup_status == "Active" %}
-                      <div class="px-2 py-1 rounded font-semibold bg-lime-100 text-lime-800">Warmup Active</div>
+                      <div class="px-2 py-1 rounded font-semibold bg-lime-100 text-lime-800 text-center">Warmup Active</div>
                     {% endif %}
                     
-                    {% comment %}
-                    {% if account.is_gmail and not account.is_connected %}
+                    {% if account.is_gmail and not account.is_connected and is_warmup_eligible %}
+                      {% if request.user.is_superuser %}
                         <a href="{% url 'dashboard:oauth_start' account.id %}" 
                           class="bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600 text-center">
                           Connect Gmail
                         </a>
+                      {% endif %}
                     {% endif %}
-                    {% endcomment %}
+
                   </div>
                 </td>
 
-                <td class="p-3">
+                <td class="py-3 px-1">
                   <div class="flex flex-col md:flex-row md:space-x-5 space-y-2 md:space-y-0 md:items-center">
                       {% if account.last_campaign_status == 'launched' %}
                         <div id="status-box-{{ account.id }}" class="px-2 py-1 rounded font-semibold bg-green-200 text-green-800">Completed</div>
@@ -154,7 +155,7 @@
                   </div>
                 </td>
 
-                <td class="p-3">
+                <td class="py-3 px-1">
                   {% if account.latest_campaign %}
                     {% with account.latest_campaign.sent_count as sent %}
                       {% with account.latest_campaign.total_recipients as total %}

@@ -1,23 +1,19 @@
 # Celery & Google
-from celery import shared_task
+from growth_skool.celery import app
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
 # Django
-from django.conf import settings
 from django.utils import timezone
-from django.contrib.postgres.search import TrigramSimilarity
 import base64
 import re
 from datetime import datetime, timedelta, timezone as dt_timezone
 
 # FOR FILE HANDLING
-import io
 import uuid
 from django.core.files.base import ContentFile
-from django.core.files import File
 
 # Email handling
 from email.header import decode_header
@@ -224,15 +220,13 @@ def process_single_message(msg_wrapper, mailbox, recipient_email_address):
         if sender.lower() == recipient.lower():
             print(f"Processing outgoing message {msg_wrapper.message_id} from {sender}.")
 
-            # Try to find an existing thread where this mailbox is email1 (sender role)
-            # OR create a new thread for this outgoing email
             thread, created = EmailThread.objects.get_or_create(
-                mailbox=mailbox, # Owned by this mailbox
-                email1=sender, # This mailbox is the sender in this thread's context
-                email2=parseaddr(email_obj.get('To') or '')[1], # The actual recipient
+                mailbox=mailbox,
+                email1=sender,
+                email2=parseaddr(email_obj.get('To') or '')[1],
                 subject=subject,
                 defaults={
-                    'is_read': True # Outgoing messages are usually considered read
+                    'is_read': True
                 }
             )
             if created:
@@ -244,24 +238,22 @@ def process_single_message(msg_wrapper, mailbox, recipient_email_address):
                 thread=thread,
                 subject=subject,
                 body=body,
-                recipient=parseaddr(email_obj.get('To') or '')[1], # Actual recipient of the outgoing email
-                sender=sender, # Actual sender of the outgoing email (this mailbox)
+                recipient=parseaddr(email_obj.get('To') or '')[1],
+                sender=sender,
                 message_id=msg_wrapper.message_id,
                 in_reply_to=in_reply_to_header,
-                sent_at=received_at # Use received_at for timestamp consistency for sync
+                sent_at=received_at
             )
             print(f"Saved outgoing message {msg_wrapper.message_id} to thread {thread.id}.")
 
             attachments_data = msg_wrapper.get_attachments()
             for attach_data in attachments_data:
                 try:
-                    # Generate a unique filename to prevent collisions
                     unique_filename = f"{uuid.uuid4()}_{attach_data['filename']}"
-                    # Create a ContentFile from the raw bytes
                     django_file = ContentFile(attach_data['content'], name=unique_filename)
 
                     Attachment.objects.create(
-                        outgoing_message=outgoing_msg_instance, # Link to the newly created outgoing message
+                        outgoing_message=outgoing_msg_instance,
                         file=django_file,
                         filename=attach_data['filename'],
                         mime_type=attach_data['mime_type'],
@@ -271,12 +263,10 @@ def process_single_message(msg_wrapper, mailbox, recipient_email_address):
                 except Exception as e:
                     print(f"Error saving attachment '{attach_data['filename']}' for outgoing message {msg_wrapper.message_id}: {e}")
 
-            return True # Processed as an outgoing message
+            return True
 
         # --- Handle Self-loop Duplicates (Incoming Side) ---
         try:
-            # Check if this incoming message's ID matches an outgoing message's ID
-            # This means it's a self-loop *already sent from our platform*
             outgoing_match = OutgoingEmailMessage.objects.get(message_id=msg_wrapper.message_id)
             print(f"Detected looped-back message {msg_wrapper.message_id} sent from another internal mailbox.")
 
@@ -326,11 +316,9 @@ def process_single_message(msg_wrapper, mailbox, recipient_email_address):
             return True
 
         except OutgoingEmailMessage.DoesNotExist:
-            pass # Not a looped-back message from our own platform, proceed normally with other threading logic
-
+            pass
 
         # --- Standard Incoming Message Processing ---
-
         # Try to find the matching outgoing message using In-Reply-To
         if in_reply_to_header:
             outgoing_msg = OutgoingEmailMessage.objects.filter(message_id=in_reply_to_header).first()
@@ -345,8 +333,6 @@ def process_single_message(msg_wrapper, mailbox, recipient_email_address):
         if outgoing_msg:
             try:
                 thread = outgoing_msg.thread
-                # Ensure the thread's email1/email2 reflect the actual sender/recipient for this incoming message
-                # relative to the mailbox owner (email2)
                 thread.email1 = sender
                 thread.email2 = recipient
                 fields_to_update = ['email1', 'email2']
@@ -360,36 +346,16 @@ def process_single_message(msg_wrapper, mailbox, recipient_email_address):
 
             except Exception as e:
                 print(f"Error updating thread for reply {msg_wrapper.message_id}: {e}")
-        else:
-            print(f"No matching outgoing message found from In-Reply-To or References for {msg_wrapper.message_id}.")
-
+        
+        # This block now handles all replies without matching outgoing messages
         if not thread:
-            # Try to find similar outgoing message subjects for new thread creation
-            similar_outgoing = OutgoingEmailMessage.objects.annotate(
-                similarity=TrigramSimilarity('subject', subject)
-            ).filter(similarity__gt=0.6, sender=recipient).order_by('-similarity').first()
-
-            if similar_outgoing:
-                print(f"Found similar subject for {msg_wrapper.message_id} to our outgoing messages.")
-                thread, _ = EmailThread.objects.get_or_create(
-                    mailbox=mailbox,
-                    email1=sender,
-                    email2=recipient,
-                    subject=subject
-                )
-            else:
-                keywords = ['dispatch', 'service', 'load', 'driver', 'carrier', 'fmcsa', 'truck', 'trucking', 'quote', 'request']
-                if not any(keyword in subject.lower() for keyword in keywords):
-                    print(f"Message {msg_wrapper.message_id} subject '{subject}' not relevant. Ignoring.")
-                    return False
-                else:
-                    print(f"Found relevant keyword in subject for {msg_wrapper.message_id}.")
-                    thread, _ = EmailThread.objects.get_or_create(
-                        mailbox=mailbox,
-                        email1=sender,
-                        email2=recipient,
-                        subject=subject
-                    )
+            print(f"No matching outgoing message found from In-Reply-To or References for {msg_wrapper.message_id}. Creating new thread.")
+            thread, _ = EmailThread.objects.get_or_create(
+                mailbox=mailbox,
+                email1=sender,
+                email2=recipient,
+                subject=subject
+            )
 
         if thread:
             incoming_msg_instance = IncomingEmailMessage.objects.create(
@@ -431,7 +397,7 @@ def process_single_message(msg_wrapper, mailbox, recipient_email_address):
         return False
 
 
-# @shared_task(bind=True, default_retry_delay=300, max_retries=5)
+@app.task(name="unibox.fetch_gmail_messages_for_all_accounts")
 def fetch_gmail_messages_for_all_accounts(self):
     """
     Celery task to fetch and process new Gmail messages for all connected accounts.
