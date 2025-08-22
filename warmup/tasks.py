@@ -4,7 +4,8 @@ from django.utils import timezone
 from .models import WarmupCampaign, WarmupTemplateSet, WarmupMessage
 from users.models import EmailAccount
 from growth_skool.celery import app
-from django.core.mail import get_connection, EmailMultiAlternatives
+from django.core.mail import get_connection, EmailMultiAlternatives, send_mail
+from django.conf import settings
 from django.utils import timezone
 from datetime import timedelta
 import time
@@ -99,19 +100,28 @@ def send_warmup_step(campaign_id, step_number):
         print(f"Campaign {campaign.id} is already in {campaign.status} state. Skipping.")
         return
 
-    # Use a try-except block to handle missing steps gracefully
+    # Handle missing templates with its own try-except block
     try:
-        # Get templates for the correct step (step_number 0 corresponds to 'step_1' in JSON)
         templates = campaign.template_set.templates.get(f'step_{step_number + 1}')
-    except KeyError:
+    except Exception as e:
+        subject = f"Template not found. Ending warmup campaign."
+        body = f"Template for step {step_number + 1} not found. Ending campaign for {campaign.sender_account}: {e}"
+        recipient_list = ['abdullahatif132@gmail.com']
+        send_mail(
+            subject,
+            body,
+            settings.DEFAULT_FROM_EMAIL,
+            recipient_list,
+            fail_silently=False,
+        )
         print(f"Template for step {step_number + 1} not found. Ending campaign.")
-        campaign.status = 'Failed' # Or 'failed' if this is an error
+        campaign.status = 'Failed'
         campaign.save(update_fields=['status'])
         return
     
-    try:
-        # Sender's turn (Even steps: 0, 2, 4...)
-        if step_number % 2 == 0:
+    # Sender's turn (Even steps: 0, 2, 4...)
+    if step_number % 2 == 0:
+        try:
             sender_account = campaign.sender_account
             recipients = list(campaign.target_accounts.all())
 
@@ -135,12 +145,12 @@ def send_warmup_step(campaign_id, step_number):
                 }
 
                 appended_message = """\n\n\n
-                This email is part of the Dispatch Skool Auto-Warmup Campaign. 
-                The purpose of this campaign is to warm up your email sending reputation. 
-                We do this by sending and receiving messages between a private pool of verified accounts. 
-                This activity mimics natural human conversation, which helps major email providers like Google 
-                and Microsoft see your account as trustworthy. By participating, your account's deliverability will improve, 
-                ensuring your legitimate emails reach their intended recipients rather than landing in spam folders.\n\n
+                This email is part of the Dispatch Skool Auto-Warmup Campaign.
+                The purpose of this campaign is to warm up your email sending reputation.
+                We do this by sending and receiving messages between a private pool of verified accounts.
+                This activity mimics natural human conversation, which helps major email providers like Google
+                and Microsoft see your account as trustworthy. By participating, your account's deliverability will improve,
+                ensuring your legitimate emails reach their intended recipients rather than landing in spam folders.\n
 
                 Regards,
                 The Dispatch Skool Team
@@ -152,8 +162,8 @@ def send_warmup_step(campaign_id, step_number):
                 personalized_body_with_note = personalized_body + appended_message
                 
                 msg = EmailMultiAlternatives(
-                    subject=personalized_subject,
-                    body=personalized_body_with_note,
+                    subject=personalized_subject.encode('utf-8'),
+                    body=personalized_body_with_note.encode('utf-8'),
                     from_email=sender_account.email_address,
                     to=[recipient_account.email_address],
                     connection=connection
@@ -174,16 +184,33 @@ def send_warmup_step(campaign_id, step_number):
                     sender=sender_account,
                     recipient=recipient_account,
                     subject=personalized_subject,
-                    body=personalized_body,
+                    body=personalized_body
                 )
 
                 time.sleep(random.randint(30, 60))
 
             if connection:
                 connection.close()
-        
-        # Targets' turn (Odd steps: 1, 3, 5...)
-        else:
+
+        except Exception as e:
+            subject = f"Error during Sender's Turn for Warmup Campaign"
+            body = f"Error during sender's turn (step {step_number}) for Campaign sender {campaign.sender_account}: {e}"
+            recipient_list = ['abdullahatif132@gmail.com']
+            send_mail(
+                subject,
+                body,
+                settings.DEFAULT_FROM_EMAIL,
+                recipient_list,
+                fail_silently=False,
+            )
+            print(f"Error during Sender's Turn for Campaign {campaign.id}: {e}")
+            campaign.status = 'Failed'
+            campaign.save(update_fields=['status'])
+            return
+    
+    # Targets' turn (Odd steps: 1, 3, 5...)
+    else:
+        try:
             sender_accounts = list(campaign.target_accounts.all())
             recipient_account = campaign.sender_account
             
@@ -206,12 +233,12 @@ def send_warmup_step(campaign_id, step_number):
                 }
                 
                 appended_message = """\n\n\n
-                This email is part of the Dispatch Skool Auto-Warmup Campaign. 
-                The purpose of this campaign is to warm up your email sending reputation. 
-                We do this by sending and receiving messages between a private pool of verified accounts. 
-                This activity mimics natural human conversation, which helps major email providers like Google 
-                and Microsoft see your account as trustworthy. By participating, your account's deliverability will improve, 
-                ensuring your legitimate emails reach their intended recipients rather than landing in spam folders.\n\n
+                This email is part of the Dispatch Skool Auto-Warmup Campaign.
+                The purpose of this campaign is to warm up your email sending reputation.
+                We do this by sending and receiving messages between a private pool of verified accounts.
+                This activity mimics natural human conversation, which helps major email providers like Google
+                and Microsoft see your account as trustworthy. By participating, your account's deliverability will improve,
+                ensuring your legitimate emails reach their intended recipients rather than landing in spam folders.\n
 
                 Regards,
                 The Dispatch Skool Team
@@ -223,8 +250,8 @@ def send_warmup_step(campaign_id, step_number):
                 personalized_body_with_note = personalized_body + appended_message
                 
                 msg = EmailMultiAlternatives(
-                    subject=personalized_subject,
-                    body=personalized_body_with_note,
+                    subject=personalized_subject.encode('utf-8'),
+                    body=personalized_body_with_note.encode('utf-8'),
                     from_email=sender_account.email_address,
                     to=[recipient_account.email_address],
                     connection=connection
@@ -253,23 +280,31 @@ def send_warmup_step(campaign_id, step_number):
                 if connection:
                     connection.close()
 
-    except Exception as e:
-        print(f"Error processing warmup step {step_number} for Campaign {campaign.id}: {e}")
-        campaign.status = 'Failed'
-        campaign.save(update_fields=['status'])
-        return
+        except Exception as e:
+            subject = f"Error during Targets' Turn for Warmup Campaign"
+            body = f"Error during targets' turn (step {step_number}) for Campaign sender {campaign.sender_account}: {e}"
+            recipient_list = ['abdullahatif132@gmail.com']
+            send_mail(
+                subject,
+                body,
+                settings.DEFAULT_FROM_EMAIL,
+                recipient_list,
+                fail_silently=False,
+            )
+            print(f"Error during Targets' Turn for Campaign {campaign.id}: {e}")
+            campaign.status = 'Failed'
+            campaign.save(update_fields=['status'])
+            return
 
-    # Update campaign status for the next step
+    # Update campaign status for the next step (only runs if no errors occurred)
     campaign.current_step += 1
     campaign.last_action_at = timezone.now()
-    campaign.next_action_at = timezone.now() + timedelta(minutes=random.uniform(2, 5)) # for testing on localhost
-    # campaign.next_action_at = timezone.now() + timedelta(hours=random.uniform(24, 36))  # Random delay 24-36 hours
-    if campaign.current_step >= 10: # Assuming 10 total steps (0-9)
+    campaign.next_action_at = timezone.now() + timedelta(hours=random.uniform(24, 36))
+    if campaign.current_step >= 10:
         campaign.status = 'Complete'
     campaign.save(update_fields=['current_step', 'last_action_at', 'next_action_at', 'status'])
     
     print(f"Warmup campaign {campaign.id} processed step {step_number} and is now at step {campaign.current_step}.")
-
 
 
 @app.task(name="warmup.tasks.process_warmup_convo_beats")

@@ -7,6 +7,7 @@ from googleapiclient.errors import HttpError
 
 # Django
 from django.utils import timezone
+from django.db.models import Count
 import base64
 import re
 from datetime import datetime, timedelta, timezone as dt_timezone
@@ -562,4 +563,28 @@ def fetch_gmail_messages_for_all_accounts(self):
 
     print("Gmail message sync task finished.")
 
+
+@app.task(name="email_cleanup.tasks.delete_old_single_outgoing_threads")
+def delete_old_single_outgoing_threads():
+    """
+    Deletes EmailThread objects that are older than one month and contain
+    exactly one outgoing message.
+    """
+    one_month_ago = timezone.now() - timedelta(days=30)
+
+    # Use annotate and filter to find threads with a single outgoing message
+    # and a creation date older than one month ago.
+    threads_to_delete = EmailThread.objects.annotate(
+        num_outgoing=Count('outgoing_messages')
+    ).filter(
+        num_outgoing=1,
+        created_at__lt=one_month_ago
+    )
+
+    deleted_count, _ = threads_to_delete.delete()
+
+    if deleted_count > 0:
+        print(f"Successfully deleted {deleted_count} EmailThread objects.")
+    else:
+        print("No EmailThread objects found to be deleted.")
 
