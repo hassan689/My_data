@@ -4,10 +4,11 @@ from django.utils import timezone
 from .models import WarmupCampaign, WarmupTemplateSet, WarmupMessage
 from users.models import EmailAccount
 from growth_skool.celery import app
-from django.core.mail import get_connection, EmailMultiAlternatives, send_mail
+from django.core.mail import get_connection, EmailMultiAlternatives, send_mail, EmailMessage
 from django.conf import settings
 from django.utils import timezone
 from datetime import timedelta
+from django.utils.encoding import force_str
 import time
 
 
@@ -158,24 +159,24 @@ def send_warmup_step(campaign_id, step_number):
                 
                 personalized_subject = personalize_template(template['subject'], personalization_data)
                 personalized_body = personalize_template(template['body'], personalization_data)
+                personalized_body = personalized_body.replace('\xa0', ' ')
 
                 personalized_body_with_note = personalized_body + appended_message
                 
-                msg = EmailMultiAlternatives(
-                    subject=personalized_subject.encode('utf-8'),
-                    body=personalized_body_with_note.encode('utf-8'),
+                main_msg = EmailMultiAlternatives(
+                    subject=personalized_subject,
+                    body=personalized_body_with_note,
                     from_email=sender_account.email_address,
                     to=[recipient_account.email_address],
                     connection=connection
                 )
                 try:
-                    msg.send()
+                    main_msg.send()
                 except Exception as e:
-                    if "please run connect() first" in str(e).lower() or "connection expired" in str(e).lower():
-                        print("SMTP connection lost, reconnecting...")
+                    if "please run connect() first" in str(e).lower() or "connection expired" in str(e).lower() or "Connection unexpectedly closed" in str(e).lower() or "Connection reset by peer" in str(e).lower():
                         connection = get_email_connection(sender_account, decrypted_password)
-                        msg.connection = connection
-                        msg.send()
+                        main_msg.connection = connection
+                        main_msg.send()
                     else:
                         raise e
 
@@ -193,28 +194,77 @@ def send_warmup_step(campaign_id, step_number):
                 connection.close()
 
         except Exception as e:
-            subject = f"Error during Sender's Turn for Warmup Campaign"
-            body = f"Error during sender's turn (step {step_number}) for Campaign sender {campaign.sender_account}: {e}"
-            recipient_list = ['abdullahatif132@gmail.com']
-            send_mail(
-                subject,
-                body,
-                settings.DEFAULT_FROM_EMAIL,
-                recipient_list,
-                fail_silently=False,
-            )
-            print(f"Error during Sender's Turn for Campaign {campaign.id}: {e}")
-            campaign.status = 'Failed'
-            campaign.save(update_fields=['status'])
+            
+            if "Username and Password not accepted" in str(e):
+
+                campaign.status = 'Failed'
+                campaign.save(update_fields=['status'])
+
+                sender_account.is_warmup_target = False # the account is not attached properly and will only be a pain to keep attempting the  warmup
+                sender_account.save(update_fields=['is_warmup_target'])
+
+                subject = "Email account configuration failure"
+                body = (
+                    f"Hello {sender_account.user.first_name},\n\n"
+                    f"Error during email attach: {e}\n\n"
+                    f"This is to notify you that your email account {sender_account.email_address} "
+                    "could not be configured with Dispatch Skool. This is likely due to incorrect credentials entered. Please refer to the provided instructions on the add account page and try 'updating' the account you were trying to attach.\n\n"
+                    "In case of any problems, feel free to reach out.\n\n"
+                    "Best Regards,\nThe Dispatch Skool Team."
+                )
+                from_email = settings.EMAIL_HOST_USER
+                recipient_list = [sender_account.user.email]
+
+                body_encoded = force_str(body, 'utf-8', errors='replace')
+
+                email_message = EmailMessage(
+                    subject,
+                    body_encoded,
+                    from_email,
+                    recipient_list
+                )
+                email_message.send()
+            
+            elif "Daily user sending limit exceeded" in str(e):
+                
+                # This just means that campaign can't be sent today, so it'll just be set to a later date
+                campaign.next_action_at = timezone.now() + timedelta(hours=random.uniform(24, 36))
+                campaign.save(update_fields=['next_action_at'])
+
+            elif "Connection unexpectedly closed" in str(e):
+                
+                connection = get_email_connection(sender_account, decrypted_password)
+                try:
+                    main_msg.connection = connection
+                    main_msg.send()
+                except: # retry on a later date
+                    campaign.next_action_at = timezone.now() + timedelta(hours=random.uniform(24, 36))
+                    campaign.save(update_fields=['next_action_at'])
+
+            else: # if something other than the currently known errors, then tell me those
+                subject = f"Error during Sender's Turn for Warmup Campaign"
+                body = f"Error during sender's turn (step {step_number}) for Campaign sender {campaign.sender_account}: {e}"
+                recipient_list = ['abdullahatif132@gmail.com']
+                send_mail(
+                    subject,
+                    body,
+                    settings.DEFAULT_FROM_EMAIL,
+                    recipient_list,
+                    fail_silently=False,
+                )
+                campaign.status = 'Failed'
+                campaign.save(update_fields=['status'])
+
             return
     
     # Targets' turn (Odd steps: 1, 3, 5...)
     else:
-        try:
-            sender_accounts = list(campaign.target_accounts.all())
-            recipient_account = campaign.sender_account
+        sender_accounts = list(campaign.target_accounts.all())
+        recipient_account = campaign.sender_account
+        
+        for sender_account in sender_accounts:
             
-            for sender_account in sender_accounts:
+            try: # try for every account and handle thier individual errors accordingly without halting the campaign as much as possible
                 decrypted_password = sender_account.get_password()
                 connection = get_email_connection(sender_account, decrypted_password)
                 
@@ -246,24 +296,25 @@ def send_warmup_step(campaign_id, step_number):
                 
                 personalized_subject = personalize_template(template['subject'], personalization_data)
                 personalized_body = personalize_template(template['body'], personalization_data)
+                personalized_body = personalized_body.replace('\xa0', ' ')
 
                 personalized_body_with_note = personalized_body + appended_message
                 
-                msg = EmailMultiAlternatives(
-                    subject=personalized_subject.encode('utf-8'),
-                    body=personalized_body_with_note.encode('utf-8'),
+                main_msg = EmailMultiAlternatives(
+                    subject=personalized_subject,
+                    body=personalized_body_with_note,
                     from_email=sender_account.email_address,
                     to=[recipient_account.email_address],
                     connection=connection
                 )
                 try:
-                    msg.send()
+                    main_msg.send()
                 except Exception as e:
-                    if "please run connect() first" in str(e).lower() or "connection expired" in str(e).lower():
+                    if "please run connect() first" in str(e).lower() or "connection expired" in str(e).lower() or "Connection unexpectedly closed" in str(e).lower() or "Connection reset by peer" in str(e).lower() or "Disabled by user from hPanel" in str(e).lower():
                         print("SMTP connection lost, reconnecting...")
                         connection = get_email_connection(sender_account, decrypted_password)
-                        msg.connection = connection
-                        msg.send()
+                        main_msg.connection = connection
+                        main_msg.send()
                     else:
                         raise e
                     
@@ -280,21 +331,35 @@ def send_warmup_step(campaign_id, step_number):
                 if connection:
                     connection.close()
 
-        except Exception as e:
-            subject = f"Error during Targets' Turn for Warmup Campaign"
-            body = f"Error during targets' turn (step {step_number}) for Campaign sender {campaign.sender_account}: {e}"
-            recipient_list = ['abdullahatif132@gmail.com']
-            send_mail(
-                subject,
-                body,
-                settings.DEFAULT_FROM_EMAIL,
-                recipient_list,
-                fail_silently=False,
-            )
-            print(f"Error during Targets' Turn for Campaign {campaign.id}: {e}")
-            campaign.status = 'Failed'
-            campaign.save(update_fields=['status'])
-            return
+            except Exception as e:
+                
+                if "Connection reset by peer" in str(e) or "Disabled by user from hPanel" in str(e):
+            
+                    connection = get_email_connection(sender_account, decrypted_password)
+                    try:
+                        main_msg.connection = connection
+                        main_msg.send()
+                    except:
+                        continue
+                    
+                elif "Daily user sending limit exceeded" in str(e):
+                
+                    # Using continue bcz, there might be only some whose daily limit is reached and not all, so those accounts will simple be skipped
+                    continue
+
+                else: # if something other than the currently known errors, then tell me those
+                    subject = f"Error during Targets' Turn for Warmup Campaign"
+                    body = f"Error during targets' turn (step {step_number}) for Campaign sender {campaign.sender_account}: {e}"
+                    recipient_list = ['abdullahatif132@gmail.com']
+                    send_mail(
+                        subject,
+                        body,
+                        settings.DEFAULT_FROM_EMAIL,
+                        recipient_list,
+                        fail_silently=False,
+                    )
+                    campaign.status = 'Failed'
+                    campaign.save(update_fields=['status'])
 
     # Update campaign status for the next step (only runs if no errors occurred)
     campaign.current_step += 1
