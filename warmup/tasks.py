@@ -157,19 +157,20 @@ def send_warmup_step(campaign_id, step_number):
                 The Dispatch Skool Team
                 """
                 
-                personalized_subject = personalize_template(template['subject'], personalization_data)
-                personalized_body = personalize_template(template['body'], personalization_data)
-                personalized_body = personalized_body.replace('\xa0', ' ')
+                def clean_text(text: str) -> str:
+                    return text.replace('\xa0', ' ').encode('utf-8', 'ignore').decode('utf-8')
 
-                personalized_body_with_note = personalized_body + appended_message
+                personalized_subject = clean_text(personalize_template(template['subject'], personalization_data))
+                personalized_body = clean_text(personalize_template(template['body'], personalization_data))
                 
                 main_msg = EmailMultiAlternatives(
                     subject=personalized_subject,
-                    body=personalized_body_with_note,
+                    body=personalized_body,
                     from_email=sender_account.email_address,
                     to=[recipient_account.email_address],
                     connection=connection
                 )
+                main_msg.encoding = 'utf-8'
                 try:
                     main_msg.send()
                 except Exception as e:
@@ -294,19 +295,20 @@ def send_warmup_step(campaign_id, step_number):
                 The Dispatch Skool Team
                 """
                 
-                personalized_subject = personalize_template(template['subject'], personalization_data)
-                personalized_body = personalize_template(template['body'], personalization_data)
-                personalized_body = personalized_body.replace('\xa0', ' ')
+                def clean_text(text: str) -> str:
+                    return text.replace('\xa0', ' ').encode('utf-8', 'ignore').decode('utf-8')
 
-                personalized_body_with_note = personalized_body + appended_message
+                personalized_subject = clean_text(personalize_template(template['subject'], personalization_data))
+                personalized_body = clean_text(personalize_template(template['body'], personalization_data))
                 
                 main_msg = EmailMultiAlternatives(
                     subject=personalized_subject,
-                    body=personalized_body_with_note,
+                    body=personalized_body,
                     from_email=sender_account.email_address,
                     to=[recipient_account.email_address],
                     connection=connection
                 )
+                main_msg.encoding = 'utf-8'
                 try:
                     main_msg.send()
                 except Exception as e:
@@ -347,6 +349,35 @@ def send_warmup_step(campaign_id, step_number):
                     # Using continue bcz, there might be only some whose daily limit is reached and not all, so those accounts will simple be skipped
                     continue
 
+                elif "Username and Password not accepted" in str(e):
+
+                    sender_account.is_warmup_target = False # the account is not attached properly and will only be a pain to keep attempting the  warmup
+                    sender_account.save(update_fields=['is_warmup_target'])
+
+                    subject = "Email account configuration failure"
+                    body = (
+                        f"Hello {sender_account.user.first_name},\n\n"
+                        f"Error during email attach: {e}\n\n"
+                        f"This is to notify you that your email account {sender_account.email_address} "
+                        "could not be configured with Dispatch Skool. This is likely due to incorrect credentials entered. Please refer to the provided instructions on the add account page and try 'updating' the account you were trying to attach.\n\n"
+                        "In case of any problems, feel free to reach out.\n\n"
+                        "Best Regards,\nThe Dispatch Skool Team."
+                    )
+                    from_email = settings.EMAIL_HOST_USER
+                    recipient_list = [sender_account.user.email]
+
+                    body_encoded = force_str(body, 'utf-8', errors='replace')
+
+                    email_message = EmailMessage(
+                        subject,
+                        body_encoded,
+                        from_email,
+                        recipient_list
+                    )
+                    email_message.send()
+
+                    continue
+
                 else: # if something other than the currently known errors, then tell me those
                     subject = f"Error during Targets' Turn for Warmup Campaign"
                     body = f"Error during targets' turn (step {step_number}) for Campaign sender {campaign.sender_account}: {e}"
@@ -358,8 +389,7 @@ def send_warmup_step(campaign_id, step_number):
                         recipient_list,
                         fail_silently=False,
                     )
-                    campaign.status = 'Failed'
-                    campaign.save(update_fields=['status'])
+                    continue
 
     # Update campaign status for the next step (only runs if no errors occurred)
     campaign.current_step += 1
