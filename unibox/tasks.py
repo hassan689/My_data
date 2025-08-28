@@ -398,170 +398,173 @@ def process_single_message(msg_wrapper, mailbox, recipient_email_address):
         return False
 
 
-@app.task(name="unibox.fetch_gmail_messages_for_all_accounts")
-def fetch_gmail_messages_for_all_accounts(self):
+@app.task(name="unibox.tasks.fetch_gmail_messages_for_all_accounts")
+def fetch_gmail_messages_for_all_accounts():
     """
     Celery task to fetch and process new Gmail messages for all connected accounts.
     """
-    gmail_tokens = GmailToken.objects.all()
-    print(f"\\n Starting Gmail message sync for {len(gmail_tokens)} accounts... \\n")
+    try:
+        gmail_tokens = GmailToken.objects.all()
+        print(f"\\n Starting Gmail message sync for {len(gmail_tokens)} accounts... \\n")
 
-    for gmail_token_instance in gmail_tokens:
-        user_email_address = gmail_token_instance.email_account.email_address
-        print(f"Processing account: {user_email_address}")
+        for gmail_token_instance in gmail_tokens:
+            user_email_address = gmail_token_instance.email_account.email_address
+            print(f"Processing account: {user_email_address}")
 
-        service = get_gmail_service(gmail_token_instance)
-        if not service:
-            print(f"Skipping {user_email_address} due to authentication issues.")
-            continue
+            service = get_gmail_service(gmail_token_instance)
+            if not service:
+                print(f"Skipping {user_email_address} due to authentication issues.")
+                continue
 
-        try:
-            user_id = 'me'
-            new_last_history_id = None
+            try:
+                user_id = 'me'
+                new_last_history_id = None
 
-            if not gmail_token_instance.last_history_id:
-                print(f"Performing initial sync (last 30 days) for {user_email_address}...")
-                thirty_days_ago = (timezone.now() - timedelta(days=30)).strftime('%Y/%m/%d')
-                query = f"after:{thirty_days_ago}"
+                if not gmail_token_instance.last_history_id:
+                    print(f"Performing initial sync (last 30 days) for {user_email_address}...")
+                    thirty_days_ago = (timezone.now() - timedelta(days=30)).strftime('%Y/%m/%d')
+                    query = f"after:{thirty_days_ago}"
 
-                messages_list_response = service.users().messages().list(
-                    userId=user_id,
-                    q=query,
-                    maxResults=50
-                ).execute()
+                    messages_list_response = service.users().messages().list(
+                        userId=user_id,
+                        q=query,
+                        maxResults=50
+                    ).execute()
 
-                messages = messages_list_response.get('messages', [])
-                print(f"Found {len(messages)} messages for initial sync for {user_email_address}.")
+                    messages = messages_list_response.get('messages', [])
+                    print(f"Found {len(messages)} messages for initial sync for {user_email_address}.")
 
-                for msg_item in messages:
-                    try:
-                        full_message_data = service.users().messages().get(
-                            userId=user_id,
-                            id=msg_item['id'],
-                            format='raw'
-                        ).execute()
-                        msg_wrapper = MessageWrapper(full_message_data)
-                        process_single_message(msg_wrapper, gmail_token_instance, user_email_address)
-                    except HttpError as msg_error:
-                        print(f"Error fetching initial message {msg_item['id']}: {msg_error}")
-                    except Exception as e:
-                        print(f"Error processing initial message {msg_item['id']}: {e}")
+                    for msg_item in messages:
+                        try:
+                            full_message_data = service.users().messages().get(
+                                userId=user_id,
+                                id=msg_item['id'],
+                                format='raw'
+                            ).execute()
+                            msg_wrapper = MessageWrapper(full_message_data)
+                            process_single_message(msg_wrapper, gmail_token_instance, user_email_address)
+                        except HttpError as msg_error:
+                            print(f"Error fetching initial message {msg_item['id']}: {msg_error}")
+                        except Exception as e:
+                            print(f"Error processing initial message {msg_item['id']}: {e}")
 
-                profile = service.users().getProfile(userId=user_id).execute()
-                new_last_history_id = profile['historyId']
-                print(f"Initial sync complete. Set historyId for {user_email_address} to {new_last_history_id}.")
+                    profile = service.users().getProfile(userId=user_id).execute()
+                    new_last_history_id = profile['historyId']
+                    print(f"Initial sync complete. Set historyId for {user_email_address} to {new_last_history_id}.")
 
-            else:
-                print(f"Performing incremental sync from historyId {gmail_token_instance.last_history_id} for {user_email_address}...")
-                history_response = service.users().history().list(
-                    userId=user_id,
-                    startHistoryId=gmail_token_instance.last_history_id,
-                    historyTypes=['messageAdded', 'messageDeleted', 'labelAdded', 'labelRemoved'] # Added 'messagesDeleted'
-                ).execute()
+                else:
+                    print(f"Performing incremental sync from historyId {gmail_token_instance.last_history_id} for {user_email_address}...")
+                    history_response = service.users().history().list(
+                        userId=user_id,
+                        startHistoryId=gmail_token_instance.last_history_id,
+                        historyTypes=['messageAdded', 'messageDeleted', 'labelAdded', 'labelRemoved'] # Added 'messagesDeleted'
+                    ).execute()
 
-                histories = history_response.get('history', [])
-                print(f"Found {len(histories)} history records for {user_email_address}.")
+                    histories = history_response.get('history', [])
+                    print(f"Found {len(histories)} history records for {user_email_address}.")
 
-                for history in histories:
-                    # Process New Messages
-                    if 'messagesAdded' in history:
-                        for msg_added in history['messagesAdded']:
-                            message_id = msg_added['message']['id']
-                            try:
-                                full_message_data = service.users().messages().get(
-                                    userId=user_id,
-                                    id=message_id,
-                                    format='raw'
-                                ).execute()
-                                msg_wrapper = MessageWrapper(full_message_data)
-                                process_single_message(msg_wrapper, gmail_token_instance, user_email_address)
-                            except HttpError as msg_error:
-                                print(f"Error fetching history message {message_id}: {msg_error}")
-                            except Exception as e:
-                                print(f"Error processing history message {message_id}: {e}")
+                    for history in histories:
+                        # Process New Messages
+                        if 'messagesAdded' in history:
+                            for msg_added in history['messagesAdded']:
+                                message_id = msg_added['message']['id']
+                                try:
+                                    full_message_data = service.users().messages().get(
+                                        userId=user_id,
+                                        id=message_id,
+                                        format='raw'
+                                    ).execute()
+                                    msg_wrapper = MessageWrapper(full_message_data)
+                                    process_single_message(msg_wrapper, gmail_token_instance, user_email_address)
+                                except HttpError as msg_error:
+                                    print(f"Error fetching history message {message_id}: {msg_error}")
+                                except Exception as e:
+                                    print(f"Error processing history message {message_id}: {e}")
 
-                    # Process Deleted Messages
-                    if 'messagesDeleted' in history:
-                        for msg_deleted in history['messagesDeleted']:
-                            message_id = msg_deleted['message']['id']
-                            print(f"Detected deletion for message ID: {message_id}")
-                            try:
-                                incoming_msg = IncomingEmailMessage.objects.filter(message_id=message_id, recipient=user_email_address).first()
-                                if incoming_msg:
-                                    thread_to_check = incoming_msg.thread
-                                    incoming_msg.delete()
-                                    print(f"Deleted IncomingEmailMessage {message_id} from DB.")
+                        # Process Deleted Messages
+                        if 'messagesDeleted' in history:
+                            for msg_deleted in history['messagesDeleted']:
+                                message_id = msg_deleted['message']['id']
+                                print(f"Detected deletion for message ID: {message_id}")
+                                try:
+                                    incoming_msg = IncomingEmailMessage.objects.filter(message_id=message_id, recipient=user_email_address).first()
+                                    if incoming_msg:
+                                        thread_to_check = incoming_msg.thread
+                                        incoming_msg.delete()
+                                        print(f"Deleted IncomingEmailMessage {message_id} from DB.")
 
-                                    # Check if the thread is now empty
-                                    total_messages_in_thread = thread_to_check.incoming_messages.count() + thread_to_check.outgoing_messages.count()
-                                    if total_messages_in_thread == 0:
-                                        thread_to_check.delete()
-                                        print(f"Deleted empty EmailThread {thread_to_check.id} from DB.")
-                                else:
-                                    # Also check OutgoingEmailMessage, if you decide to track all sent emails
-                                    # For now, it only tracks those sent *from* the platform.
-                                    outgoing_msg = OutgoingEmailMessage.objects.filter(message_id=message_id, sender=user_email_address).first()
-                                    if outgoing_msg:
-                                        thread_to_check = outgoing_msg.thread
-                                        outgoing_msg.delete()
-                                        print(f"Deleted OutgoingEmailMessage {message_id} from DB.")
+                                        # Check if the thread is now empty
                                         total_messages_in_thread = thread_to_check.incoming_messages.count() + thread_to_check.outgoing_messages.count()
                                         if total_messages_in_thread == 0:
                                             thread_to_check.delete()
                                             print(f"Deleted empty EmailThread {thread_to_check.id} from DB.")
                                     else:
-                                        print(f"Message {message_id} not found in DB for deletion.")
+                                        # Also check OutgoingEmailMessage, if you decide to track all sent emails
+                                        # For now, it only tracks those sent *from* the platform.
+                                        outgoing_msg = OutgoingEmailMessage.objects.filter(message_id=message_id, sender=user_email_address).first()
+                                        if outgoing_msg:
+                                            thread_to_check = outgoing_msg.thread
+                                            outgoing_msg.delete()
+                                            print(f"Deleted OutgoingEmailMessage {message_id} from DB.")
+                                            total_messages_in_thread = thread_to_check.incoming_messages.count() + thread_to_check.outgoing_messages.count()
+                                            if total_messages_in_thread == 0:
+                                                thread_to_check.delete()
+                                                print(f"Deleted empty EmailThread {thread_to_check.id} from DB.")
+                                        else:
+                                            print(f"Message {message_id} not found in DB for deletion.")
 
-                            except Exception as e:
-                                print(f"Error handling deletion for message {message_id}: {e}")
-
-
-                    # Process Label Changes (e.g., read/unread status)
-                    if 'labelsAdded' in history:
-                        for label_change in history['labelsAdded']:
-                            message_id = label_change['message']['id']
-                            labels = label_change.get('labelIds', [])
-                            if 'UNREAD' in labels:
-                                IncomingEmailMessage.objects.filter(message_id=message_id, recipient=user_email_address).update(is_read=False)
-                                print(f"Message {message_id} marked as UNREAD.")
-                    if 'labelsRemoved' in history:
-                        for label_change in history['labelsRemoved']:
-                            message_id = label_change['message']['id']
-                            labels = label_change.get('labelIds', [])
-                            if 'UNREAD' not in labels:
-                                incoming_msg_qs = IncomingEmailMessage.objects.filter(message_id=message_id, recipient=user_email_address)
-                                if incoming_msg_qs.exists():
-                                    incoming_msg_qs.update(is_read=True)
-                                    print(f"Message {message_id} marked as READ.")
-                                    try:
-                                        thread = incoming_msg_qs.first().thread
-                                        # Only mark thread as read if ALL its incoming messages are read
-                                        if not thread.incoming_messages.filter(is_read=False).exists():
-                                            thread.is_read = True
-                                            thread.save(update_fields=['is_read'])
-                                            print(f"Thread {thread.id} marked as READ.")
-                                    except Exception as e:
-                                        print(f"Error updating thread read status for message {message_id}: {e}")
+                                except Exception as e:
+                                    print(f"Error handling deletion for message {message_id}: {e}")
 
 
-                if 'historyId' in history_response:
-                    new_last_history_id = history_response['historyId']
-                elif histories:
-                    new_last_history_id = histories[-1]['id']
+                        # Process Label Changes (e.g., read/unread status)
+                        if 'labelsAdded' in history:
+                            for label_change in history['labelsAdded']:
+                                message_id = label_change['message']['id']
+                                labels = label_change.get('labelIds', [])
+                                if 'UNREAD' in labels:
+                                    IncomingEmailMessage.objects.filter(message_id=message_id, recipient=user_email_address).update(is_read=False)
+                                    print(f"Message {message_id} marked as UNREAD.")
+                        if 'labelsRemoved' in history:
+                            for label_change in history['labelsRemoved']:
+                                message_id = label_change['message']['id']
+                                labels = label_change.get('labelIds', [])
+                                if 'UNREAD' not in labels:
+                                    incoming_msg_qs = IncomingEmailMessage.objects.filter(message_id=message_id, recipient=user_email_address)
+                                    if incoming_msg_qs.exists():
+                                        incoming_msg_qs.update(is_read=True)
+                                        print(f"Message {message_id} marked as READ.")
+                                        try:
+                                            thread = incoming_msg_qs.first().thread
+                                            # Only mark thread as read if ALL its incoming messages are read
+                                            if not thread.incoming_messages.filter(is_read=False).exists():
+                                                thread.is_read = True
+                                                thread.save(update_fields=['is_read'])
+                                                print(f"Thread {thread.id} marked as READ.")
+                                        except Exception as e:
+                                            print(f"Error updating thread read status for message {message_id}: {e}")
 
-            if new_last_history_id and new_last_history_id != gmail_token_instance.last_history_id:
-                gmail_token_instance.last_history_id = new_last_history_id
-                gmail_token_instance.save(update_fields=['last_history_id'])
-                print(f"Updated final historyId for {user_email_address} to {new_last_history_id}.")
 
-        except HttpError as error:
-            print(f"An API error occurred during sync for {user_email_address}: {error}")
-            self.retry(exc=error)
-        except Exception as e:
-            print(f"An unexpected error occurred during sync for {user_email_address}: {e}")
-            self.retry(exc=e)
+                    if 'historyId' in history_response:
+                        new_last_history_id = history_response['historyId']
+                    elif histories:
+                        new_last_history_id = histories[-1]['id']
 
-    print("Gmail message sync task finished.")
+                if new_last_history_id and new_last_history_id != gmail_token_instance.last_history_id:
+                    gmail_token_instance.last_history_id = new_last_history_id
+                    gmail_token_instance.save(update_fields=['last_history_id'])
+                    print(f"Updated final historyId for {user_email_address} to {new_last_history_id}.")
+
+            except HttpError as error:
+                print(f"An API error occurred during sync for {user_email_address}: {error}")
+                self.retry(exc=error)
+            except Exception as e:
+                print(f"An unexpected error occurred during sync for {user_email_address}: {e}")
+                self.retry(exc=e)
+
+        print("Gmail message sync task finished.")
+    except:
+        print("An error occurred in fetch_gmail_messages_for_all_accounts: %s", e, exc_info=True)
 
 
 @app.task(name="email_cleanup.tasks.delete_old_single_outgoing_threads")

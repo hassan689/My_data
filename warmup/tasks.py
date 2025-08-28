@@ -130,12 +130,15 @@ def send_warmup_step(campaign_id, step_number):
             decrypted_password = sender_account.get_password()
             connection = get_email_connection(sender_account, decrypted_password)
             
+            def clean_text(text: str) -> str:
+                    return text.replace('\xa0', ' ').encode('utf-8', 'ignore').decode('utf-8')
+            
             for recipient_account in recipients:
                 template = random.choice(templates)
                 personalization_data = {
-                    'first_name': recipient_account.user.first_name,
-                    'email': recipient_account.email_address,
-                    'company_name': getattr(recipient_account.user, "company_name", "ABC Transports LLC"),
+                    'first_name': clean_text(recipient_account.user.first_name),
+                    'email': clean_text(recipient_account.email_address),
+                    'company_name': clean_text(getattr(recipient_account.user, "company_name", "ABC Transports LLC")),
                     'topic': 'Dispatch Skool Auto-Warmup Campaign',
                     'specific_task': 'Auto-Warmup',
                     'our_process': 'Automation',
@@ -157,15 +160,14 @@ def send_warmup_step(campaign_id, step_number):
                 The Dispatch Skool Team
                 """
                 
-                def clean_text(text: str) -> str:
-                    return text.replace('\xa0', ' ').encode('utf-8', 'ignore').decode('utf-8')
-
+                
                 personalized_subject = clean_text(personalize_template(template['subject'], personalization_data))
                 personalized_body = clean_text(personalize_template(template['body'], personalization_data))
+                personalized_body_with_note = personalized_body + appended_message
                 
                 main_msg = EmailMultiAlternatives(
                     subject=personalized_subject,
-                    body=personalized_body,
+                    body=personalized_body_with_note,
                     from_email=sender_account.email_address,
                     to=[recipient_account.email_address],
                     connection=connection
@@ -232,14 +234,40 @@ def send_warmup_step(campaign_id, step_number):
                 campaign.next_action_at = timezone.now() + timedelta(hours=random.uniform(24, 36))
                 campaign.save(update_fields=['next_action_at'])
 
-            elif "Connection unexpectedly closed" in str(e):
+            elif "codec can't encode character" in str(e): # '\xa0' error
+                template = random.choice(templates)
+                personalized_subject = clean_text(personalize_template(template['subject'], personalization_data))
+                personalized_body = clean_text(personalize_template(template['body'], personalization_data))
+                personalized_body_with_note = personalized_body + appended_message
+                
+                main_msg = EmailMultiAlternatives(
+                    subject=personalized_subject,
+                    body=personalized_body_with_note,
+                    from_email=sender_account.email_address,
+                    to=[recipient_account.email_address],
+                    connection=connection
+                )
+                main_msg.encoding = 'utf-8'
+                try:
+                    main_msg.send()
+                except Exception as e:
+                    if "please run connect() first" in str(e).lower() or "connection expired" in str(e).lower() or "Connection unexpectedly closed" in str(e).lower() or "Connection reset by peer" in str(e).lower():
+                        connection = get_email_connection(sender_account, decrypted_password)
+                        main_msg.connection = connection
+                        main_msg.send()
+                    else: # retry later
+                        campaign.next_action_at = timezone.now() + timedelta(hours=random.uniform(1, 3))
+                        campaign.save(update_fields=['next_action_at'])
+
+
+            elif "Connection unexpectedly closed" in str(e) or "Connection timed out" in str(e):
                 
                 connection = get_email_connection(sender_account, decrypted_password)
                 try:
                     main_msg.connection = connection
                     main_msg.send()
                 except: # retry on a later date
-                    campaign.next_action_at = timezone.now() + timedelta(hours=random.uniform(24, 36))
+                    campaign.next_action_at = timezone.now() + timedelta(hours=random.uniform(1, 3))
                     campaign.save(update_fields=['next_action_at'])
 
             else: # if something other than the currently known errors, then tell me those
@@ -253,8 +281,8 @@ def send_warmup_step(campaign_id, step_number):
                     recipient_list,
                     fail_silently=False,
                 )
-                campaign.status = 'Failed'
-                campaign.save(update_fields=['status'])
+                campaign.next_action_at = timezone.now() + timedelta(hours=random.uniform(1, 3))
+                campaign.save(update_fields=['next_action_at'])
 
             return
     
@@ -268,12 +296,15 @@ def send_warmup_step(campaign_id, step_number):
             try: # try for every account and handle thier individual errors accordingly without halting the campaign as much as possible
                 decrypted_password = sender_account.get_password()
                 connection = get_email_connection(sender_account, decrypted_password)
+
+                def clean_text(text: str) -> str:
+                    return text.replace('\xa0', ' ').encode('utf-8', 'ignore').decode('utf-8')
                 
                 template = random.choice(templates)
                 personalization_data = {
-                    'first_name': recipient_account.user.first_name,
-                    'email': recipient_account.email_address,
-                    'company_name': getattr(recipient_account.user, "company_name", "ABC Transports LLC"),
+                    'first_name': clean_text(recipient_account.user.first_name),
+                    'email': clean_text(recipient_account.email_address),
+                    'company_name': clean_text(getattr(recipient_account.user, "company_name", "ABC Transports LLC")),
                     'topic': 'Dispatch Skool Auto-Warmup Campaign',
                     'specific_task': 'Auto-Warmup',
                     'our_process': 'Automation',
@@ -295,15 +326,14 @@ def send_warmup_step(campaign_id, step_number):
                 The Dispatch Skool Team
                 """
                 
-                def clean_text(text: str) -> str:
-                    return text.replace('\xa0', ' ').encode('utf-8', 'ignore').decode('utf-8')
-
+                
                 personalized_subject = clean_text(personalize_template(template['subject'], personalization_data))
                 personalized_body = clean_text(personalize_template(template['body'], personalization_data))
+                personalized_body_with_note = personalized_body + appended_message
                 
                 main_msg = EmailMultiAlternatives(
                     subject=personalized_subject,
-                    body=personalized_body,
+                    body=personalized_body_with_note,
                     from_email=sender_account.email_address,
                     to=[recipient_account.email_address],
                     connection=connection
@@ -335,7 +365,7 @@ def send_warmup_step(campaign_id, step_number):
 
             except Exception as e:
                 
-                if "Connection reset by peer" in str(e) or "Disabled by user from hPanel" in str(e):
+                if "Connection reset by peer" in str(e) or "Disabled by user from hPanel" in str(e) or "Connection unexpectedly closed" in str(e) or "Connection timed out" in str(e):
             
                     connection = get_email_connection(sender_account, decrypted_password)
                     try:
@@ -343,6 +373,9 @@ def send_warmup_step(campaign_id, step_number):
                         main_msg.send()
                     except:
                         continue
+
+                elif "codec can't encode character" in str(e): # '\xa0' error
+                    continue
                     
                 elif "Daily user sending limit exceeded" in str(e):
                 

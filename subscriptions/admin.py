@@ -20,7 +20,7 @@ class ReferredUserFilter(admin.SimpleListFilter):
 
 @admin.register(Subscription)
 class SubscriptionAdmin(admin.ModelAdmin):
-    list_display = ("user", "is_referred", "start_date", "end_date", "status", "type", "renewal_count", "paid_amount",)
+    list_display = ("user", "affiliate", "start_date", "end_date", "status", "type", "renewal_count", "paid_amount",)
     search_fields = ("user__username", "user__email")
     list_filter = ("status", "type", ReferredUserFilter,)
     ordering = ("-start_date",)
@@ -33,10 +33,8 @@ class SubscriptionAdmin(admin.ModelAdmin):
     company_name.admin_order_field = "user__company_name"
     company_name.short_description = "Company Name"
 
-    def is_referred(self, obj):
-        return obj.user.referred_by is not None
-    is_referred.boolean = True
-    is_referred.short_description = "Referred User"
+    def affiliate(self, obj):
+        return obj.user.referred_by
 
 
 

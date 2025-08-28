@@ -1207,7 +1207,6 @@ def oauth_callback(request):
         return redirect("dashboard:index")
 
     profile = profile_response.json()
-    history_id = profile.get("historyId")
     gmail_address = profile.get("emailAddress", "").lower()
 
     # Check if account matches

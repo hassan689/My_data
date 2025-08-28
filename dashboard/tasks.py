@@ -280,7 +280,6 @@ def send_emails_chunk_celery_task(email_account_id, leads, subject, body, min_de
 def launch_scheduled_campaign_checker():
     # Get the current time in UTC, as all scheduled_launch_time are stored in UTC
     now_utc = timezone.now()
-    print(f"Current UTC time from checker: {now_utc}")
 
     # Find pending campaigns that are due to be launched
     campaigns_to_launch = CampaignRecord.objects.filter(

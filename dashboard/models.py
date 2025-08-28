@@ -62,8 +62,8 @@ class CampaignRecord(models.Model):
     subject = models.CharField(max_length=255)
     body = models.TextField()
     launch_time = models.DateTimeField(auto_now_add=True)
-    launched_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
-    sender_account = models.ForeignKey(EmailAccount, on_delete=models.SET_NULL, null=True, blank=True, related_name="campaigns")
+    launched_by = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
+    sender_account = models.ForeignKey(EmailAccount, on_delete=models.CASCADE, null=True, blank=True, related_name="campaigns")
     total_recipients = models.IntegerField(default=0)
     sent_count = models.IntegerField(default=0)
 
