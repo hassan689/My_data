@@ -95,12 +95,12 @@ class EmailAccount(models.Model):
     host = models.CharField(max_length=100, verbose_name="Outgoing Servr Host")
 
     is_warmup_target = models.BooleanField(default=False)
+    black_list = models.BooleanField(default=False) # These are for the accoutns that are causing trouble for the warmup
 
     def set_password(self, raw_password):
         """Encrypt and set the password securely."""
         if raw_password:
             self.encrypted_password = encrypt_password(raw_password)
-
 
     def get_password(self):
         """Decrypt and return the original password, or return an error message."""
@@ -112,7 +112,6 @@ class EmailAccount(models.Model):
     def check_password(self, raw_password):
         """Verify if the provided password matches the stored encrypted password."""
         return self.get_password() == raw_password  # Direct string comparison
-    
 
     def save(self, *args, **kwargs):
         # Ensure user is assigned before validation
@@ -128,8 +127,6 @@ class EmailAccount(models.Model):
 
         # Proceed with saving
         super().save(*args, **kwargs)
-
-
 
     def __str__(self):
         return f"{self.email_address}"

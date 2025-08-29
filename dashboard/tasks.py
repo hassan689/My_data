@@ -134,9 +134,11 @@ def send_emails_chunk_celery_task(email_account_id, leads, subject, body, min_de
 
                 try:
                     email_log = EmailOpen.objects.create(
-                        campaign=campaign,
-                        recipient_email=lead['Email'],
-                        unique_identifier = unique_id
+                        campaign = campaign,
+                        recipient_email = lead['Email'],
+                        unique_identifier = unique_id,
+                        mc_number = lead.get('MC Number', ''),
+                        legal_name = lead.get('Legal Name', '')
                     )
                 except Exception as e:
                     print(f"Exception dring email log entry: {e}")

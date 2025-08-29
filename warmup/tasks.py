@@ -18,28 +18,41 @@ def activate_warmup_campaign(sender_account_id, template_set_id):
     sender_account = EmailAccount.objects.get(id=sender_account_id)
     template_set = WarmupTemplateSet.objects.get(id=template_set_id)
 
-    # Select 10 random targets, 2 for localhost testing accounts
-    target_accounts = list(EmailAccount.objects.filter(is_warmup_target=True).exclude(id=sender_account_id).order_by('?')[:2])
+    # Select 5 random targets, 2 for localhost testing accounts
+    target_accounts = list(EmailAccount.objects.filter(
+        is_warmup_target=True
+    ).exclude(
+        id=sender_account_id
+    ).exclude(
+        black_list=True # Accounts known for causing trouble
+    ).order_by('?')[:2])
     
     if not target_accounts:
         print("Not enough warmup target accounts available.")
         return
 
-    # Create the WarmupCampaign instance
-    campaign = WarmupCampaign.objects.create(
-        sender_account=sender_account,
-        template_set=template_set,
-        status='Active',
-        last_action_at=timezone.now(),
-        next_action_at = timezone.now() + timedelta(minutes=random.uniform(2, 5)) # for testing on localhost
-        # next_action_at=timezone.now() + timedelta(hours=random.uniform(24, 36))  # Random delay 24-36 hours
-    )
+    # Look for existing campaign; if it exists, update it. If not, create a new one.
+    try:
+        campaign = WarmupCampaign.objects.get(sender_account=sender_account)
+        campaign.status = 'Active'
+        campaign.last_action_at = timezone.now()
+        campaign.next_action_at = timezone.now() + timedelta(hours=random.uniform(0, 3))
+        campaign.save()
+
+    except WarmupCampaign.DoesNotExist:
+        # Create a new WarmupCampaign instance
+        campaign = WarmupCampaign.objects.create(
+            sender_account=sender_account,
+            template_set=template_set,
+            status='Active',
+            last_action_at=timezone.now(),
+            next_action_at=timezone.now() + timedelta(hours=random.uniform(24, 36)) # Random delay 24-36 hours
+        )
+
     campaign.target_accounts.set(target_accounts)
 
     # Trigger the first step of the conversation
     send_warmup_step.delay(campaign.id, step_number=0)
-
-    print(f"\nWarmup campaign for {sender_account.email_address} activated.\n")
 
 
 
@@ -259,8 +272,7 @@ def send_warmup_step(campaign_id, step_number):
                         campaign.next_action_at = timezone.now() + timedelta(hours=random.uniform(1, 3))
                         campaign.save(update_fields=['next_action_at'])
 
-
-            elif "Connection unexpectedly closed" in str(e) or "Connection timed out" in str(e):
+            elif "Connection unexpectedly closed" in str(e) or "Connection timed out" in str(e) or "Server busy" in str(e) or "Server not connected" in str(e):
                 
                 connection = get_email_connection(sender_account, decrypted_password)
                 try:
@@ -269,6 +281,11 @@ def send_warmup_step(campaign_id, step_number):
                 except: # retry on a later date
                     campaign.next_action_at = timezone.now() + timedelta(hours=random.uniform(1, 3))
                     campaign.save(update_fields=['next_action_at'])
+
+            elif "Temporary System Problem" in str(e) or "Concurrent connections limit exceeded" in str(e):
+                
+                campaign.next_action_at = timezone.now() + timedelta(hours=random.uniform(24, 36))
+                campaign.save(update_fields=['next_action_at'])
 
             else: # if something other than the currently known errors, then tell me those
                 subject = f"Error during Sender's Turn for Warmup Campaign"
@@ -281,7 +298,7 @@ def send_warmup_step(campaign_id, step_number):
                     recipient_list,
                     fail_silently=False,
                 )
-                campaign.next_action_at = timezone.now() + timedelta(hours=random.uniform(1, 3))
+                campaign.next_action_at = timezone.now() + timedelta(hours=random.uniform(24, 36))
                 campaign.save(update_fields=['next_action_at'])
 
             return
@@ -375,6 +392,10 @@ def send_warmup_step(campaign_id, step_number):
                         continue
 
                 elif "codec can't encode character" in str(e): # '\xa0' error
+                    continue
+                
+                elif "Please log in with your web browser" in str(e): # These accounts will cause trouble for others as well
+                    EmailAccount.objects.filter(email_address=sender_account.email_address).update(is_warmup_target=False, black_list=True)
                     continue
                     
                 elif "Daily user sending limit exceeded" in str(e):

@@ -137,22 +137,6 @@ def get_leads_from_db(starting_mc_number=None, targets_count=None,
         if carrier_operation and not carrier_operation == '':
             filters &= Q(carrier_operation=carrier_operation)
 
-        # if cargo_classification_search_term:
-        #     search_term_lower = cargo_classification_search_term.lower()
-        #     queryset = queryset.filter(
-        #         Q(cargo_classifications__isnull=False) & ~Q(cargo_classifications='')
-        #     ).annotate(
-        #         cargo_class_similarity=TrigramSimilarity(Lower('cargo_classifications'), search_term_lower)
-        #     ).filter(cargo_class_similarity__gt=0.3)
-
-        # if cargo_info_search_term:
-        #     search_term_lower = cargo_info_search_term.lower()
-        #     queryset = queryset.filter(
-        #         Q(cargo_info__isnull=False) & ~Q(cargo_info='')
-        #     ).annotate(
-        #         cargo_info_similarity=TrigramSimilarity(Lower('cargo_info'), search_term_lower)
-            # ).filter(cargo_info_similarity__gt=0.3)
-
         # --- START OF NEW TAGIFY LOGIC FOR CARGO CLASSIFICATION ---
         cargo_classification_list = []
         if cargo_classification_search_term:
