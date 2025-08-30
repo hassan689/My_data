@@ -6,19 +6,24 @@ from users.models import EmailAccount
 
 def start_warmup_view(request, email_account_id):
     sender_account = get_object_or_404(EmailAccount, id=email_account_id)
-    sender_account.is_warmup_target = True
-    sender_account.save(update_fields=['is_warmup_target'])
-    
+
+    if sender_account.black_list:
+        messages.error(request, f"The email account {sender_account.email_address} has been black listed for warming up.")
+        return redirect('dashboard:index')
+
     try:
         template_set = WarmupTemplateSet.objects.get(name='Warmup Campaigns Templates')
+
+        sender_account.is_warmup_target = True
+        sender_account.save(update_fields=['is_warmup_target'])
+        
+        # Trigger the Celery task to begin the warmup process
+        activate_warmup_campaign.delay(sender_account.id, template_set.id)
+        
+        messages.success(request, f"Warmup campaign for {sender_account.email_address} has been started.")
+        return redirect('dashboard:index')
+
     except WarmupTemplateSet.DoesNotExist:
         messages.error(request, "Default warmup template set not found.")
         return redirect('dashboard:index')
-    
-    # Trigger the Celery task to begin the warmup process
-    activate_warmup_campaign.delay(sender_account.id, template_set.id)
-    
-    messages.success(request, f"Warmup campaign for {sender_account.email_address} has been started.")
-    return redirect('dashboard:index')
-
 
