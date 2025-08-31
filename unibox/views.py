@@ -282,6 +282,9 @@ def reply(request):
         latest_incoming = thread.incoming_messages.order_by('-received_at').first()
         in_reply_to = latest_incoming.message_id if latest_incoming else None
 
+        if in_reply_to:
+            in_reply_to = in_reply_to.strip()
+
         msg = EmailMultiAlternatives(
             subject=subject,
             body=body,
