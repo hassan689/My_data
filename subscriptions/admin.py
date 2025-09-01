@@ -1,6 +1,8 @@
 from django.contrib import admin
-from .models import Subscription, Revenue
-from django.db.models import F, ExpressionWrapper, DecimalField
+from .models import Subscription, Revenue, Expense
+from django.db.models import F, ExpressionWrapper, DecimalField, Sum, Subquery, OuterRef
+from decimal import Decimal
+from users.models import CustomUser
 
 class ReferredUserFilter(admin.SimpleListFilter):
     title = 'Referred User'  # Human-readable title
@@ -37,29 +39,51 @@ class SubscriptionAdmin(admin.ModelAdmin):
         return obj.user.referred_by
 
 
+@admin.register(Expense)
+class ExpenseAdmin(admin.ModelAdmin):
+    list_display = ('name', 'amount', 'created_at')
+    search_fields = ('name',)
+
 
 @admin.register(Revenue)
 class RevenueAdmin(admin.ModelAdmin):
-    list_display = ("month_display", "net_revenue", "paid_to_affiliates", "calculated_total_revenue")
+    list_display = ("month_display", "calculated_total_revenue", "paid_to_affiliates", "total_expenses","net_revenue", "fifty_percent_split")
     ordering = ("-month",)
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
-        # Annotate total revenue as net_revenue + paid_to_affiliates
+        
+        # Annotate with total expenses for each month
+        expenses_subquery = Expense.objects.filter(
+            rev_month_id=OuterRef('id')
+        ).values('rev_month_id').annotate(
+            total_expenses=Sum('amount')
+        ).values('total_expenses')
+
         return qs.annotate(
+            total_expenses=Subquery(expenses_subquery, output_field=DecimalField()),
             total_rev=ExpressionWrapper(
-                F("net_revenue") + F("paid_to_affiliates"),
-                output_field=DecimalField(max_digits=10, decimal_places=2)
+                F("net_revenue") + F("paid_to_affiliates") + F("total_expenses"),
+                output_field=DecimalField(max_digits=12, decimal_places=2)
             )
         )
+
+    def total_expenses(self, obj):
+        return obj.total_expenses if obj.total_expenses is not None else Decimal('0.00')
+    total_expenses.short_description = "Expenses"
+    total_expenses.admin_order_field = "total_expenses"
 
     def calculated_total_revenue(self, obj):
         return obj.total_rev
     calculated_total_revenue.short_description = "Total Revenue"
     calculated_total_revenue.admin_order_field = "total_rev"
 
+    def fifty_percent_split(self, obj):
+        """Calculates 50% of the net revenue."""
+        return (obj.net_revenue / Decimal('2.00')).quantize(Decimal('0.01'))
+    fifty_percent_split.short_description = "50% Split"
+    fifty_percent_split.admin_order_field = "net_revenue"
+
     def month_display(self, obj):
         return obj.month.strftime("%B %Y")
     month_display.short_description = "Month"
-
-

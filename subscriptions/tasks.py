@@ -1,5 +1,5 @@
 from django.utils.timezone import now
-from subscriptions.models import Subscription, Revenue
+from subscriptions.models import Subscription, Revenue, Expense
 from datetime import datetime
 from decimal import Decimal
 from growth_skool.celery import app
@@ -7,6 +7,7 @@ from django.core.mail import send_mail
 from django.conf import settings
 from datetime import timedelta
 from django.utils.timezone import get_current_timezone, make_aware
+from django.db.models import Sum
 
 
 @app.task(name="subscriptions.tasks.expire_subscriptions.expire_subscriptions")
@@ -83,14 +84,21 @@ def update_current_month_revenue():
         else:
             net_revenue += amount
 
+    # Aggregate all expenses for the current month
+    total_expenses = Expense.objects.filter(
+        created_at__gte=month_start,
+        created_at__lt=next_month_start,
+    ).aggregate(total_amount=Sum('amount'))['total_amount'] or Decimal('0.00')
+
+    # Subtract total expenses from the calculated net revenue
+    final_net_revenue = net_revenue - total_expenses
+    
     # Create or update revenue for current month
     Revenue.objects.update_or_create(
         month=month_start.date(),
         defaults={
-            "net_revenue": net_revenue,
+            "net_revenue": final_net_revenue,
             "paid_to_affiliates": paid_to_affiliates,
         }
     )
-
-
 

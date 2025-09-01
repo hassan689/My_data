@@ -71,3 +71,19 @@ class Revenue(models.Model):
         verbose_name_plural = "Monthly Revenues"
 
 
+class Expense(models.Model):
+    
+    name = models.CharField(max_length=250)
+    description = models.TextField()
+    amount = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    rev_month = models.ForeignKey(Revenue, on_delete=models.CASCADE, related_name="expenses")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.name
+    
+    class Meta:
+        verbose_name = "Monthly Expense"
+        verbose_name_plural = "Monthly Expenses"
+
+
