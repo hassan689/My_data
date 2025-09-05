@@ -60,15 +60,14 @@ def update_current_month_revenue():
     else:
         next_month_start = make_aware(datetime(year, month + 1, 1), timezone=tz)
 
-    # Fetch subscriptions created this month with valid payment
     subs = Subscription.objects.filter(
         start_date__gte=month_start,
         start_date__lt=next_month_start,
         paid_amount__isnull=False
     ).select_related("user__referred_by")
 
-    net_revenue = Decimal("0.00")
     paid_to_affiliates = Decimal("0.00")
+    total_revenue = Decimal("0.00")
 
     for sub in subs:
         amount = sub.paid_amount
@@ -76,13 +75,11 @@ def update_current_month_revenue():
             continue
 
         referrer = sub.user.referred_by
-
         if referrer and referrer.is_active:
             commission = (amount * referrer.commission_percentage / Decimal("100")).quantize(Decimal("0.01"))
             paid_to_affiliates += commission
-            net_revenue += (amount - commission)
-        else:
-            net_revenue += amount
+
+        total_revenue += amount
 
     # Aggregate all expenses for the current month
     total_expenses = Expense.objects.filter(
@@ -90,15 +87,14 @@ def update_current_month_revenue():
         created_at__lt=next_month_start,
     ).aggregate(total_amount=Sum('amount'))['total_amount'] or Decimal('0.00')
 
-    # Subtract total expenses from the calculated net revenue
-    final_net_revenue = net_revenue - total_expenses
-    
-    # Create or update revenue for current month
+    net_revenue = total_revenue - paid_to_affiliates - total_expenses
+
     Revenue.objects.update_or_create(
         month=month_start.date(),
         defaults={
-            "net_revenue": final_net_revenue,
+            "net_revenue": net_revenue,
             "paid_to_affiliates": paid_to_affiliates,
+            "total_revenue": total_revenue,
         }
     )
 

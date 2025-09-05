@@ -62,6 +62,7 @@ class Revenue(models.Model):
     month = models.DateField(unique=True)
     net_revenue = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
     paid_to_affiliates = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    total_revenue = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
 
     def __str__(self):
         return self.month.strftime("%B %Y")

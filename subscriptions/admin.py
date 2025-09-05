@@ -47,7 +47,7 @@ class ExpenseAdmin(admin.ModelAdmin):
 
 @admin.register(Revenue)
 class RevenueAdmin(admin.ModelAdmin):
-    list_display = ("month_display", "calculated_total_revenue", "paid_to_affiliates", "total_expenses","net_revenue", "fifty_percent_split")
+    list_display = ("month_display", "total_revenue", "paid_to_affiliates", "total_expenses","net_revenue", "fifty_percent_split")
     ordering = ("-month",)
 
     def get_queryset(self, request):
@@ -62,21 +62,12 @@ class RevenueAdmin(admin.ModelAdmin):
 
         return qs.annotate(
             total_expenses=Subquery(expenses_subquery, output_field=DecimalField()),
-            total_rev=ExpressionWrapper(
-                F("net_revenue") + F("paid_to_affiliates") + F("total_expenses"),
-                output_field=DecimalField(max_digits=12, decimal_places=2)
-            )
         )
 
     def total_expenses(self, obj):
         return obj.total_expenses if obj.total_expenses is not None else Decimal('0.00')
     total_expenses.short_description = "Expenses"
     total_expenses.admin_order_field = "total_expenses"
-
-    def calculated_total_revenue(self, obj):
-        return obj.total_rev
-    calculated_total_revenue.short_description = "Total Revenue"
-    calculated_total_revenue.admin_order_field = "total_rev"
 
     def fifty_percent_split(self, obj):
         """Calculates 50% of the net revenue."""
