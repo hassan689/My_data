@@ -106,7 +106,7 @@
                       <div class="px-2 py-1 rounded font-semibold bg-lime-100 text-lime-800 text-center">Warmup Active</div>
                     {% endif %}
                     
-                    {% if account.is_gmail and not account.is_connected and is_warmup_eligible %}
+                    {% if account.is_gmail and not account.is_connected and is_unibox_eligible %}
                       {% if request.user.is_superuser %}
                         <a href="{% url 'dashboard:oauth_start' account.id %}" 
                           class="bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600 text-center">

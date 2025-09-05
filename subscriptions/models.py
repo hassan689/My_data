@@ -18,7 +18,7 @@ class Subscription(models.Model):
 
     type = models.CharField(
         max_length=50,
-        choices=[("basic", "Basic"), ("standard", "Standard"), ("premium", "Premium")],
+        choices=[("basic", "Basic"), ("warmup", "Warmup"), ("unibox", "Unibox"), ("premium", "Premium")],
         default="Basic", null=True, blank=True,
     )
 

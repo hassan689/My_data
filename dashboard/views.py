@@ -924,12 +924,18 @@ def index(request):
     is_warmup_eligible = (
         user_subscription is not None and
         user_subscription.status == "active" and
-        user_subscription.type in ("standard", "premium")
+        user_subscription.type in ("warmup", "premium")
+    )
+    is_unibox_eligible = (
+        user_subscription is not None and
+        user_subscription.status == "active" and
+        user_subscription.type in ("unibox", "premium")
     )
 
     context = {
         "email_accounts": email_accounts,
         "is_warmup_eligible": is_warmup_eligible,
+        "is_unibox_eligible": is_unibox_eligible
     }
     return render(request, 'dashboard/index.html', context)
 
