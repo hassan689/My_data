@@ -448,7 +448,7 @@
                             type="checkbox"
                             name="select_all"
                             id="select_all_checkbox"
-                            class="mr-2 btn-border-hover bg-gray-300 rounded-md hover:cursor-pointer"
+                            class="mr-2 btn-border-hover checkbox-custom rounded-md hover:cursor-pointer"
                             onclick="toggleAllAccounts(this)"
                           >
                           <span class="font-medium text-blue-600 hover:cursor-pointer">
@@ -466,7 +466,7 @@
                               type="checkbox"
                               name="selected_accounts"
                               value="{{ account.id }}"
-                              class="account-checkbox mr-2 btn-border-hover bg-gray-300 rounded-md hover:cursor-pointer"
+                              class="account-checkbox checkbox-custom mr-2 btn-border-hover rounded-md hover:cursor-pointer"
                               id="checkbox_{{ account.id }}"
                               onclick="toggleLeadInput({{ account.id }})"
                             >

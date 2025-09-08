@@ -58,7 +58,7 @@
           </a>
         </div>
       </div>
-			<div class="overflow-auto max-w-full">
+			<div class="max-w-full">
 				{% if not email_accounts %}
 				<div class="text-center max-w-4xl p-5">
 					<p class="text-tertiary text-lg mt-6">
@@ -66,7 +66,7 @@
 					</p>
 				</div>
 				{% endif %}
-				<table class="w-full min-w-[600px] border-collapse overflow-x-auto text-primary">
+				<table class="w-full border-collapse text-primary">
 					<thead>
 							<tr class="bg-secondary">
 									<th class="text-left p-3">Email Account</th>
@@ -75,7 +75,7 @@
                   <th class="text-left p-3">Sent Count</th>
 							</tr>
 					</thead>
-					<tbody>
+					<tbody class="overflow-x-auto">
 						{% for account in email_accounts %}
 						<tr class="border-b bg-hover-light">
 								<!-- Email -->
@@ -85,31 +85,31 @@
 								<td class="py-3 px-1">
                   <div class="flex flex-col md:flex-row md:space-x-3 space-y-2 md:space-y-0">
                     <a href="{% url 'dashboard:email_account_update' account.id %}" 
-                      class="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 text-center">
+                      class="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 text-center whitespace-nowrap">
                       Update
                     </a>
                     <a href="{% url 'dashboard:email_account_delete' account.id %}" 
-                      class="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 text-center">
+                      class="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 text-center whitespace-nowrap">
                       Delete
                     </a>
                     <a href="{% url 'dashboard:campaign' email_account_id=account.id %}" 
-                      class="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600 text-center">
+                      class="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600 text-center whitespace-nowrap">
                       Launch Campaign
                     </a>
                     
                     {% if is_warmup_eligible and account.latest_warmup_status != "Active" %}
                       <a href="{% url 'warmup:start_warmup_view' email_account_id=account.id %}" 
-                        class="bg-lime-600 text-white px-3 py-1 rounded hover:bg-lime-700 text-center">
+                        class="bg-lime-600 text-white px-3 py-1 rounded hover:bg-lime-700 text-center whitespace-nowrap">
                         Activate Auto-Warmup
                       </a>
                     {% elif account.latest_warmup_status == "Active" %}
-                      <div class="px-2 py-1 rounded font-semibold bg-lime-100 text-lime-800 text-center">Warmup Active</div>
+                      <div class="px-2 py-1 rounded font-semibold bg-lime-100 text-lime-800 text-center whitespace-nowrap">Warmup Active</div>
                     {% endif %}
                     
                     {% if account.is_gmail and not account.is_connected and is_unibox_eligible %}
                       {% if request.user.is_superuser %}
                         <a href="{% url 'dashboard:oauth_start' account.id %}" 
-                          class="bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600 text-center">
+                          class="bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600 text-center whitespace-nowrap">
                           Connect Gmail
                         </a>
                       {% endif %}
@@ -121,22 +121,32 @@
                 <td class="py-3 px-1">
                   <div class="flex flex-col md:flex-row md:space-x-5 space-y-2 md:space-y-0 md:items-center">
                       {% if account.last_campaign_status == 'launched' %}
-                        <div id="status-box-{{ account.id }}" class="px-2 py-1 rounded font-semibold bg-green-200 text-green-800">Completed</div>
+                        <div id="status-box-{{ account.id }}" class="px-2 py-1 rounded font-semibold bg-green-200 text-green-800 whitespace-nowrap">Completed</div>
                       {% elif  account.last_campaign_status == 'pending' %}
-                        <div id="status-box-{{ account.id }}" class="px-2 py-1 rounded font-semibold bg-orange-200 text-orange-800">Scheduled</div>
+                        <div class="flex flex-col items-center">
+                          <div class="px-2 py-1 rounded font-semibold bg-orange-200 text-orange-800 whitespace-nowrap">
+                            Scheduled for {{ account.scheduled_launch_time_display|date:"M d, Y H:i" }}
+                          </div>
+                          <form id="emergency-stop-form-{{ account.id }}" action="{% url 'dashboard:emergency_stop' account.id %}" method="post" class="mt-2">
+                            {% csrf_token %}
+                            <button type="submit" class="bg-red-700 text-white px-3 py-1 rounded hover:bg-red-800 text-center font-semibold whitespace-nowrap">
+                              CANCEL SCHEDULED LAUNCH
+                            </button>
+                          </form>
+                        </div>
                       {% elif  account.last_campaign_status == 'processing' %}
-                        <div id="status-box-{{ account.id }}" class="px-2 py-1 rounded font-semibold bg-blue-200 text-blue-800">Sending</div>
+                        <div id="status-box-{{ account.id }}" class="px-2 py-1 rounded font-semibold bg-blue-200 text-blue-800 whitespace-nowrap">Sending</div>
                       {% elif  account.last_campaign_status == 'failed' %}
-                        <div id="status-box-{{ account.id }}" class="px-2 py-1 rounded font-semibold bg-red-200 text-red-800">Failed</div>
+                        <div id="status-box-{{ account.id }}" class="px-2 py-1 rounded font-semibold bg-red-200 text-red-800 whitespace-nowrap">Failed</div>
                       {% elif  account.last_campaign_status == 'cancelled' %}
-                        <div id="status-box-{{ account.id }}" class="px-2 py-1 rounded font-semibold bg-red-200 text-red-800">Stopped</div>
+                        <div id="status-box-{{ account.id }}" class="px-2 py-1 rounded font-semibold bg-red-200 text-red-800 whitespace-nowrap">Stopped</div>
                       {% endif %}
                       <div>
                         {% if account.last_campaign_status == 'processing' %}
                         <!-- Emergency Stop Button -->
                         <form id="emergency-stop-form-{{ account.id }}" action="{% url 'dashboard:emergency_stop' account.id %}" method="post" style="display: {% if account.last_campaign_status == 'processing' %}inline-block{% else %}none{% endif %};">
                           {% csrf_token %}
-                          <button type="submit" class="bg-red-700 text-white px-3 py-1 rounded hover:bg-red-800 text-center font-semibold">
+                          <button type="submit" class="bg-red-700 text-white px-3 py-1 rounded hover:bg-red-800 text-center font-semibold whitespace-nowrap">
                             EMERGENCY STOP
                           </button>
                         </form>
@@ -145,7 +155,7 @@
                           {% elif account.last_campaign_status == 'cancelled' %}
                             <form action="{% url 'dashboard:resume_stopped' account.id %}" method="post" style="display: inline;">
                               {% csrf_token %}
-                              <button class="bg-teal-500 text-white px-3 py-1 rounded hover:bg-teal-600 text-center font-semibold relative group disabled:opacity-50 disabled:cursor-not-allowed">
+                              <button class="bg-teal-500 text-white px-3 py-1 whitespace-nowrap rounded hover:bg-teal-600 text-center font-semibold relative group disabled:opacity-50 disabled:cursor-not-allowed">
                                 Resume Campaign
                               </button>
                             </form>
@@ -251,7 +261,7 @@
           const resumeForm = document.querySelector(`#resume-form-${accountId}`);
 
           if (stopForm) {
-            stopForm.style.display = (status === "processing") ? "inline-block" : "none";
+            stopForm.style.display = (status === "processing" || status === "pending") ? "inline-block" : "none";
           }
           if (resumeForm) {
             resumeForm.style.display = (status === "cancelled") ? "inline-block" : "none";

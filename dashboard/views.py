@@ -920,6 +920,12 @@ def index(request):
         account.is_connected = hasattr(account, 'gmail_token') and account.gmail_token is not None
         account.latest_campaign = account._latest_campaign_obj[0] if hasattr(account, '_latest_campaign_obj') and account._latest_campaign_obj else None
 
+        # New block to add scheduled time for pending campaigns
+        if account.latest_campaign and account.latest_campaign.status == "pending":
+            account.scheduled_launch_time_display = account.latest_campaign.scheduled_launch_time
+        else:
+            account.scheduled_launch_time_display = None
+
     user_subscription = getattr(request.user, 'subscription', None)
     is_warmup_eligible = (
         user_subscription is not None and
@@ -954,10 +960,10 @@ def emergency_stop(request, email_account_id):
         messages.error(request, "You do not have permission to manage this email account.")
         return redirect("dashboard:index")
 
-    # Get the latest campaign that is currently 'processing'
+    # Get the latest campaign that is currently 'processing' or 'pending'
     latest_processing_campaign = CampaignRecord.objects.filter(
         sender_account=email_account,
-        status='processing'
+        status__in=['processing', 'pending']
     ).order_by('-id').first()
 
     if latest_processing_campaign:
@@ -966,8 +972,7 @@ def emergency_stop(request, email_account_id):
 
         messages.success(
             request,
-            f"Campaign '{latest_processing_campaign.subject}' has been stopped. "
-            f"Emails sent to {latest_processing_campaign.sent_count}/{latest_processing_campaign.total_recipients} recipients.\n"
+            f"Campaign '{latest_processing_campaign.subject}' has been cancelled."
         )
 
     else:
@@ -979,7 +984,11 @@ def emergency_stop(request, email_account_id):
 @login_required
 @require_http_methods(["POST"])
 def resume_stopped(request, email_account_id):
-    
+    """
+    Resumes a stopped campaign. If the campaign was originally a scheduled campaign
+    that was cancelled, it will be rescheduled for its original launch time.
+    Otherwise, it will be launched immediately.
+    """
     email_account = get_object_or_404(EmailAccount, id=email_account_id)
 
     # Ensure the logged-in user owns this account
@@ -994,22 +1003,53 @@ def resume_stopped(request, email_account_id):
     ).order_by('-id').first()
 
     if latest_cancelled_campaign:
-        
-        # recall the celery worker for that stopped campaign
-        send_emails_chunk_celery_task.delay(
-            email_account.id, 
-            latest_cancelled_campaign.leads_data, 
-            latest_cancelled_campaign.subject, 
-            latest_cancelled_campaign.body, 
-            latest_cancelled_campaign.min_delay, 
-            latest_cancelled_campaign.max_delay, 
-            latest_cancelled_campaign.id
-        )
+        # Check if the campaign was a scheduled one that was cancelled before launch.
+        # We also need to make sure we don't reschedule campaigns from the past
+        is_scheduled = (latest_cancelled_campaign.scheduled_launch_time and 
+                        latest_cancelled_campaign.scheduled_launch_time > now())
 
-        messages.success(
-            request,
-            f"Campaign '{latest_cancelled_campaign.subject}' has been resumed successfully."
-        )
+        if is_scheduled:
+            # Revert status to pending and reschedule the Celery task
+            latest_cancelled_campaign.status = 'pending'
+            latest_cancelled_campaign.save(update_fields=['status'])
+            
+            send_emails_chunk_celery_task.apply_async(
+                (
+                    email_account.id, 
+                    latest_cancelled_campaign.leads_data, 
+                    latest_cancelled_campaign.subject, 
+                    latest_cancelled_campaign.body, 
+                    latest_cancelled_campaign.min_delay, 
+                    latest_cancelled_campaign.max_delay, 
+                    latest_cancelled_campaign.id
+                ),
+                eta=latest_cancelled_campaign.scheduled_launch_time
+            )
+
+            messages.success(
+                request,
+                f"Campaign '{latest_cancelled_campaign.subject}' has been rescheduled to its original launch time."
+            )
+        else:
+            # Revert status to processing and launch immediately
+            latest_cancelled_campaign.status = 'processing'
+            latest_cancelled_campaign.save(update_fields=['status'])
+
+            # Recall the celery worker for that stopped campaign
+            send_emails_chunk_celery_task.delay(
+                email_account.id, 
+                latest_cancelled_campaign.leads_data, 
+                latest_cancelled_campaign.subject, 
+                latest_cancelled_campaign.body, 
+                latest_cancelled_campaign.min_delay, 
+                latest_cancelled_campaign.max_delay, 
+                latest_cancelled_campaign.id
+            )
+
+            messages.success(
+                request,
+                f"Campaign '{latest_cancelled_campaign.subject}' has been resumed successfully."
+            )
     else:
         messages.info(request, f"No stopped campaign found for {email_account.email_address} to resume.")
 
