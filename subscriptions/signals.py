@@ -4,6 +4,7 @@ from django.db import transaction
 from decimal import Decimal
 from .models import Subscription
 from users.models import EmailAccount
+from warmup.models import WarmupCampaign
 
 
 # --- PRE_SAVE SIGNAL to capture old status ---
@@ -36,13 +37,23 @@ def update_affiliate_earnings_on_subscription_save(sender, instance, created, **
     old_type = getattr(instance, '_old_type', None)
 
     # If the user was type standard or premium but stepped down to basic, remove all their email addresses from warmup_targets, boolean to false
-    if old_type in ["Standard", "Premium"] and instance.type == "Basic":
+    if old_type in ["warmup", "unibox", "premium"] and instance.type == "basic":
         user = instance.user
         # email_accounts = EmailAccount.objects.filter(user=user, is_warmup_target=True)
         # for x in email_accounts:
         #     x.is_warmup_target = False
         #     x.save()
         EmailAccount.objects.filter(user=user, is_warmup_target=True).update(is_warmup_target=False)
+
+        user_email_accounts = user.email_accounts.all()
+        active_campaigns = WarmupCampaign.objects.filter(status='Active')
+        for campaign in active_campaigns:
+            
+            campaign.target_accounts.remove(*user_email_accounts)
+            if campaign.sender_account in user_email_accounts:
+                campaign.status = 'Complete'
+                campaign.save()
+
 
     # Only proceed if there's a referred user and a paid_amount exists
     if not instance.user.referred_by or instance.paid_amount is None:
