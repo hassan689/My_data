@@ -543,39 +543,82 @@
       const form = document.getElementById("campaign-form");
 
       form.addEventListener("submit", function (e) {
-        if (form.dataset.confirmed === "true") return; // Allow second submit
-        e.preventDefault(); // Stop the initial submit
+        if (form.dataset.submitting === "true") return; // prevent duplicate
+        e.preventDefault();
 
         const formData = new FormData(form);
 
+        // first request
         fetch("", {
           method: "POST",
           headers: {
-            'X-Requested-With': 'XMLHttpRequest',
-            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            "X-Requested-With": "XMLHttpRequest",
+            "X-CSRFToken": document.querySelector("[name=csrfmiddlewaretoken]").value,
           },
-          body: formData
+          body: formData,
         })
-        .then(response => response.json())
-        .then(data => {
-          if (data.confirmed === false) {
-            const filters = Object.entries(data.filters)
-              .map(([k, v]) => `${k}: ${v}`)
-              .join("\n");
+          .then((response) => response.json())
+          .then((data) => {
+            // 🔹 If preview step
+            if (data.confirmed === false) {
+              const msg = `${data.lead_count} leads were found. Do you wish to proceed?`;
 
-            const msg = `${data.lead_count} leads were found. Do you wish to Proceed?`;
+              if (confirm(msg)) {
+                // send again with confirm=true
+                formData.append("confirm", "true");
+                form.dataset.submitting = "true"; // avoid recursion
 
-            if (confirm(msg)) {
-              const hidden = document.createElement("input");
-              hidden.type = "hidden";
-              hidden.name = "confirm";
-              hidden.value = "true";
-              form.appendChild(hidden);
-              form.dataset.confirmed = "true";
-              form.submit(); // Submit again with confirm=true
+                fetch("", {
+                  method: "POST",
+                  headers: {
+                    "X-Requested-With": "XMLHttpRequest",
+                    "X-CSRFToken": document.querySelector("[name=csrfmiddlewaretoken]").value,
+                  },
+                  body: formData,
+                })
+                  .then((r) => r.json())
+                  .then((secondData) => {
+                    if (secondData.success) {
+                      alert(secondData.message);
+                      window.location.href = secondData.redirect_url;
+                    } else {
+                      let errorMessage = "❌ Failed to launch campaign.\n\n";
+                      if (secondData.message) errorMessage += secondData.message + "\n";
+                      if (secondData.errors) {
+                        for (const [field, errs] of Object.entries(secondData.errors)) {
+                          errs.forEach((err) => {
+                            errorMessage += typeof err === "object" ? err.message + "\n" : err + "\n";
+                          });
+                        }
+                      }
+                      confirm(errorMessage);
+                      form.dataset.submitting = ""; // reset
+                    }
+                  });
+              }
             }
-          }
-        });
+            // 🔹 If direct success (no preview needed)
+            else if (data.success) {
+              alert(data.message);
+              window.location.href = data.redirect_url;
+            }
+            // 🔹 Invalid form in first step
+            else {
+              let errorMessage = "❌ Form invalid.\n\n";
+              if (data.message) errorMessage += data.message + "\n";
+              if (data.errors) {
+                for (const [field, errs] of Object.entries(data.errors)) {
+                  errs.forEach((err) => {
+                    errorMessage += typeof err === "object" ? err.message + "\n" : err + "\n";
+                  });
+                }
+              }
+              confirm(errorMessage);
+            }
+          })
+          .catch((err) => {
+            confirm("❌ An unexpected error occurred.\n\n" + err);
+          });
       });
     });
   </script>
