@@ -787,7 +787,7 @@
         }
       } catch (error) {
         console.error("AJAX error:", error);
-        alert("Something went wrong. Please try again.");
+        alert("Something went wrong. Please try again." + error);
       }
     });
   </script>
@@ -938,7 +938,7 @@
                       }
                   } catch (error) {
                       console.error("AJAX error:", error);
-                      confirm("An unexpected error occurred. Please try again.");
+                      confirm("An unexpected error occurred. Please try again." + error);
                   }
               });
           }
@@ -965,7 +965,7 @@
         }
       } catch (error) {
         console.error("AJAX error:", error);
-        alert("Something went wrong. Please try again.");
+        alert("Something went wrong. Please try again." + error);
       }
     });
   </script>
