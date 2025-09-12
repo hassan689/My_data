@@ -28,6 +28,16 @@ def decrypt_password(encrypted_password: str) -> str:
     return cipher.decrypt(encrypted_password.encode()).decode()  # Decrypt and return as string
 
 
+def encrypt_otp(otp_code: str) -> str:
+    cipher = get_cipher()
+    return cipher.encrypt(otp_code.encode()).decode()
+
+def decrypt_otp(encrypted_code: str) -> str:
+    cipher = get_cipher()
+    return cipher.decrypt(encrypted_code.encode()).decode()
+
+
+
 
 class CustomUser(AbstractUser):
     phone_number = models.CharField(max_length=20, unique=True)
@@ -135,3 +145,22 @@ class EmailAccount(models.Model):
         verbose_name = "Email Account"
         verbose_name_plural = "Email Accounts"
 
+
+
+class OTP(models.Model):
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='otps')
+    encrypted_code = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_used = models.BooleanField(default=False)
+
+    def set_code(self, raw_code: str):
+        self.encrypted_code = encrypt_otp(raw_code)
+
+    def check_code(self, raw_code: str) -> bool:
+        try:
+            return decrypt_otp(self.encrypted_code) == raw_code
+        except Exception:
+            return False
+
+    def is_valid(self):
+        return (now() - self.created_at).total_seconds() < 300 and not self.is_used

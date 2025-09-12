@@ -154,6 +154,12 @@ MIDDLEWARE = [
     'main.middleware.MaintenanceModeMiddleware',
 ]
 
+AUTHENTICATION_BACKENDS = [
+    'users.backends.EmailModelBackend',
+    'django.contrib.auth.backends.ModelBackend',
+]
+
+
 import os
 
 ROOT_URLCONF = 'growth_skool.urls'
