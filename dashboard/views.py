@@ -494,12 +494,14 @@ def campaign(request, email_account_id):
 
         # Invalid form
         print("🛑 Form is invalid:", form.errors)
-        if is_ajax:
+        if is_ajax or request.POST.get("confirm"):
             return JsonResponse({
                 'success': False,
                 'message': "Form is invalid.",
-                'errors': form.errors
+                'errors': form.errors.get_json_data()
             }, status=400)
+
+        messages.error(request, "Form submission failed due to validation errors.")
         return redirect('dashboard:index')
 
     return render(request, 'dashboard/campaign.html', {'form': form, 'email_account': email_account})
@@ -767,8 +769,18 @@ def bulk_campaign(request):
 
         else:
           # Print the form errors for debugging
-          print("Form is invalid.")
-          print("Form errors:", form.errors)
+          if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+              errors = form.errors.get_json_data()
+              return JsonResponse({'status': 'error', 'errors': errors})
+          else:
+              messages.error(request, "Failed to launch campaign due to validation errors.")
+              return render(request, 'dashboard/bulk_campaign.html', {
+                  'form': form,
+                  'email_accounts': email_accounts,
+                  'email_accounts_count': email_accounts_count,
+                  'leads_ready': bool(cached_data),
+                  'total_leads': len(leads),
+              })
 
     # GET Request or Initial Page Load
     if request.method == 'GET':
@@ -859,8 +871,8 @@ def campaign_records(request):
     # Filter campaigns for the current user with a 'launched' status
     campaign_list = CampaignRecord.objects.filter(
         launched_by=request.user,
-        status='launched'
-        # track_campaign=True
+        status='launched',
+        track_campaign=True
     ).order_by('-launch_time')
     
     # Paginate the results, 20 cords per page
