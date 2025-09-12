@@ -1,5 +1,5 @@
 from django.shortcuts import render, redirect
-from django.contrib.auth import login, authenticate
+from django.contrib.auth import login, authenticate, get_backends
 from .forms import CustomUserSignupForm, EmailLoginForm, OTPForm
 from django.contrib.auth import views as auth_views
 from django.urls import reverse_lazy
@@ -36,31 +36,37 @@ def email_login_view(request):
 
                 try: 
                     # Send the email with the OTP
-                    send_mail(
+                    send = send_mail(
                         'Your Login OTP',
                         f'Your One-Time Password is: {otp_code}',
-                        settings.DEFAULT_FROM_EMAIL,
+                        settings.EMAIL_HOST_USER,
                         [email],
                         fail_silently=False,
                     )
+                    print(send)
+                    print(f"Sent OTP {otp_code} to {email}")
+
                     OTP.objects.filter(user=user, is_used=False).delete()
 
                     otp_instance = OTP(user=user)
                     otp_instance.set_code(otp_code)
                     otp_instance.save()
 
-                except:
+                except Exception as e:
                     messages.error(request, "Failed Action. Please retry!")
-                
-                # Redirect to the OTP verification page
+                    return render(request, 'registration/email_login.html', {'form': form})
+
+                # Only redirect if OTP was sent successfully
                 return redirect(reverse('users:otp_verify') + f'?email={email}')
             else:
                 messages.error(request, "Invalid email or password.")
-                # The view will fall through and re-render the form with the error message
+                return render(request, 'registration/email_login.html', {'form': form})
+        else:
+            # Form is invalid, re-render with errors
+            return render(request, 'registration/email_login.html', {'form': form})
     else:
         form = EmailLoginForm()
-        
-    return render(request, 'login/email_login.html', {'form': form})
+    return render(request, 'registration/email_login.html', {'form': form})
 
 
 def otp_verification_view(request):
@@ -83,9 +89,13 @@ def otp_verification_view(request):
                 if otp_instance and otp_instance.is_valid() and otp_instance.check_code(otp_code):
                     otp_instance.is_used = True
                     otp_instance.save()
+
+                    backend = get_backends()[0]  # use the first backend
+                    user.backend = f"{backend.__module__}.{backend.__class__.__name__}"
+
                     # Log the user in
                     login(request, user)
-                    return redirect('home')  # Redirect to your home page
+                    return redirect('dashboard:index')  # Redirect to your home page
                 else:
                     messages.error(request, "Invalid or expired OTP.")
             except User.DoesNotExist:
@@ -93,7 +103,7 @@ def otp_verification_view(request):
     else:
         form = OTPForm()
 
-    return render(request, 'login/otp_verify.html', {'form': form, 'email': email})
+    return render(request, 'registration/otp_verify.html', {'form': form, 'email': email})
 
 
 
