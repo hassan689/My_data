@@ -479,7 +479,7 @@ def campaign(request, email_account_id):
                 email_account.last_used_at = now()
                 email_account.save(update_fields=["last_used_at"])
 
-                success_message = f"✅ Success! Emails are being sent for {email_account.email_address}."
+                success_message = f"✅ Success! Campaign creation complete!\nPress OK to proceed."
 
                 if is_ajax:
                     return JsonResponse({
@@ -528,28 +528,33 @@ def distribute_leads_among_accounts(leads, accounts):
 @login_required
 @require_http_methods(["GET", "POST"])
 def bulk_campaign(request):
+    """
+    Handles bulk campaign lead submission and allocation.
+    Correctly responds with JSON for AJAX requests and redirects/renders for
+    standard form submissions.
+    """
     email_accounts = EmailAccount.objects.filter(user=request.user)
     email_accounts_count = email_accounts.count()
     cache_key = f"bulk_leads_{request.user.id}"
 
     # Load cached data (leads & count)
     cached_data = cache.get(cache_key)
-    leads = cached_data['leads'] if cached_data else []
+    leads = cached_data['leads'] if cached_data and 'leads' in cached_data else []
 
-    form = BulkCampaignForm(user=request.user)
+    is_ajax = request.headers.get('x-requested-with') == 'XMLHttpRequest'
 
     # Step 1: Leads Submission
     if request.method == 'POST' and 'submit_leads' in request.POST:
         form = BulkCampaignForm(request.POST, request.FILES, user=request.user)
 
         if form.is_valid():
-            file_upload = form.cleaned_data['file_upload']
-            mc_number = form.cleaned_data['mc_number']
-            lower_limit_mc_number = form.cleaned_data['lower_limit_mc_number']
-            upper_limit_mc_number = form.cleaned_data['upper_limit_mc_number']
-            targets_count = form.cleaned_data['targets_count']
+            file_upload = form.cleaned_data.get('file_upload')
+            mc_number = form.cleaned_data.get('mc_number')
+            lower_limit_mc_number = form.cleaned_data.get('lower_limit_mc_number')
+            upper_limit_mc_number = form.cleaned_data.get('upper_limit_mc_number')
+            targets_count = form.cleaned_data.get('targets_count')
             skip_mc_numbers = form.cleaned_data.get("skip_mc_numbers")
-
+            
             # Extra filters from the form
             power_units_comparison = form.cleaned_data.get('power_units_comparison')
             power_units_value = form.cleaned_data.get('power_units_value')
@@ -561,6 +566,8 @@ def bulk_campaign(request):
             cargo_info_search = form.cleaned_data.get('cargo_info_search')
 
             leads = []
+            lead_source = 'N/A' # Default source
+            
             if file_upload:
                 lead_source = 'Excel'
                 leads = process_excel_file(file_upload)
@@ -575,7 +582,7 @@ def bulk_campaign(request):
                 )
 
             if not leads:
-                if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+                if is_ajax:
                     return JsonResponse({'status': 'error', 'message': 'No valid leads found.'})
                 messages.error(request, "No valid leads found.")
                 return redirect('dashboard:bulk_campaign')
@@ -584,6 +591,7 @@ def bulk_campaign(request):
             cache.delete(cache_key)
             cache.set(cache_key, {'leads': leads, 'leads_available': len(leads), 'lead_source': lead_source}, timeout=300)
 
+            # Note: The filter_data dictionary is not used, but kept for context
             filter_data = {}
             for key in ['mc_number', 'targets_count', 'power_units_comparison', 'power_units_value', 
                         'drivers_comparison', 'drivers_value', 'status', 'carrier_operation',
@@ -592,36 +600,40 @@ def bulk_campaign(request):
                 if val not in [None, '', 'None']:
                     filter_data[key] = val
 
-            if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            if is_ajax:
                 return JsonResponse({
                     'status': 'success',
                     'message': f'{len(leads)} leads found and submitted successfully. Do you wish to proceed?',
-                    'leads': leads,  # Include leads data here
+                    'leads': leads,
                 })
 
             messages.success(request, f"{len(leads)} leads submitted successfully.")
             return redirect('dashboard:bulk_campaign')
 
-        else:
-            if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+        else: # form is not valid for 'submit_leads'
+            if is_ajax:
                 errors = {field: error.get_json_data() for field, error in form.errors.items()}
                 return JsonResponse({'status': 'error', 'errors': errors})
-
+            
             messages.error(request, "Invalid form submission.")
             return redirect(request.path)
 
     # Step 2: Lead Allocation (only available if leads are cached)
     elif request.method == 'POST' and 'submit_allocation' in request.POST:
-
         cached_data = cache.get(cache_key)
-        total_leads = cached_data['leads_available'] if cached_data and 'leads_available' in cached_data else 0
+        total_leads = cached_data.get('leads_available', 0)
+        
         form = BulkCampaignForm(request.POST, request.FILES, user=request.user, total_leads=total_leads)
+
         if not cached_data:
+            if is_ajax:
+                return JsonResponse({'status': 'error', 'message': 'Cached leads not found. Please resubmit leads.'})
+            messages.error(request, "Cached leads not found. Please resubmit leads.")
             return redirect('dashboard:bulk_campaign')
         
+        leads = cached_data['leads']
+        
         if form.is_valid():
-
-            leads = cached_data['leads']
             email_subject = form.cleaned_data.get('email_subject')
             email_body = form.cleaned_data.get('email_body')
             select_all = form.cleaned_data.get('select_all')
@@ -636,9 +648,10 @@ def bulk_campaign(request):
             total_requested_leads = 0
 
             if select_all:
-                # ✅ Get all user email accounts
                 accounts = EmailAccount.objects.filter(user=request.user)
                 if not accounts.exists():
+                    if is_ajax:
+                        return JsonResponse({'status': 'error', 'message': 'No email accounts found for your user.'})
                     form.add_error(None, "No email accounts found for your user.")
                     return render(request, 'dashboard/bulk_campaign.html', {
                         'form': form,
@@ -647,8 +660,6 @@ def bulk_campaign(request):
                         'leads_ready': bool(cached_data),
                         'total_leads': len(leads),
                     })
-
-                # ✅ Auto-distribute leads among accounts
                 account_lead_map = distribute_leads_among_accounts(leads, list(accounts))
 
             else:
@@ -657,7 +668,6 @@ def bulk_campaign(request):
                         num_leads = int(request.POST.get(f'emails_for_account_{account_id}', '0'))
                         if num_leads < 1:
                             continue
-
                         account = EmailAccount.objects.get(id=account_id, user=request.user)
                         account_lead_map[account] = num_leads
                         total_requested_leads += num_leads
@@ -665,6 +675,8 @@ def bulk_campaign(request):
                         continue
 
                 if total_requested_leads != len(leads):
+                    if is_ajax:
+                        return JsonResponse({'status': 'error', 'message': f"Total assigned leads ({total_requested_leads}) must match total available ({len(leads)})."})
                     form.add_error(None, f"Total assigned leads ({total_requested_leads}) must match total available ({len(leads)}).")
                     return render(request, 'dashboard/bulk_campaign.html', {
                         'form': form,
@@ -674,16 +686,16 @@ def bulk_campaign(request):
                         'total_leads': len(leads),
                     })
 
-            # ✅ Convert account -> number to account -> list of leads
-            if not select_all:
+                # Convert account -> number to account -> list of leads
                 lead_index = 0
                 updated_map = {}
-
                 for account, count in account_lead_map.items():
                     if not isinstance(count, int):
                         try:
                             count = int(count[0]) if isinstance(count, list) else int(count)
                         except (ValueError, TypeError):
+                            if is_ajax:
+                                return JsonResponse({'status': 'error', 'message': f"Invalid lead count for account {account}"})
                             form.add_error(None, f"Invalid lead count for account {account}")
                             return render(request, 'dashboard/bulk_campaign.html', {
                                 'form': form,
@@ -692,14 +704,12 @@ def bulk_campaign(request):
                                 'leads_ready': bool(cached_data),
                                 'total_leads': len(leads),
                             })
-
                     updated_map[account] = leads[lead_index:lead_index + count]
                     lead_index += count
-
                 account_lead_map = updated_map
 
-
             def start_campaign_processing():
+                # ... (campaign creation logic is the same)
                 scheduled_campaign_count = 0
                 immediate_campaign_count = 0
                 for account, assigned_leads in account_lead_map.items():
@@ -712,7 +722,7 @@ def bulk_campaign(request):
                                 leads_data=assigned_leads,
                                 min_delay=min_delay,
                                 max_delay=max_delay,
-                                scheduled_launch_time=scheduled_launch_datetime, # Already UTC from form.clean()
+                                scheduled_launch_time=scheduled_launch_datetime,
                                 launched_by=request.user,
                                 sender_account=account,
                                 total_recipients=len(assigned_leads),
@@ -726,36 +736,36 @@ def bulk_campaign(request):
                         else:
                             # Immediate send
                             print(f"Queuing immediate bulk email campaign to {len(assigned_leads)} leads for {account.email_address}")
-
                             new_camp = CampaignRecord.objects.create(
-                                subject = email_subject,
-                                body = email_body,
-                                leads_data = assigned_leads,
-                                min_delay = min_delay,
-                                max_delay = max_delay,
-                                launched_by = request.user,
-                                sender_account = account,
-                                total_recipients = len(assigned_leads),
-                                sent_count = 0,
-                                status = 'processing',
-                                lead_source =  lead_source,
+                                subject=email_subject,
+                                body=email_body,
+                                leads_data=assigned_leads,
+                                min_delay=min_delay,
+                                max_delay=max_delay,
+                                launched_by=request.user,
+                                sender_account=account,
+                                total_recipients=len(assigned_leads),
+                                sent_count=0,
+                                status='processing',
+                                lead_source=lead_source,
                                 track_campaign=track_campaign
                             )
-
                             send_emails_chunk_celery_task.delay(account.id, assigned_leads, email_subject, email_body, min_delay, max_delay, new_camp.id)
                             immediate_campaign_count += 1
                             account.last_used_at = now()
                             account.save(update_fields=["last_used_at"])
-
                 return scheduled_campaign_count, immediate_campaign_count
 
             scheduled_count, immediate_count = start_campaign_processing()
             cache.delete(cache_key) # Clean up cache
 
+            # This block handles both AJAX and non-AJAX success messages
+            if is_ajax:
+                return JsonResponse({'status': 'success', 'message': '✅ Success! Campaign creation complete!\nPress OK to proceed.'})
+
             # Display messages using PST (Pakistan Standard Time)
             pst_tz = pytz.timezone('Asia/Karachi')
             scheduled_time_pst = scheduled_launch_datetime.astimezone(pst_tz) if scheduled_launch_datetime else None
-
             if scheduled_count > 0 and immediate_count > 0:
                 messages.success(request, f"🎉 {scheduled_count} campaigns scheduled for {scheduled_time_pst.strftime('%Y-%m-%d %H:%M %p %Z')} and {immediate_count} campaigns launched immediately!")
             elif scheduled_count > 0:
@@ -767,25 +777,22 @@ def bulk_campaign(request):
 
             return redirect('dashboard:index')
 
-        else:
-          # Print the form errors for debugging
-          if request.headers.get('x-requested-with') == 'XMLHttpRequest':
-              errors = form.errors.get_json_data()
-              return JsonResponse({'status': 'error', 'errors': errors})
-          else:
-              messages.error(request, "Failed to launch campaign due to validation errors.")
-              return render(request, 'dashboard/bulk_campaign.html', {
-                  'form': form,
-                  'email_accounts': email_accounts,
-                  'email_accounts_count': email_accounts_count,
-                  'leads_ready': bool(cached_data),
-                  'total_leads': len(leads),
-              })
+        else: # form is not valid for 'submit_allocation'
+            if is_ajax:
+                errors = form.errors.get_json_data()
+                return JsonResponse({'status': 'error', 'errors': errors})
+            messages.error(request, "Failed to launch campaign due to validation errors.")
+            return render(request, 'dashboard/bulk_campaign.html', {
+                'form': form,
+                'email_accounts': email_accounts,
+                'email_accounts_count': email_accounts_count,
+                'leads_ready': bool(cached_data),
+                'total_leads': len(leads),
+            })
 
     # GET Request or Initial Page Load
     if request.method == 'GET':
         form = BulkCampaignForm(user=request.user)
-
 
     cached_data = cache.get(cache_key)
     leads_available = len(cached_data['leads']) if cached_data else 0

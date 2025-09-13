@@ -1,7 +1,7 @@
 from django.shortcuts import get_object_or_404, redirect
 from django.contrib import messages
 from .tasks import activate_warmup_campaign
-from .models import WarmupTemplateSet
+from .models import WarmupCampaign, WarmupTemplateSet
 from users.models import EmailAccount
 
 def start_warmup_view(request, email_account_id):
@@ -10,6 +10,12 @@ def start_warmup_view(request, email_account_id):
     if sender_account.black_list:
         messages.error(request, f"The email account {sender_account.email_address} has been black listed for warming up.")
         return redirect('dashboard:index')
+    
+    # If already this sender has a campaign with "completed" status or current_step >= 10, delete the previous campaign
+    existing_campaigns = WarmupCampaign.objects.filter(sender_account=sender_account)
+    for campaign in existing_campaigns:
+        if campaign.status == 'Complete' or campaign.current_step >= 10:
+            campaign.delete()
 
     try:
         template_set = WarmupTemplateSet.objects.get(name='Warmup Campaigns Templates')
