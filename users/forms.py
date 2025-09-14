@@ -44,24 +44,25 @@ class CustomUserSignupForm(UserCreationForm):
         return user
 
 
+# Uncomment the following code to enable email + OTP login functionality for future use. Not required now as. Business decision.
 
-class EmailLoginForm(forms.Form):
-    email = forms.EmailField(
-        label="Email Address",
-        max_length=254,
-        required=True,
-    )
-    password = forms.CharField(
-        label="Password",
-        widget=forms.PasswordInput,
-        required=True,
-    )
+# class EmailLoginForm(forms.Form):
+#     email = forms.EmailField(
+#         label="Email Address",
+#         max_length=254,
+#         required=True,
+#     )
+#     password = forms.CharField(
+#         label="Password",
+#         widget=forms.PasswordInput,
+#         required=True,
+#     )
 
-class OTPForm(forms.Form):
-    otp_code = forms.CharField(
-        label="OTP",
-        max_length=6,
-        min_length=6,
-        required=True,
-    )
+# class OTPForm(forms.Form):
+#     otp_code = forms.CharField(
+#         label="OTP",
+#         max_length=6,
+#         min_length=6,
+#         required=True,
+#     )
 

@@ -154,10 +154,12 @@ MIDDLEWARE = [
     'main.middleware.MaintenanceModeMiddleware',
 ]
 
-AUTHENTICATION_BACKENDS = [
-    'users.backends.EmailModelBackend',
-    'django.contrib.auth.backends.ModelBackend',
-]
+# Uncomment the following code to enable email + OTP login functionality for future use. Not required now as. Business decision.
+
+# AUTHENTICATION_BACKENDS = [
+#     'users.backends.EmailModelBackend',
+#     'django.contrib.auth.backends.ModelBackend',
+# ]
 
 
 import os
