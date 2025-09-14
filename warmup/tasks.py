@@ -12,20 +12,101 @@ from django.utils.encoding import force_str
 import time
 
 
+# A large list of common words to generate unique content on the fly.
+WORD_LIST = [
+    "hello", "hi", "hey", "greetings", "dear", "thanks", "appreciate",
+    "email", "message", "note", "reply", "response", "subject", "body",
+    "quick", "fast", "brief", "short", "long", "detailed", "insightful",
+    "question", "query", "inquiry", "thought", "idea", "opinion", "perspective",
+    "topic", "subject", "matter", "area", "field", "domain", "niche",
+    "conversation", "chat", "talk", "discussion", "dialogue", "correspondence",
+    "hope", "wish", "expect", "assume", "believe", "know", "think",
+    "good", "great", "nice", "excellent", "fine", "well", "okay",
+    "day", "week", "month", "year", "time", "moment", "while",
+    "you", "i", "we", "they", "he", "she", "it", "this", "that",
+    "connect", "reach", "get", "find", "link", "join", "meet",
+    "share", "provide", "give", "offer", "send", "receive", "exchange",
+    "business", "company", "project", "work", "task", "job", "role",
+    "account", "profile", "contact", "person", "individual", "professional",
+    "process", "strategy", "approach", "method", "procedure", "plan", "way",
+    "follow-up", "circling", "revisiting", "coming back to", "checking in on",
+    "something", "anything", "everything", "nothing",
+    "about", "regarding", "concerning", "on", "in", "with", "for",
+    "from", "to", "at", "by", "like", "as", "than", "so", "but",
+    "because", "since", "while", "when", "where", "what", "who", "which",
+    "and", "or", "nor", "but", "yet", "so", "for", "nor",
+    "can", "could", "will", "would", "should", "must", "might", "may",
+    "have", "has", "had", "is", "am", "are", "was", "were", "be",
+    "do", "did", "does", "done", "make", "made", "making", "take", "took",
+    "look", "see", "find", "get", "go", "went", "going", "come", "came",
+    "your", "my", "our", "their", "his", "her", "its",
+    "profile", "inbox", "link", "system", "platform", "software",
+    "wondering", "curious", "interested", "looking", "thinking", "focused",
+    "outreach", "note", "message", "touchpoint",
+    "how", "what", "where", "when", "why", "who",
+    "specific", "particular", "certain", "exact", "distinct",
+    "details", "information", "data", "facts", "figures",
+    "best", "better", "greatest", "most", "least", "worst",
+    "way", "method", "manner", "fashion", "style",
+    "new", "old", "recent", "past", "future", "current",
+    "another", "other", "different", "similar",
+    "final", "last", "concluding", "ending", "ultimate",
+    "a", "an", "the", "some", "any", "no", "all",
+]
+
+def generate_gibberish_subject():
+    """Generates a random, gibberish subject line."""
+    subject_words = random.sample(WORD_LIST, random.randint(3, 6))
+    return " ".join([word.capitalize() for word in subject_words])
+
+def generate_gibberish_body(recipient_first_name, sender_company_name):
+    """Generates a random, gibberish body paragraph."""
+    sentences = []
+    num_sentences = random.randint(2, 4)
+    for _ in range(num_sentences):
+        sentence_words = random.sample(WORD_LIST, random.randint(4, 10))
+        # Ensure a capital letter at the start and a period at the end
+        sentence = " ".join(sentence_words).capitalize() + "."
+        sentences.append(sentence)
+
+    # Inject personalization in a random sentence
+    personalization_phrase = f"Hello {recipient_first_name}, I saw your company {sender_company_name} was doing well."
+    sentences.insert(random.randint(0, len(sentences)), personalization_phrase)
+    
+    return " ".join(sentences)
+
+def refresh_targets(campaign):
+    """Refreshes the target accounts for a campaign."""
+    # Select new random targets
+    new_target_accounts = list(EmailAccount.objects.filter(
+        is_warmup_target=True
+    ).exclude(
+        id=campaign.sender_account.id
+    ).exclude(
+        black_list=True
+    ).order_by('?')[:5])
+
+    if new_target_accounts:
+        campaign.target_accounts.set(new_target_accounts)
+        print(f"Refreshed target accounts for campaign {campaign.id}.")
+    else:
+        print("Not enough warmup target accounts available for refresh.")
+
+
 @app.task(name="warmup.tasks.activate_warmup_campaign")
 def activate_warmup_campaign(sender_account_id, template_set_id):
     
     sender_account = EmailAccount.objects.get(id=sender_account_id)
     template_set = WarmupTemplateSet.objects.get(id=template_set_id)
 
-    # Select 5 random targets, 2 for localhost testing accounts
+    # Select 5 random targets
     target_accounts = list(EmailAccount.objects.filter(
         is_warmup_target=True
     ).exclude(
         id=sender_account_id
     ).exclude(
         black_list=True # Accounts known for causing trouble
-    ).order_by('?')[:2])
+    ).order_by('?')[:5])
     
     if not target_accounts:
         print("Not enough warmup target accounts available.")
@@ -113,25 +194,10 @@ def send_warmup_step(campaign_id, step_number):
     if campaign.status in ['Complete', 'Failed']:
         print(f"Campaign {campaign.id} is already in {campaign.status} state. Skipping.")
         return
-
-    # Handle missing templates with its own try-except block
-    try:
-        templates = campaign.template_set.templates.get(f'step_{step_number + 1}')
-    except Exception as e:
-        subject = f"Template not found. Ending warmup campaign."
-        body = f"Template for step {step_number + 1} not found. Ending campaign for {campaign.sender_account}: {e}"
-        recipient_list = ['abdullahatif132@gmail.com']
-        send_mail(
-            subject,
-            body,
-            settings.DEFAULT_FROM_EMAIL,
-            recipient_list,
-            fail_silently=False,
-        )
-        print(f"Template for step {step_number + 1} not found. Ending campaign.")
-        campaign.status = 'Failed'
-        campaign.save(update_fields=['status'])
-        return
+    
+    # NEW LOGIC: Refresh targets after a full cycle (e.g., every 2 steps)
+    if step_number > 0 and step_number % 2 == 0:
+        refresh_targets(campaign)
     
     # Sender's turn (Even steps: 0, 2, 4...)
     if step_number % 2 == 0:
@@ -147,40 +213,14 @@ def send_warmup_step(campaign_id, step_number):
                     return text.replace('\xa0', ' ').encode('utf-8', 'ignore').decode('utf-8')
             
             for recipient_account in recipients:
-                template = random.choice(templates)
-                personalization_data = {
-                    'first_name': clean_text(recipient_account.user.first_name),
-                    'email': clean_text(recipient_account.email_address),
-                    'company_name': clean_text(getattr(recipient_account.user, "company_name", "ABC Transports LLC")),
-                    'topic': 'Dispatch Skool Auto-Warmup Campaign',
-                    'specific_task': 'Auto-Warmup',
-                    'our_process': 'Automation',
-                    'new_topic': 'Dispatch Skool Auto-Warmup Campaign',
-                    'our_strategy': 'Automation',
-                    'final_topic': 'Dispatch Skool Auto-Warmup Campaign',
-                    'our_final_strategy': 'Automation',
-                }
 
-                appended_message = """\n\n\n
-                This email is part of the Dispatch Skool Auto-Warmup Campaign.
-                The purpose of this campaign is to warm up your email sending reputation.
-                We do this by sending and receiving messages between a private pool of verified accounts.
-                This activity mimics natural human conversation, which helps major email providers like Google
-                and Microsoft see your account as trustworthy. By participating, your account's deliverability will improve,
-                ensuring your legitimate emails reach their intended recipients rather than landing in spam folders.\n
-
-                Regards,
-                The Dispatch Skool Team
-                """
-                
-                
-                personalized_subject = clean_text(personalize_template(template['subject'], personalization_data))
-                personalized_body = clean_text(personalize_template(template['body'], personalization_data))
-                personalized_body_with_note = personalized_body + appended_message
+                # NEW LOGIC: Generate subject and body dynamically
+                personalized_subject = generate_gibberish_subject()
+                personalized_body = generate_gibberish_body(clean_text(recipient_account.user.first_name), clean_text(getattr(sender_account.user, "company_name", "ABC Transports LLC")))
                 
                 main_msg = EmailMultiAlternatives(
                     subject=personalized_subject,
-                    body=personalized_body_with_note,
+                    body=personalized_body,
                     from_email=sender_account.email_address,
                     to=[recipient_account.email_address],
                     connection=connection
@@ -248,14 +288,13 @@ def send_warmup_step(campaign_id, step_number):
                 campaign.save(update_fields=['next_action_at'])
 
             elif "codec can't encode character" in str(e): # '\xa0' error
-                template = random.choice(templates)
-                personalized_subject = clean_text(personalize_template(template['subject'], personalization_data))
-                personalized_body = clean_text(personalize_template(template['body'], personalization_data))
-                personalized_body_with_note = personalized_body + appended_message
+                
+                personalized_subject = generate_gibberish_subject()
+                personalized_body = generate_gibberish_body(clean_text(recipient_account.user.first_name), clean_text(getattr(sender_account.user, "company_name", "ABC Transports LLC")))
                 
                 main_msg = EmailMultiAlternatives(
                     subject=personalized_subject,
-                    body=personalized_body_with_note,
+                    body=personalized_body,
                     from_email=sender_account.email_address,
                     to=[recipient_account.email_address],
                     connection=connection
@@ -317,40 +356,12 @@ def send_warmup_step(campaign_id, step_number):
                 def clean_text(text: str) -> str:
                     return text.replace('\xa0', ' ').encode('utf-8', 'ignore').decode('utf-8')
                 
-                template = random.choice(templates)
-                personalization_data = {
-                    'first_name': clean_text(recipient_account.user.first_name),
-                    'email': clean_text(recipient_account.email_address),
-                    'company_name': clean_text(getattr(recipient_account.user, "company_name", "ABC Transports LLC")),
-                    'topic': 'Dispatch Skool Auto-Warmup Campaign',
-                    'specific_task': 'Auto-Warmup',
-                    'our_process': 'Automation',
-                    'new_topic': 'Dispatch Skool Auto-Warmup Campaign',
-                    'our_strategy': 'Automation',
-                    'final_topic': 'Dispatch Skool Auto-Warmup Campaign',
-                    'our_final_strategy': 'Automation',
-                }
-                
-                appended_message = """\n\n\n
-                This email is part of the Dispatch Skool Auto-Warmup Campaign.
-                The purpose of this campaign is to warm up your email sending reputation.
-                We do this by sending and receiving messages between a private pool of verified accounts.
-                This activity mimics natural human conversation, which helps major email providers like Google
-                and Microsoft see your account as trustworthy. By participating, your account's deliverability will improve,
-                ensuring your legitimate emails reach their intended recipients rather than landing in spam folders.\n
-
-                Regards,
-                The Dispatch Skool Team
-                """
-                
-                
-                personalized_subject = clean_text(personalize_template(template['subject'], personalization_data))
-                personalized_body = clean_text(personalize_template(template['body'], personalization_data))
-                personalized_body_with_note = personalized_body + appended_message
+                personalized_subject = generate_gibberish_subject()
+                personalized_body = generate_gibberish_body(clean_text(recipient_account.user.first_name), clean_text(getattr(sender_account.user, "company_name", "ABC Transports LLC")))
                 
                 main_msg = EmailMultiAlternatives(
                     subject=personalized_subject,
-                    body=personalized_body_with_note,
+                    body=personalized_body,
                     from_email=sender_account.email_address,
                     to=[recipient_account.email_address],
                     connection=connection
