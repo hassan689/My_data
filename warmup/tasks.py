@@ -311,7 +311,7 @@ def send_warmup_step(campaign_id, step_number):
                         campaign.next_action_at = timezone.now() + timedelta(hours=random.uniform(1, 3))
                         campaign.save(update_fields=['next_action_at'])
 
-            elif "Connection unexpectedly closed" in str(e) or "Connection timed out" in str(e) or "Server busy" in str(e) or "Server not connected" in str(e):
+            elif "Connection unexpectedly closed" in str(e) or "Connection timed out" in str(e) or "Server busy" in str(e) or "Server not connected" in str(e) or "timeout exceeded" in str(e):
                 
                 connection = get_email_connection(sender_account, decrypted_password)
                 try:
@@ -496,4 +496,12 @@ def process_warmup_convo_beats():
             print(f"Error triggering send_warmup_step for Campaign {campaign.id}: {e}")
             campaign.status = 'Failed'
             campaign.save(update_fields=['status'])
+
+
+# beat task to clear out warmup messages older than 7 days
+@app.task(name="warmup.tasks.clear_old_warmup_messages")
+def clear_old_warmup_messages():
+    cutoff_date = timezone.now() - timedelta(days=7)
+    WarmupMessage.objects.filter(created_at__lt=cutoff_date).delete()
+
 

@@ -453,13 +453,35 @@ def check_processing_campaign_count():
 def cleanup_email_opens():
     """
     Deletes EmailOpen entries where:
-    - is_opened=False
     - timestamp older than 30 days
     """
     cutoff_date = timezone.now() - timedelta(days=30)
     deleted_count, _ = EmailOpen.objects.filter(
-        is_opened=False,
         timestamp__lt=cutoff_date
     ).delete()
-    return f"Deleted {deleted_count} old undopened email records."
+    return f"Deleted {deleted_count} old email open records."
+
+
+@app.task(name="dashboard.tasks.clear_launched_campaigns")
+def clear_launched_campaigns():
+
+  last_week = now() - timedelta(days=7)
+  deleted, _ = CampaignRecord.objects.filter(
+      status = 'launched',
+      launch_time__lte = last_week
+  ).exclude(
+      # exclude those campaigns which have EmailOpen instances associated with them
+      id__in = EmailOpen.objects.values_list('campaign_id', flat=True).distinct()
+  ).delete()
+
+  last_2_weeks = now() - timedelta(days=14)
+  deleted, _ = CampaignRecord.objects.filter(
+      status = 'cancelled',
+      launch_time__lte = last_2_weeks
+  ).exclude(
+      # exclude those campaigns which have EmailOpen instances associated with them
+      id__in = EmailOpen.objects.values_list('campaign_id', flat=True).distinct()
+  ).delete()
+
+  return f"Deleted {deleted} old launched campaigns without any email opens."
 
