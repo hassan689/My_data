@@ -84,7 +84,7 @@ def refresh_targets(campaign):
         id=campaign.sender_account.id
     ).exclude(
         black_list=True
-    ).order_by('?')[:5])
+    ).order_by('?')[:2])
 
     if new_target_accounts:
         campaign.target_accounts.set(new_target_accounts)
@@ -94,10 +94,18 @@ def refresh_targets(campaign):
 
 
 @app.task(name="warmup.tasks.activate_warmup_campaign")
-def activate_warmup_campaign(sender_account_id, template_set_id):
+def activate_warmup_campaign(sender_account_id, template_set_id, campaign_id):
+    
+    print("\nActivating warmup campaign...\n")
     
     sender_account = EmailAccount.objects.get(id=sender_account_id)
     template_set = WarmupTemplateSet.objects.get(id=template_set_id)
+
+    try:
+        campaign = WarmupCampaign.objects.get(id=campaign_id)
+    except WarmupCampaign.DoesNotExist:
+        print(f"No campaign found for {sender_account.email_address}. Skipping.")
+        return
 
     # Select 5 random targets
     target_accounts = list(EmailAccount.objects.filter(
@@ -106,29 +114,12 @@ def activate_warmup_campaign(sender_account_id, template_set_id):
         id=sender_account_id
     ).exclude(
         black_list=True # Accounts known for causing trouble
-    ).order_by('?')[:5])
+    ).order_by('?')[:2])
     
     if not target_accounts:
         print("Not enough warmup target accounts available.")
         return
 
-    # Look for existing campaign; if it exists, update it. If not, create a new one.
-    try:
-        campaign = WarmupCampaign.objects.get(sender_account=sender_account)
-        campaign.status = 'Active'
-        campaign.last_action_at = timezone.now()
-        campaign.next_action_at = timezone.now() + timedelta(hours=random.uniform(0, 3))
-        campaign.save()
-
-    except WarmupCampaign.DoesNotExist:
-        # Create a new WarmupCampaign instance
-        campaign = WarmupCampaign.objects.create(
-            sender_account=sender_account,
-            template_set=template_set,
-            status='Active',
-            last_action_at=timezone.now(),
-            next_action_at=timezone.now() + timedelta(hours=random.uniform(24, 36)) # Random delay 24-36 hours
-        )
 
     campaign.target_accounts.set(target_accounts)
 
@@ -460,9 +451,12 @@ def send_warmup_step(campaign_id, step_number):
     campaign.current_step += 1
     campaign.last_action_at = timezone.now()
     campaign.next_action_at = timezone.now() + timedelta(hours=random.uniform(24, 36))
-    if campaign.current_step >= 10:
-        campaign.status = 'Complete'
-    campaign.save(update_fields=['current_step', 'last_action_at', 'next_action_at', 'status'])
+    
+    # Campaign will stay active indefinitely until manually stopped
+    # if campaign.current_step >= 10:
+    #     campaign.status = 'Complete'
+    
+    campaign.save(update_fields=['current_step', 'last_action_at', 'next_action_at'])
     
     print(f"Warmup campaign {campaign.id} processed step {step_number} and is now at step {campaign.current_step}.")
 

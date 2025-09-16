@@ -103,7 +103,10 @@
                         Activate Auto-Warmup
                       </a>
                     {% elif account.latest_warmup_status == "Active" %}
-                      <div class="px-2 py-1 rounded font-semibold bg-lime-100 text-lime-800 text-center whitespace-nowrap">Warmup Active</div>
+                      <div class="flex flex-row items-center">
+                        <div class="px-2 py-1 rounded font-semibold bg-lime-100 text-lime-800 text-center whitespace-nowrap">Warmup Active</div>
+                        <a href="{% url 'warmup:start_warmup_view' email_account_id=account.id %}" class="ml-2 bg-red-700 text-white px-3 py-1 rounded hover:bg-red-800 text-center font-semibold whitespace-nowrap">Stop Warmup Campaign</a>
+                      </div>
                     {% endif %}
                     
                     {% if account.is_gmail and not account.is_connected and is_unibox_eligible %}

@@ -989,11 +989,14 @@ def emergency_stop(request, email_account_id):
         latest_processing_campaign.status = 'cancelled'
         latest_processing_campaign.save(update_fields=['status'])
 
+        # Set cancellation flag in cache for Celery worker
+        cache_key = f"campaign_{latest_processing_campaign.id}_cancelled"
+        cache.set(cache_key, True, timeout=7*60*60)
+
         messages.success(
             request,
             f"Campaign '{latest_processing_campaign.subject}' has been cancelled."
         )
-
     else:
         messages.info(request, f"No active campaign found for {email_account.email_address} to stop.")
 
@@ -1085,15 +1088,33 @@ def campaign_statuses(request):
             CampaignRecord.objects
             .filter(sender_account=account)
             .order_by('-launch_time')
-            .only('status', 'sent_count', 'total_recipients')
+            .only('id', 'status', 'sent_count', 'total_recipients')
             .first()
         )
 
         if latest_campaign:
+            cache_keys = {
+                'sent_count': f"campaign_{latest_campaign.id}_sent_count",
+                'cancel_flag': f"campaign_{latest_campaign.id}_cancelled"
+            }
+            sent_count = cache.get(cache_keys['sent_count'])
+            status = None
+            # Prefer cache for cancellation status if campaign is processing
+            if latest_campaign.status == 'processing':
+                if cache.get(cache_keys['cancel_flag']):
+                    status = 'cancelled'
+                else:
+                    status = 'processing'
+            else:
+                status = latest_campaign.status or 'N/A'
+            # Fallback to DB if cache is missing
+            if sent_count is None:
+                sent_count = latest_campaign.sent_count or 0
+            total = latest_campaign.total_recipients or 0
             data[account.id] = {
-                'status': latest_campaign.status or 'N/A',
-                'sent_count': latest_campaign.sent_count or 0,
-                'total': latest_campaign.total_recipients or 0,
+                'status': status,
+                'sent_count': sent_count,
+                'total': total,
             }
         else:
             data[account.id] = {
