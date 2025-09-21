@@ -28,3 +28,7 @@ def close_db_connections(**kwargs):
         except OperationalError:
             pass
 
+
+@signals.task_postrun.connect
+def close_celery_db_connections(**kwargs):
+    connections.close_all()

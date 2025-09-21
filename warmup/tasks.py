@@ -200,14 +200,12 @@ def send_warmup_step(campaign_id, step_number):
             decrypted_password = sender_account.get_password()
             connection = get_email_connection(sender_account, decrypted_password)
             
-            def clean_text(text: str) -> str:
-                    return text.replace('\xa0', ' ').encode('utf-8', 'ignore').decode('utf-8')
             
             for recipient_account in recipients:
 
                 # NEW LOGIC: Generate subject and body dynamically
                 personalized_subject = generate_gibberish_subject()
-                personalized_body = generate_gibberish_body(clean_text(recipient_account.user.first_name), clean_text(getattr(sender_account.user, "company_name", "ABC Transports LLC")))
+                personalized_body = generate_gibberish_body(recipient_account.user.first_name, getattr(sender_account.user, "company_name", "ABC Transports LLC"))
                 
                 main_msg = EmailMultiAlternatives(
                     subject=personalized_subject,
@@ -220,7 +218,7 @@ def send_warmup_step(campaign_id, step_number):
                 try:
                     main_msg.send()
                 except Exception as e:
-                    if "please run connect() first" in str(e).lower() or "connection expired" in str(e).lower() or "Connection unexpectedly closed" in str(e).lower() or "Connection reset by peer" in str(e).lower():
+                    if "please run connect() first" in str(e).lower().lower() or "connection expired" in str(e).lower().lower() or "Connection unexpectedly closed" in str(e).lower().lower() or "Connection reset by peer" in str(e).lower().lower():
                         connection = get_email_connection(sender_account, decrypted_password)
                         main_msg.connection = connection
                         main_msg.send()
@@ -242,7 +240,7 @@ def send_warmup_step(campaign_id, step_number):
 
         except Exception as e:
             
-            if "Username and Password not accepted" in str(e):
+            if "Username and Password not accepted" in str(e).lower():
 
                 campaign.status = 'Failed'
                 campaign.save(update_fields=['status'])
@@ -272,16 +270,16 @@ def send_warmup_step(campaign_id, step_number):
                 )
                 email_message.send()
             
-            elif "Daily user sending limit exceeded" in str(e):
+            elif "Daily user sending limit exceeded" in str(e).lower():
                 
                 # This just means that campaign can't be sent today, so it'll just be set to a later date
                 campaign.next_action_at = timezone.now() + timedelta(hours=random.uniform(24, 36))
                 campaign.save(update_fields=['next_action_at'])
 
-            elif "codec can't encode character" in str(e): # '\xa0' error
+            elif "codec can't encode character" in str(e).lower(): # '\xa0' error
                 
                 personalized_subject = generate_gibberish_subject()
-                personalized_body = generate_gibberish_body(clean_text(recipient_account.user.first_name), clean_text(getattr(sender_account.user, "company_name", "ABC Transports LLC")))
+                personalized_body = generate_gibberish_body(recipient_account.user.first_name, getattr(sender_account.user, "company_name", "ABC Transports LLC"))
                 
                 main_msg = EmailMultiAlternatives(
                     subject=personalized_subject,
@@ -294,7 +292,7 @@ def send_warmup_step(campaign_id, step_number):
                 try:
                     main_msg.send()
                 except Exception as e:
-                    if "please run connect() first" in str(e).lower() or "connection expired" in str(e).lower() or "Connection unexpectedly closed" in str(e).lower() or "Connection reset by peer" in str(e).lower():
+                    if "please run connect() first" in str(e).lower().lower() or "connection expired" in str(e).lower().lower() or "Connection unexpectedly closed" in str(e).lower().lower() or "Connection reset by peer" in str(e).lower().lower():
                         connection = get_email_connection(sender_account, decrypted_password)
                         main_msg.connection = connection
                         main_msg.send()
@@ -302,7 +300,7 @@ def send_warmup_step(campaign_id, step_number):
                         campaign.next_action_at = timezone.now() + timedelta(hours=random.uniform(1, 3))
                         campaign.save(update_fields=['next_action_at'])
 
-            elif "Connection unexpectedly closed" in str(e) or "Connection timed out" in str(e) or "Server busy" in str(e) or "Server not connected" in str(e) or "timeout exceeded" in str(e):
+            elif "Connection unexpectedly closed" in str(e).lower() or "Connection timed out" in str(e).lower() or "Server busy" in str(e).lower() or "Server not connected" in str(e).lower() or "timeout exceeded" in str(e).lower():
                 
                 connection = get_email_connection(sender_account, decrypted_password)
                 try:
@@ -312,11 +310,14 @@ def send_warmup_step(campaign_id, step_number):
                     campaign.next_action_at = timezone.now() + timedelta(hours=random.uniform(1, 3))
                     campaign.save(update_fields=['next_action_at'])
 
-            elif "Temporary System Problem" in str(e) or "Concurrent connections limit exceeded" in str(e):
+            elif "Temporary System Problem" in str(e).lower() or "Concurrent connections limit exceeded" in str(e).lower():
                 
                 campaign.next_action_at = timezone.now() + timedelta(hours=random.uniform(24, 36))
                 campaign.save(update_fields=['next_action_at'])
 
+            elif "Please log in with your web browser" in str(e).lower(): # These accounts will cause trouble for others as well
+                EmailAccount.objects.filter(email_address=sender_account.email_address).update(is_warmup_target=False, black_list=True)
+            
             else: # if something other than the currently known errors, then tell me those
                 subject = f"Error during Sender's Turn for Warmup Campaign"
                 body = f"Error during sender's turn (step {step_number}) for Campaign sender {campaign.sender_account}: {e}"
@@ -343,12 +344,9 @@ def send_warmup_step(campaign_id, step_number):
             try: # try for every account and handle thier individual errors accordingly without halting the campaign as much as possible
                 decrypted_password = sender_account.get_password()
                 connection = get_email_connection(sender_account, decrypted_password)
-
-                def clean_text(text: str) -> str:
-                    return text.replace('\xa0', ' ').encode('utf-8', 'ignore').decode('utf-8')
                 
                 personalized_subject = generate_gibberish_subject()
-                personalized_body = generate_gibberish_body(clean_text(recipient_account.user.first_name), clean_text(getattr(sender_account.user, "company_name", "ABC Transports LLC")))
+                personalized_body = generate_gibberish_body(recipient_account.user.first_name, getattr(sender_account.user, "company_name", "ABC Transports LLC"))
                 
                 main_msg = EmailMultiAlternatives(
                     subject=personalized_subject,
@@ -361,7 +359,7 @@ def send_warmup_step(campaign_id, step_number):
                 try:
                     main_msg.send()
                 except Exception as e:
-                    if "please run connect() first" in str(e).lower() or "connection expired" in str(e).lower() or "Connection unexpectedly closed" in str(e).lower() or "Connection reset by peer" in str(e).lower() or "Disabled by user from hPanel" in str(e).lower():
+                    if "please run connect() first" in str(e).lower().lower() or "connection expired" in str(e).lower().lower() or "Connection unexpectedly closed" in str(e).lower().lower() or "Connection reset by peer" in str(e).lower().lower() or "Disabled by user from hPanel" in str(e).lower().lower():
                         print("SMTP connection lost, reconnecting...")
                         connection = get_email_connection(sender_account, decrypted_password)
                         main_msg.connection = connection
@@ -384,7 +382,7 @@ def send_warmup_step(campaign_id, step_number):
 
             except Exception as e:
                 
-                if "Connection reset by peer" in str(e) or "Disabled by user from hPanel" in str(e) or "Connection unexpectedly closed" in str(e) or "Connection timed out" in str(e):
+                if "Connection reset by peer" in str(e).lower() or "Disabled by user from hPanel" in str(e).lower() or "Connection unexpectedly closed" in str(e).lower() or "Connection timed out" in str(e).lower():
             
                     connection = get_email_connection(sender_account, decrypted_password)
                     try:
@@ -393,19 +391,19 @@ def send_warmup_step(campaign_id, step_number):
                     except:
                         continue
 
-                elif "codec can't encode character" in str(e): # '\xa0' error
+                elif "codec can't encode character" in str(e).lower(): # '\xa0' error
                     continue
                 
-                elif "Please log in with your web browser" in str(e): # These accounts will cause trouble for others as well
+                elif "Please log in with your web browser" in str(e).lower(): # These accounts will cause trouble for others as well
                     EmailAccount.objects.filter(email_address=sender_account.email_address).update(is_warmup_target=False, black_list=True)
                     continue
                     
-                elif "Daily user sending limit exceeded" in str(e):
+                elif "Daily user sending limit exceeded" in str(e).lower():
                 
                     # Using continue bcz, there might be only some whose daily limit is reached and not all, so those accounts will simple be skipped
                     continue
 
-                elif "Username and Password not accepted" in str(e):
+                elif "Username and Password not accepted" in str(e).lower() or "authentication failed" in str(e).lower():
 
                     sender_account.is_warmup_target = False # the account is not attached properly and will only be a pain to keep attempting the  warmup
                     sender_account.save(update_fields=['is_warmup_target'])

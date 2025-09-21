@@ -787,7 +787,7 @@
         }
       } catch (error) {
         console.error("AJAX error:", error);
-        alert("Something went wrong. Please try again." + error);
+        alert("Something went wrong. Please try again.");
       }
     });
   </script>
@@ -851,124 +851,5 @@
         });
     });
   </script>
-
-  <script>
-    document.getElementById('campaign-form').addEventListener('submit', async function (e) {
-      e.preventDefault(); // Prevent form reload for Step 1 only
-
-      const form = e.target;
-      const formData = new FormData(form);
-
-      // Add submit_leads to simulate button name for Step 1
-      formData.append('submit_leads', '1');
-
-      try {
-        const response = await fetch(form.action, {
-          method: 'POST',
-          headers: {
-            'X-Requested-With': 'XMLHttpRequest',
-            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
-          },
-          body: formData
-        });
-
-        const data = await response.json();
-        console.log('Response Data:', data);
-
-        if (data.status === 'success') {
-          const proceed = confirm(data.message); // Show confirm box
-
-          if (proceed) {
-              // Hide Step 1 form and show the reset button
-              document.getElementById('campaign-form').classList.add('hidden');
-              document.getElementById('reset-button').classList.remove('hidden');
-
-              // Show Step 2 and scroll to it
-              document.getElementById('step-2-wrapper').classList.remove('hidden');
-              document.getElementById('step-2-wrapper').scrollIntoView({ behavior: 'smooth' });
-
-              // 🔥 ATTACH THE EVENT LISTENER FOR STEP 2 HERE 🔥
-              // This ensures the form element exists before you try to add the listener.
-              document.getElementById('campaign-step2-form').addEventListener('submit', async function (e) {
-                  e.preventDefault();
-
-                  const form = e.target;
-                  const formData = new FormData(form);
-                  formData.append('submit_allocation', '1');
-
-                  try {
-                      const response = await fetch(form.action, {
-                          method: 'POST',
-                          headers: {
-                              'X-Requested-With': 'XMLHttpRequest',
-                              'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
-                          },
-                          body: formData
-                      });
-
-                      const data = await response.json();
-                      console.log('Response Data for Step 2:', data);
-
-                      if (data.status === 'success') {
-                          // Display a success message and then redirect
-                          const launchConfirm = confirm(data.message);
-                          if (launchConfirm) {
-                              window.location.href = '{% url "dashboard:index" %}';
-                          }
-                      } else {
-                          // Handle errors for Step 2
-                          let errorMessage = "Failed to launch campaign.\n\n";
-                          if (data.message) {
-                              errorMessage += data.message;
-                          } else if (data.errors) {
-                              for (const field in data.errors) {
-                                  data.errors[field].forEach(error => {
-                                      // Check if the error is a simple string or an object with a message property
-                                      if (typeof error === 'object' && error.message) {
-                                          errorMessage += error.message + '\n';
-                                      } else if (typeof error === 'string') {
-                                          errorMessage += error + '\n';
-                                      }
-                                  });
-                              }
-                          } else {
-                              errorMessage += "An unknown error occurred.";
-                          }
-                          confirm(errorMessage);
-                      }
-                  } catch (error) {
-                      console.error("AJAX error:", error);
-                      confirm("An unexpected error occurred. Please try again." + error);
-                  }
-              });
-          }
-
-        } else {
-          // This part is for Step 1 errors (e.g., no leads found)
-          let errorMessage = "Failed to find leads.\n\n";
-          if (data.message) {
-              errorMessage += data.message;
-          } else if (data.errors) {
-              for (const field in data.errors) {
-                  data.errors[field].forEach(error => {
-                      if (typeof error === 'object' && error.message) {
-                          errorMessage += error.message + '\n';
-                      } else if (typeof error === 'string') {
-                          errorMessage += error + '\n';
-                      }
-                  });
-              }
-          } else {
-              errorMessage += "An unknown error occurred.";
-          }
-          alert(errorMessage);
-        }
-      } catch (error) {
-        console.error("AJAX error:", error);
-        alert("Something went wrong. Please try again." + error);
-      }
-    });
-  </script>
-
 
 {% endblock %}
