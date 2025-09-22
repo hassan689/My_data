@@ -563,7 +563,7 @@ def fetch_gmail_messages_for_all_accounts():
                 self.retry(exc=e)
 
         print("Gmail message sync task finished.")
-    except:
+    except Exception as e:
         print("An error occurred in fetch_gmail_messages_for_all_accounts: %s", e, exc_info=True)
 
 

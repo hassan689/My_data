@@ -103,16 +103,19 @@
                         Activate Auto-Warmup
                       </a>
                     {% elif account.latest_warmup_status == "Active" %}
-                      <div class="px-2 py-1 rounded font-semibold bg-lime-100 text-lime-800 text-center whitespace-nowrap">Warmup Active</div>
+                      <div class="flex flex-col items-center">
+                        <div class="px-2 py-1 rounded font-semibold bg-lime-100 text-lime-800 text-center whitespace-nowrap">Warmup Active</div>
+                        <div class="mt-4"><a href="{% url 'warmup:stop_warmup_view' email_account_id=account.id %}" class="bg-red-700 text-white px-3 py-1 rounded hover:bg-red-800 text-center font-semibold whitespace-nowrap">
+                          STOP WARMUP
+                        </a></div>
+                      </div>
                     {% endif %}
                     
                     {% if account.is_gmail and not account.is_connected and is_unibox_eligible %}
-                      {% if request.user.is_superuser %}
                         <a href="{% url 'dashboard:oauth_start' account.id %}" 
                           class="bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600 text-center whitespace-nowrap">
                           Connect Gmail
                         </a>
-                      {% endif %}
                     {% endif %}
 
                   </div>

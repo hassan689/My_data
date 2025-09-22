@@ -1,7 +1,7 @@
 import random
 import re
 from django.utils import timezone
-from .models import WarmupCampaign, WarmupTemplateSet, WarmupMessage
+from .models import WarmupCampaign, WarmupMessage
 from users.models import EmailAccount
 from growth_skool.celery import app
 from django.core.mail import get_connection, EmailMultiAlternatives, send_mail, EmailMessage
@@ -10,6 +10,7 @@ from django.utils import timezone
 from datetime import timedelta
 from django.utils.encoding import force_str
 import time
+from django.db import connections
 
 
 # A large list of common words to generate unique content on the fly.
@@ -84,49 +85,10 @@ def refresh_targets(campaign):
         id=campaign.sender_account.id
     ).exclude(
         black_list=True
-    ).order_by('?')[:2])
+    ).order_by('?')[:5])
 
     if new_target_accounts:
         campaign.target_accounts.set(new_target_accounts)
-        print(f"Refreshed target accounts for campaign {campaign.id}.")
-    else:
-        print("Not enough warmup target accounts available for refresh.")
-
-
-@app.task(name="warmup.tasks.activate_warmup_campaign")
-def activate_warmup_campaign(sender_account_id, template_set_id, campaign_id):
-    
-    print("\nActivating warmup campaign...\n")
-    
-    sender_account = EmailAccount.objects.get(id=sender_account_id)
-    template_set = WarmupTemplateSet.objects.get(id=template_set_id)
-
-    try:
-        campaign = WarmupCampaign.objects.get(id=campaign_id)
-    except WarmupCampaign.DoesNotExist:
-        print(f"No campaign found for {sender_account.email_address}. Skipping.")
-        return
-
-    # Select 5 random targets
-    target_accounts = list(EmailAccount.objects.filter(
-        is_warmup_target=True
-    ).exclude(
-        id=sender_account_id
-    ).exclude(
-        black_list=True # Accounts known for causing trouble
-    ).order_by('?')[:2])
-    
-    if not target_accounts:
-        print("Not enough warmup target accounts available.")
-        return
-
-
-    campaign.target_accounts.set(target_accounts)
-
-    # Trigger the first step of the conversation
-    send_warmup_step.delay(campaign.id, step_number=0)
-
-
 
 def personalize_template(template, lead):
     
@@ -138,8 +100,6 @@ def personalize_template(template, lead):
         template = template.replace(f"[{ph}]", value)
     
     return template
-
-
 
 def get_email_connection(email_account, decrypted_password):
     """
@@ -173,7 +133,7 @@ def send_warmup_step(campaign_id, step_number):
     """
     try:
         campaign = WarmupCampaign.objects.select_related(
-            'sender_account', 'template_set'
+            'sender_account'
         ).prefetch_related(
             'target_accounts'
         ).get(id=campaign_id)
@@ -233,6 +193,7 @@ def send_warmup_step(campaign_id, step_number):
                     body=personalized_body
                 )
 
+                connections.close_all()
                 time.sleep(random.randint(30, 60))
 
             if connection:
@@ -367,6 +328,7 @@ def send_warmup_step(campaign_id, step_number):
                     else:
                         raise e
                     
+                connections.close_all()
                 time.sleep(random.randint(30, 600))
 
                 WarmupMessage.objects.create(
