@@ -647,8 +647,10 @@ def bulk_campaign(request):
             total_requested_leads = 0
 
             if select_all:
-                # ✅ Get all user email accounts
-                accounts = EmailAccount.objects.filter(user=request.user)
+                # ✅ Only take the accounts that are CHECKED in the form
+                selected_ids = request.POST.getlist('selected_accounts')
+                accounts = EmailAccount.objects.filter(user=request.user, id__in=selected_ids)
+
                 if not accounts.exists():
                     form.add_error(None, "No email accounts found for your user.")
                     return render(request, 'dashboard/bulk_campaign.html', {
@@ -659,7 +661,7 @@ def bulk_campaign(request):
                         'total_leads': len(leads),
                     })
 
-                # ✅ Auto-distribute leads among accounts
+                # ✅ Auto-distribute leads among the checked accounts only
                 account_lead_map = distribute_leads_among_accounts(leads, list(accounts))
 
             else:

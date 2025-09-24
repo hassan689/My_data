@@ -732,8 +732,15 @@
       const selectAllState = selectAllCheckbox.checked;
 
       checkboxes.forEach(checkbox => {
-        const accountId = checkbox.value;
-        toggleLeadInput(accountId, selectAllState);
+        // If enabling "select all", check all accounts
+        if (selectAllState) {
+          checkbox.checked = true;
+          toggleLeadInput(checkbox.value, true);
+        } else {
+          // If disabling "select all", just reset (hide lead inputs)
+          checkbox.checked = false;
+          toggleLeadInput(checkbox.value, false);
+        }
       });
     }
   </script>
