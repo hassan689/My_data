@@ -18,7 +18,6 @@ from django.core.exceptions import ValidationError
 from django.core.cache import cache
 from django.utils.timezone import now
 from datetime import datetime
-from django.core.mail import send_mail
 from django.utils.timezone import make_naive
 from django.db import transaction
 
@@ -349,6 +348,13 @@ def campaign(request, email_account_id):
             targets_count = form.cleaned_data['targets_count']
             min_delay = form.cleaned_data.get('min_delay')
             max_delay = form.cleaned_data.get('max_delay')
+            
+            # Silently cap delay values to protect system resources
+            if min_delay is not None and min_delay > 60:
+                min_delay = 60
+            if max_delay is not None and max_delay > 120:
+                max_delay = 120
+                
             scheduled_launch_datetime = form.cleaned_data.get('schedule_launch_datetime')
             skip_mc_numbers = form.cleaned_data.get("skip_mc_numbers")
             track_campaign = form.cleaned_data.get('track_campaign')
@@ -625,6 +631,13 @@ def bulk_campaign(request):
             select_all = form.cleaned_data.get('select_all')
             min_delay = form.cleaned_data.get('min_delay')
             max_delay = form.cleaned_data.get('max_delay')
+            
+            # Silently cap delay values to protect system resources
+            if min_delay is not None and min_delay > 60:
+                min_delay = 60
+            if max_delay is not None and max_delay > 120:
+                max_delay = 120
+                
             scheduled_launch_datetime = form.cleaned_data.get('schedule_launch_datetime')
             lead_source = cached_data.get('lead_source')
             track_campaign = form.cleaned_data.get('track_campaign')

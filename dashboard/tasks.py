@@ -90,7 +90,7 @@ def send_emails_chunk_celery_task(email_account_id, leads, subject, body, min_de
 
         for i, lead in enumerate(leads, 1):
 
-            if i % 2 == 0:
+            if i % 5 == 0:
                 campaign.refresh_from_db()
                 if campaign.status == 'cancelled':
                     print("🛑 Campaign was cancelled. Exiting task.")
