@@ -711,13 +711,16 @@ def bulk_campaign(request):
 
 
             def start_campaign_processing():
-                scheduled_campaign_count = 0
-                immediate_campaign_count = 0
+                scheduled_campaigns = []
+                immediate_campaigns = []
+                accounts_to_update = []
+                
+                # Prepare campaign records for bulk creation
                 for account, assigned_leads in account_lead_map.items():
                     if assigned_leads:
                         if scheduled_launch_datetime:
-                            # Save as a scheduled record for each account
-                            CampaignRecord.objects.create(
+                            # Prepare scheduled campaign record
+                            scheduled_campaigns.append(CampaignRecord(
                                 subject=email_subject,
                                 body=email_body,
                                 leads_data=assigned_leads,
@@ -731,34 +734,59 @@ def bulk_campaign(request):
                                 status='pending',
                                 lead_source=lead_source,
                                 track_campaign=track_campaign
-                            )
-                            scheduled_campaign_count += 1
+                            ))
                             print(f"Scheduled bulk campaign for {account.email_address} with {len(assigned_leads)} leads.")
                         else:
-                            # Immediate send
-                            print(f"Queuing immediate bulk email campaign to {len(assigned_leads)} leads for {account.email_address}")
-
-                            new_camp = CampaignRecord.objects.create(
-                                subject = email_subject,
-                                body = email_body,
-                                leads_data = assigned_leads,
-                                min_delay = min_delay,
-                                max_delay = max_delay,
-                                launched_by = request.user,
-                                sender_account = account,
-                                total_recipients = len(assigned_leads),
-                                sent_count = 0,
-                                status = 'processing',
-                                lead_source =  lead_source,
+                            # Prepare immediate campaign record
+                            immediate_campaigns.append(CampaignRecord(
+                                subject=email_subject,
+                                body=email_body,
+                                leads_data=assigned_leads,
+                                min_delay=min_delay,
+                                max_delay=max_delay,
+                                launched_by=request.user,
+                                sender_account=account,
+                                total_recipients=len(assigned_leads),
+                                sent_count=0,
+                                status='processing',
+                                lead_source=lead_source,
                                 track_campaign=track_campaign
-                            )
-
-                            send_emails_chunk_celery_task.delay(account.id, assigned_leads, email_subject, email_body, min_delay, max_delay, new_camp.id)
-                            immediate_campaign_count += 1
+                            ))
+                            print(f"Queuing immediate bulk email campaign to {len(assigned_leads)} leads for {account.email_address}")
+                            
+                            # Mark account for updating last_used_at
                             account.last_used_at = now()
-                            account.save(update_fields=["last_used_at"])
+                            accounts_to_update.append(account)
 
-                return scheduled_campaign_count, immediate_campaign_count
+                # Bulk create scheduled campaigns
+                if scheduled_campaigns:
+                    CampaignRecord.objects.bulk_create(scheduled_campaigns)
+                
+                # Bulk create immediate campaigns and get their IDs
+                created_immediate_campaigns = []
+                if immediate_campaigns:
+                    created_immediate_campaigns = CampaignRecord.objects.bulk_create(immediate_campaigns)
+                
+                # Update email accounts' last_used_at in bulk
+                if accounts_to_update:
+                    EmailAccount.objects.bulk_update(accounts_to_update, ['last_used_at'])
+                
+                # Queue immediate campaigns for processing
+                immediate_campaign_count = 0
+                for i, (account, assigned_leads) in enumerate([(acc, leads) for acc, leads in account_lead_map.items() if leads and not scheduled_launch_datetime]):
+                    campaign = created_immediate_campaigns[immediate_campaign_count]
+                    send_emails_chunk_celery_task.delay(
+                        account.id, 
+                        assigned_leads, 
+                        email_subject, 
+                        email_body, 
+                        min_delay, 
+                        max_delay, 
+                        campaign.id
+                    )
+                    immediate_campaign_count += 1
+
+                return len(scheduled_campaigns), len(created_immediate_campaigns)
 
             scheduled_count, immediate_count = start_campaign_processing()
             cache.delete(cache_key) # Clean up cache
@@ -951,10 +979,16 @@ def index(request):
         user_subscription.type in ("unibox", "premium")
     )
 
+    # to toggle the display for the stop all campaigns button
+    active_campaigns = False
+    if CampaignRecord.objects.filter(sender_account__user=request.user, status__in=['processing']).exists():
+        active_campaigns = True
+
     context = {
         "email_accounts": email_accounts,
         "is_warmup_eligible": is_warmup_eligible,
-        "is_unibox_eligible": is_unibox_eligible
+        "is_unibox_eligible": is_unibox_eligible,
+        "active_campaigns": active_campaigns
     }
     return render(request, 'dashboard/index.html', context)
 
@@ -991,6 +1025,14 @@ def emergency_stop(request, email_account_id):
     else:
         messages.info(request, f"No active campaign found for {email_account.email_address} to stop.")
 
+    return redirect("dashboard:index")
+
+
+@login_required
+def stop_all_campaigns(request):
+    user = request.user
+    active_campaigns = CampaignRecord.objects.filter(sender_account__user=user, status='processing').update(status='cancelled')
+    messages.success(request, f"All active campaigns ({active_campaigns}) have been cancelled.")
     return redirect("dashboard:index")
 
 

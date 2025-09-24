@@ -405,13 +405,13 @@ def send_account_attach_notif_email(email_account_id, user_id):
 
             body_encoded = force_str(body, 'utf-8', errors='replace')
 
-            email_message = EmailMessage(
-                subject,
-                body_encoded,
-                from_email,
-                recipient_list
+            send_mail(
+                subject=subject,
+                message=body,
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[user.email],
+                fail_silently=False,
             )
-            email_message.send()
 
     except Exception as e:
         print(f"Error sending notification email: {e}")
