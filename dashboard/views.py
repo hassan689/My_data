@@ -648,7 +648,7 @@ def bulk_campaign(request):
                 return JsonResponse({
                     'status': 'success',
                     'message': f'{len(leads)} leads found and submitted successfully. Do you wish to proceed?',
-                    'leads': cache_data['params'],  # Include leads data here
+                    'leads': leads,  # Include leads data here
                     'campaign_key': campaign_key,  # Pass campaign_key to frontend
                 })
 
