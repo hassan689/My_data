@@ -20,6 +20,8 @@ from django.utils.timezone import now
 from datetime import datetime
 from django.utils.timezone import make_naive
 from django.db import transaction
+from django.core.files.storage import default_storage
+from django.conf import settings
 
 from google_secrets import *
 from urllib.parse import quote_plus
@@ -29,6 +31,8 @@ import requests
 import re
 import pytz
 import json
+import os
+import uuid
 
 ######################################## Campaign sending views
 
@@ -314,6 +318,19 @@ def get_leads_from_db(starting_mc_number=None, targets_count=None,
 
 
 
+def save_temp_file(uploaded_file):
+    """Save uploaded file temporarily in MEDIA_ROOT/tmp/ and return the path."""
+    temp_dir = os.path.join(settings.MEDIA_ROOT, "tmp")
+    os.makedirs(temp_dir, exist_ok=True)
+    temp_path = os.path.join(temp_dir, uploaded_file.name)
+
+    with default_storage.open(temp_path, 'wb+') as dest:
+        for chunk in uploaded_file.chunks():
+            dest.write(chunk)
+
+    return temp_path
+
+
 @login_required
 def campaign(request, email_account_id):
     email_account = get_object_or_404(EmailAccount, id=email_account_id, user=request.user)
@@ -532,14 +549,9 @@ def distribute_leads_among_accounts(leads, accounts):
 @login_required
 @require_http_methods(["GET", "POST"])
 def bulk_campaign(request):
+    
     email_accounts = EmailAccount.objects.filter(user=request.user)
     email_accounts_count = email_accounts.count()
-    cache_key = f"bulk_leads_{request.user.id}"
-
-    # Load cached data (leads & count)
-    cached_data = cache.get(cache_key)
-    leads = cached_data['leads'] if cached_data else []
-
     form = BulkCampaignForm(user=request.user)
 
     # Step 1: Leads Submission
@@ -547,6 +559,10 @@ def bulk_campaign(request):
         form = BulkCampaignForm(request.POST, request.FILES, user=request.user)
 
         if form.is_valid():
+            
+            campaign_key = str(uuid.uuid4())
+            cache_key = f"bulk_leads_{request.user.id}_{campaign_key}"
+
             file_upload = form.cleaned_data['file_upload']
             mc_number = form.cleaned_data['mc_number']
             lower_limit_mc_number = form.cleaned_data['lower_limit_mc_number']
@@ -586,7 +602,39 @@ def bulk_campaign(request):
             
             # Before setting the cache, delete the old one
             cache.delete(cache_key)
-            cache.set(cache_key, {'leads': leads, 'leads_available': len(leads), 'lead_source': lead_source}, timeout=300)
+
+            if lead_source == "Excel":
+                # Save file in tmp storage
+                tmp_path = save_temp_file(file_upload)
+                cache_data = {
+                    'lead_source': 'Excel',
+                    'file_path': tmp_path,
+                    'leads_available': len(leads)
+                }
+            else:
+                cache_data = {
+                    'lead_source': 'DB',
+                    'params': {
+                        'starting_mc_number': mc_number,
+                        'targets_count': targets_count,
+                        'lower_limit_mc_number': lower_limit_mc_number,
+                        'upper_limit_mc_number': upper_limit_mc_number,
+                        'power_units_comparison': power_units_comparison,
+                        'power_units_value': power_units_value,
+                        'drivers_comparison': drivers_comparison,
+                        'drivers_value': drivers_value,
+                        'status': status,
+                        'carrier_operation': carrier_operation,
+                        'skip_mc_numbers': skip_mc_numbers,
+                        'cargo_classification_search_term': cargo_classification_search,
+                        'cargo_info_search_term': cargo_info_search
+                    },
+                    'leads_available': len(leads)
+                }
+
+            # not storing all the leads in the cache so it doesnt break
+            # cache.set(cache_key, {'leads': leads, 'leads_available': len(leads), 'lead_source': lead_source}, timeout=300)
+            cache.set(cache_key, cache_data, timeout=300)
 
             filter_data = {}
             for key in ['mc_number', 'targets_count', 'power_units_comparison', 'power_units_value', 
@@ -600,7 +648,8 @@ def bulk_campaign(request):
                 return JsonResponse({
                     'status': 'success',
                     'message': f'{len(leads)} leads found and submitted successfully. Do you wish to proceed?',
-                    'leads': leads,  # Include leads data here
+                    'leads': cache_data['params'],  # Include leads data here
+                    'campaign_key': campaign_key,  # Pass campaign_key to frontend
                 })
 
             messages.success(request, f"{len(leads)} leads submitted successfully.")
@@ -616,16 +665,35 @@ def bulk_campaign(request):
 
     # Step 2: Lead Allocation (only available if leads are cached)
     elif request.method == 'POST' and 'submit_allocation' in request.POST:
-
-        cached_data = cache.get(cache_key)
+        
+        campaign_key = request.POST.get("campaign_key")
+        cache_key = f"bulk_leads_{request.user.id}_{campaign_key}"
+        cached_data = cache.get(cache_key) if cache_key else None
+        
         total_leads = cached_data['leads_available'] if cached_data and 'leads_available' in cached_data else 0
         form = BulkCampaignForm(request.POST, request.FILES, user=request.user, total_leads=total_leads)
         if not cached_data:
             return redirect('dashboard:bulk_campaign')
         
+        lead_source = cached_data['lead_source']
+        refetched_leads = [] # cause they were fetched once before in the first step
+
+        if lead_source == "Excel":
+          file_path = cached_data['file_path']
+          try:
+              with open(file_path, 'rb') as f:
+                  refetched_leads = process_excel_file(f)
+          finally:
+              # ✅ cleanup temp file after processing
+              if os.path.exists(file_path):
+                  os.remove(file_path)
+        elif lead_source == "DB":
+            params = cached_data['params']
+            refetched_leads = get_leads_from_db(**params)
+        
         if form.is_valid():
 
-            leads = cached_data['leads']
+            leads = refetched_leads
             email_subject = form.cleaned_data.get('email_subject')
             email_body = form.cleaned_data.get('email_body')
             select_all = form.cleaned_data.get('select_all')
@@ -818,8 +886,10 @@ def bulk_campaign(request):
         form = BulkCampaignForm(user=request.user)
 
 
-    cached_data = cache.get(cache_key)
-    leads_available = len(cached_data['leads']) if cached_data else 0
+    campaign_key = request.GET.get("campaign_key")
+    cache_key = f"bulk_leads_{request.user.id}_{campaign_key}" if campaign_key else None
+    cached_data = cache.get(cache_key) if cache_key else None
+    leads_available = cached_data.get('leads_available', 0) if cached_data else 0
 
     return render(request, 'dashboard/bulk_campaign.html', {
         'form': form,
@@ -827,6 +897,7 @@ def bulk_campaign(request):
         'email_accounts_count': email_accounts_count,
         'leads_ready': bool(cached_data),
         'total_leads': leads_available,
+        'campaign_key': campaign_key,
         # 'can_launch_bulk_campaign': (request.user.subscription.status == "active" or request.user.on_free_trial)
     })
 

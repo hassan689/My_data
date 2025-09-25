@@ -108,11 +108,16 @@
                         Activate Auto-Warmup
                       </a>
                     {% elif account.latest_warmup_status == "Active" %}
-                      <div class="flex flex-col items-center">
-                        <div class="px-2 py-1 rounded font-semibold bg-lime-100 text-lime-800 text-center whitespace-nowrap">Warmup Active</div>
-                        <div class="mt-4"><a href="{% url 'warmup:stop_warmup_view' email_account_id=account.id %}" class="bg-red-700 text-white px-3 py-1 rounded hover:bg-red-800 text-center font-semibold whitespace-nowrap">
-                          STOP WARMUP
-                        </a></div>
+                      <div class="flex flex-row justify-center space-x-1 items-center">
+                        <div class="px-2 py-1 rounded font-semibold bg-lime-100 text-lime-800 text-center whitespace-nowrap">
+                          Warmup Active
+                        </div>
+                        <div class="">
+                          <a href="{% url 'warmup:stop_warmup_view' email_account_id=account.id %}" 
+                            class="px-2 py-1 rounded font-semibold bg-red-700 text-white text-center whitespace-nowrap hover:bg-red-800">
+                            STOP WARMUP
+                          </a>
+                        </div>
                       </div>
                     {% endif %}
                     
@@ -222,7 +227,6 @@
     fetch("{% url 'dashboard:campaign_statuses' %}")
       .then(response => response.json())
       .then(data => {
-        let shouldReload = false;
         Object.keys(data).forEach(accountId => {
           const status = data[accountId].status;
           const sent = data[accountId].sent_count;
@@ -263,9 +267,6 @@
             const percent = total === 0 ? 0 : Math.round((sent / total) * 100);
             sentBox.style.width = `${percent}%`;
             sentBox.textContent = `${sent}/${total}`;
-            if (sent === 1) {
-              shouldReload = true;
-            }
           }
 
           // === Show/Hide Emergency Stop and Resume Buttons ===
@@ -279,9 +280,6 @@
             resumeForm.style.display = (status === "cancelled") ? "inline-block" : "none";
           }
         });
-        if (shouldReload) {
-          window.location.reload();
-        }
       });
   }
 
