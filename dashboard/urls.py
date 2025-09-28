@@ -16,6 +16,7 @@ urlpatterns = [
     path('track/<uuid:unique_identifier>/', views.track_open, name='track_open'),
     path('campaign-records/', views.campaign_records, name='campaign_records'),
     path('delete-campaign-records/<int:cmpn_id>/', views.delete_campaign, name='delete_campaign'),
+    path('stop-all-campaigns/', views.stop_all_campaigns, name='stop_all_campaigns'),
 
 		path('add-email-account/', views.add_email_account, name='email_account'),
 		path('email-account/update/<int:id>/', views.email_account_update, name='email_account_update'),

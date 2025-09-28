@@ -20,6 +20,8 @@ from django.utils.timezone import now
 from datetime import datetime
 from django.utils.timezone import make_naive
 from django.db import transaction
+from django.core.files.storage import default_storage
+from django.conf import settings
 
 from google_secrets import *
 from urllib.parse import quote_plus
@@ -29,6 +31,8 @@ import requests
 import re
 import pytz
 import json
+import os
+import uuid
 
 ######################################## Campaign sending views
 
@@ -318,6 +322,19 @@ def get_leads_from_db(starting_mc_number=None, targets_count=None,
 
 
 
+def save_temp_file(uploaded_file):
+    """Save uploaded file temporarily in MEDIA_ROOT/tmp/ and return the path."""
+    temp_dir = os.path.join(settings.MEDIA_ROOT, "tmp")
+    os.makedirs(temp_dir, exist_ok=True)
+    temp_path = os.path.join(temp_dir, uploaded_file.name)
+
+    with default_storage.open(temp_path, 'wb+') as dest:
+        for chunk in uploaded_file.chunks():
+            dest.write(chunk)
+
+    return temp_path
+
+
 @login_required
 def campaign(request, email_account_id):
     email_account = get_object_or_404(EmailAccount, id=email_account_id, user=request.user)
@@ -536,14 +553,9 @@ def distribute_leads_among_accounts(leads, accounts):
 @login_required
 @require_http_methods(["GET", "POST"])
 def bulk_campaign(request):
+    
     email_accounts = EmailAccount.objects.filter(user=request.user)
     email_accounts_count = email_accounts.count()
-    cache_key = f"bulk_leads_{request.user.id}"
-
-    # Load cached data (leads & count)
-    cached_data = cache.get(cache_key)
-    leads = cached_data['leads'] if cached_data else []
-
     form = BulkCampaignForm(user=request.user)
 
     # Step 1: Leads Submission
@@ -551,6 +563,10 @@ def bulk_campaign(request):
         form = BulkCampaignForm(request.POST, request.FILES, user=request.user)
 
         if form.is_valid():
+            
+            campaign_key = str(uuid.uuid4())
+            cache_key = f"bulk_leads_{request.user.id}_{campaign_key}"
+
             file_upload = form.cleaned_data['file_upload']
             mc_number = form.cleaned_data['mc_number']
             lower_limit_mc_number = form.cleaned_data['lower_limit_mc_number']
@@ -590,7 +606,39 @@ def bulk_campaign(request):
             
             # Before setting the cache, delete the old one
             cache.delete(cache_key)
-            cache.set(cache_key, {'leads': leads, 'leads_available': len(leads), 'lead_source': lead_source}, timeout=300)
+
+            if lead_source == "Excel":
+                # Save file in tmp storage
+                tmp_path = save_temp_file(file_upload)
+                cache_data = {
+                    'lead_source': 'Excel',
+                    'file_path': tmp_path,
+                    'leads_available': len(leads)
+                }
+            else:
+                cache_data = {
+                    'lead_source': 'DB',
+                    'params': {
+                        'starting_mc_number': mc_number,
+                        'targets_count': targets_count,
+                        'lower_limit_mc_number': lower_limit_mc_number,
+                        'upper_limit_mc_number': upper_limit_mc_number,
+                        'power_units_comparison': power_units_comparison,
+                        'power_units_value': power_units_value,
+                        'drivers_comparison': drivers_comparison,
+                        'drivers_value': drivers_value,
+                        'status': status,
+                        'carrier_operation': carrier_operation,
+                        'skip_mc_numbers': skip_mc_numbers,
+                        'cargo_classification_search_term': cargo_classification_search,
+                        'cargo_info_search_term': cargo_info_search
+                    },
+                    'leads_available': len(leads)
+                }
+
+            # not storing all the leads in the cache so it doesnt break
+            # cache.set(cache_key, {'leads': leads, 'leads_available': len(leads), 'lead_source': lead_source}, timeout=300)
+            cache.set(cache_key, cache_data, timeout=300)
 
             filter_data = {}
             for key in ['mc_number', 'targets_count', 'power_units_comparison', 'power_units_value', 
@@ -605,6 +653,7 @@ def bulk_campaign(request):
                     'status': 'success',
                     'message': f'{len(leads)} leads found and submitted successfully. Do you wish to proceed?',
                     'leads': leads,  # Include leads data here
+                    'campaign_key': campaign_key,  # Pass campaign_key to frontend
                 })
 
             messages.success(request, f"{len(leads)} leads submitted successfully.")
@@ -620,16 +669,35 @@ def bulk_campaign(request):
 
     # Step 2: Lead Allocation (only available if leads are cached)
     elif request.method == 'POST' and 'submit_allocation' in request.POST:
-
-        cached_data = cache.get(cache_key)
+        
+        campaign_key = request.POST.get("campaign_key")
+        cache_key = f"bulk_leads_{request.user.id}_{campaign_key}"
+        cached_data = cache.get(cache_key) if cache_key else None
+        
         total_leads = cached_data['leads_available'] if cached_data and 'leads_available' in cached_data else 0
         form = BulkCampaignForm(request.POST, request.FILES, user=request.user, total_leads=total_leads)
         if not cached_data:
             return redirect('dashboard:bulk_campaign')
         
+        lead_source = cached_data['lead_source']
+        refetched_leads = [] # cause they were fetched once before in the first step
+
+        if lead_source == "Excel":
+          file_path = cached_data['file_path']
+          try:
+              with open(file_path, 'rb') as f:
+                  refetched_leads = process_excel_file(f)
+          finally:
+              # ✅ cleanup temp file after processing
+              if os.path.exists(file_path):
+                  os.remove(file_path)
+        elif lead_source == "DB":
+            params = cached_data['params']
+            refetched_leads = get_leads_from_db(**params)
+        
         if form.is_valid():
 
-            leads = cached_data['leads']
+            leads = refetched_leads
             email_subject = form.cleaned_data.get('email_subject')
             email_body = form.cleaned_data.get('email_body')
             select_all = form.cleaned_data.get('select_all')
@@ -651,8 +719,10 @@ def bulk_campaign(request):
             total_requested_leads = 0
 
             if select_all:
-                # ✅ Get all user email accounts
-                accounts = EmailAccount.objects.filter(user=request.user)
+                # ✅ Only take the accounts that are CHECKED in the form
+                selected_ids = request.POST.getlist('selected_accounts')
+                accounts = EmailAccount.objects.filter(user=request.user, id__in=selected_ids)
+
                 if not accounts.exists():
                     form.add_error(None, "No email accounts found for your user.")
                     return render(request, 'dashboard/bulk_campaign.html', {
@@ -663,7 +733,7 @@ def bulk_campaign(request):
                         'total_leads': len(leads),
                     })
 
-                # ✅ Auto-distribute leads among accounts
+                # ✅ Auto-distribute leads among the checked accounts only
                 account_lead_map = distribute_leads_among_accounts(leads, list(accounts))
 
             else:
@@ -715,13 +785,16 @@ def bulk_campaign(request):
 
 
             def start_campaign_processing():
-                scheduled_campaign_count = 0
-                immediate_campaign_count = 0
+                scheduled_campaigns = []
+                immediate_campaigns = []
+                accounts_to_update = []
+                
+                # Prepare campaign records for bulk creation
                 for account, assigned_leads in account_lead_map.items():
                     if assigned_leads:
                         if scheduled_launch_datetime:
-                            # Save as a scheduled record for each account
-                            CampaignRecord.objects.create(
+                            # Prepare scheduled campaign record
+                            scheduled_campaigns.append(CampaignRecord(
                                 subject=email_subject,
                                 body=email_body,
                                 leads_data=assigned_leads,
@@ -735,34 +808,59 @@ def bulk_campaign(request):
                                 status='pending',
                                 lead_source=lead_source,
                                 track_campaign=track_campaign
-                            )
-                            scheduled_campaign_count += 1
+                            ))
                             print(f"Scheduled bulk campaign for {account.email_address} with {len(assigned_leads)} leads.")
                         else:
-                            # Immediate send
-                            print(f"Queuing immediate bulk email campaign to {len(assigned_leads)} leads for {account.email_address}")
-
-                            new_camp = CampaignRecord.objects.create(
-                                subject = email_subject,
-                                body = email_body,
-                                leads_data = assigned_leads,
-                                min_delay = min_delay,
-                                max_delay = max_delay,
-                                launched_by = request.user,
-                                sender_account = account,
-                                total_recipients = len(assigned_leads),
-                                sent_count = 0,
-                                status = 'processing',
-                                lead_source =  lead_source,
+                            # Prepare immediate campaign record
+                            immediate_campaigns.append(CampaignRecord(
+                                subject=email_subject,
+                                body=email_body,
+                                leads_data=assigned_leads,
+                                min_delay=min_delay,
+                                max_delay=max_delay,
+                                launched_by=request.user,
+                                sender_account=account,
+                                total_recipients=len(assigned_leads),
+                                sent_count=0,
+                                status='processing',
+                                lead_source=lead_source,
                                 track_campaign=track_campaign
-                            )
-
-                            send_emails_chunk_celery_task.delay(account.id, assigned_leads, email_subject, email_body, min_delay, max_delay, new_camp.id)
-                            immediate_campaign_count += 1
+                            ))
+                            print(f"Queuing immediate bulk email campaign to {len(assigned_leads)} leads for {account.email_address}")
+                            
+                            # Mark account for updating last_used_at
                             account.last_used_at = now()
-                            account.save(update_fields=["last_used_at"])
+                            accounts_to_update.append(account)
 
-                return scheduled_campaign_count, immediate_campaign_count
+                # Bulk create scheduled campaigns
+                if scheduled_campaigns:
+                    CampaignRecord.objects.bulk_create(scheduled_campaigns)
+                
+                # Bulk create immediate campaigns and get their IDs
+                created_immediate_campaigns = []
+                if immediate_campaigns:
+                    created_immediate_campaigns = CampaignRecord.objects.bulk_create(immediate_campaigns)
+                
+                # Update email accounts' last_used_at in bulk
+                if accounts_to_update:
+                    EmailAccount.objects.bulk_update(accounts_to_update, ['last_used_at'])
+                
+                # Queue immediate campaigns for processing
+                immediate_campaign_count = 0
+                for i, (account, assigned_leads) in enumerate([(acc, leads) for acc, leads in account_lead_map.items() if leads and not scheduled_launch_datetime]):
+                    campaign = created_immediate_campaigns[immediate_campaign_count]
+                    send_emails_chunk_celery_task.delay(
+                        account.id, 
+                        assigned_leads, 
+                        email_subject, 
+                        email_body, 
+                        min_delay, 
+                        max_delay, 
+                        campaign.id
+                    )
+                    immediate_campaign_count += 1
+
+                return len(scheduled_campaigns), len(created_immediate_campaigns)
 
             scheduled_count, immediate_count = start_campaign_processing()
             cache.delete(cache_key) # Clean up cache
@@ -792,8 +890,10 @@ def bulk_campaign(request):
         form = BulkCampaignForm(user=request.user)
 
 
-    cached_data = cache.get(cache_key)
-    leads_available = len(cached_data['leads']) if cached_data else 0
+    campaign_key = request.GET.get("campaign_key")
+    cache_key = f"bulk_leads_{request.user.id}_{campaign_key}" if campaign_key else None
+    cached_data = cache.get(cache_key) if cache_key else None
+    leads_available = cached_data.get('leads_available', 0) if cached_data else 0
 
     return render(request, 'dashboard/bulk_campaign.html', {
         'form': form,
@@ -801,6 +901,7 @@ def bulk_campaign(request):
         'email_accounts_count': email_accounts_count,
         'leads_ready': bool(cached_data),
         'total_leads': leads_available,
+        'campaign_key': campaign_key,
         # 'can_launch_bulk_campaign': (request.user.subscription.status == "active" or request.user.on_free_trial)
     })
 
@@ -955,10 +1056,16 @@ def index(request):
         user_subscription.type in ("unibox", "premium")
     )
 
+    # to toggle the display for the stop all campaigns button
+    active_campaigns = False
+    if CampaignRecord.objects.filter(sender_account__user=request.user, status__in=['processing']).exists():
+        active_campaigns = True
+
     context = {
         "email_accounts": email_accounts,
         "is_warmup_eligible": is_warmup_eligible,
-        "is_unibox_eligible": is_unibox_eligible
+        "is_unibox_eligible": is_unibox_eligible,
+        "active_campaigns": active_campaigns
     }
     return render(request, 'dashboard/index.html', context)
 
@@ -995,6 +1102,14 @@ def emergency_stop(request, email_account_id):
     else:
         messages.info(request, f"No active campaign found for {email_account.email_address} to stop.")
 
+    return redirect("dashboard:index")
+
+
+@login_required
+def stop_all_campaigns(request):
+    user = request.user
+    active_campaigns = CampaignRecord.objects.filter(sender_account__user=user, status='processing').update(status='cancelled')
+    messages.success(request, f"All active campaigns ({active_campaigns}) have been cancelled.")
     return redirect("dashboard:index")
 
 

@@ -395,6 +395,10 @@
       <form enctype="multipart/form-data" method="post" id="campaign-step2-form">
         {% csrf_token %}
 
+        {% if campaign_key %}
+          <input type="hidden" name="campaign_key" value="{{ campaign_key }}">
+        {% endif %}
+
         {% if form.non_field_errors %}
         <div class="text-red-500 text-sm mb-2">
             {{ form.non_field_errors }}
@@ -732,8 +736,15 @@
       const selectAllState = selectAllCheckbox.checked;
 
       checkboxes.forEach(checkbox => {
-        const accountId = checkbox.value;
-        toggleLeadInput(accountId, selectAllState);
+        // If enabling "select all", check all accounts
+        if (selectAllState) {
+          checkbox.checked = true;
+          toggleLeadInput(checkbox.value, true);
+        } else {
+          // If disabling "select all", just reset (hide lead inputs)
+          checkbox.checked = false;
+          toggleLeadInput(checkbox.value, false);
+        }
       });
     }
   </script>
@@ -769,6 +780,22 @@
               // Hide Step 1 form and show the reset button
               document.getElementById('campaign-form').classList.add('hidden');
               document.getElementById('reset-button').classList.remove('hidden');
+
+              // Inject campaign_key into Step 2 form
+              if (data.campaign_key) {
+                  const step2Form = document.getElementById('campaign-step2-form');
+                  const existingKeyInput = step2Form.querySelector('input[name="campaign_key"]');
+                  
+                  if (existingKeyInput) {
+                      existingKeyInput.value = data.campaign_key;
+                  } else {
+                      const keyInput = document.createElement('input');
+                      keyInput.type = 'hidden';
+                      keyInput.name = 'campaign_key';
+                      keyInput.value = data.campaign_key;
+                      step2Form.appendChild(keyInput);
+                  }
+              }
 
               // Show Step 2 and scroll to it
               document.getElementById('step-2-wrapper').classList.remove('hidden');
