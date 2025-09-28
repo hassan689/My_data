@@ -15,7 +15,8 @@ from django.utils.timezone import now, timedelta
 from django.urls import reverse
 from urllib.parse import urljoin
 from django.utils.encoding import force_str
-from django.db import connections
+from django.db.models import F
+from django.db import transaction
 
 
 email_regex = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
@@ -57,18 +58,262 @@ def get_email_connection(email_account, decrypted_password):
     return connection
 
 
-@app.task(name="dashboard.send_emails_chunk_celery_task")
-def send_emails_chunk_celery_task(email_account_id, leads, subject, body, min_delay, max_delay, campaign_record_id):
+def mark_lead_sent(campaign_id, lead_email):
+    """
+    Safely mark a single lead's sent_status=True in the JSONField with database-level locking.
+    """
+    with transaction.atomic():
+        # Use select_for_update to lock the row during the transaction
+        campaign = CampaignRecord.objects.select_for_update().get(id=campaign_id)
+        updated = False
 
-    print(f"Celery Task Debug: Starting send_emails_chunk_celery_task with EmailAccount ID {email_account_id} and {len(leads)} leads.")
+        for lead in campaign.leads_data:
+            if lead.get("Email") == lead_email:
+                if not lead.get("sent_status", False):  # Only update if not already sent
+                    lead["sent_status"] = True
+                    updated = True
+                break
+        if updated:
+            campaign.save(update_fields=["leads_data"])
+
+
+# @app.task(name="dashboard.send_emails_chunk_celery_task")
+# def send_emails_chunk_celery_task(email_account_id, leads, subject, body, min_delay, max_delay, campaign_record_id):
+
+#     print(f"Celery Task Debug: Starting send_emails_chunk_celery_task with EmailAccount ID {email_account_id} and {len(leads)} leads.")
+    
+#     try:
+#         email_account = EmailAccount.objects.get(id=email_account_id)
+#         print(f"Celery Task Debug: Successfully retrieved EmailAccount: {email_account.email_address}.")
+        
+#         decrypted_password = email_account.get_password()
+
+#         sent_count = 0
+#         mailbox_instance = None
+
+#         try:
+#             mailbox_instance = GmailToken.objects.get(email_account=email_account)
+#         except: # Not a mailbox instance, bcz not necessary that every account sending out emails will have Gmail API connected (Gmail Token instance)
+#             pass # the reason might be that this specifc account hasn't been connected yet or it's not even a Gmail Account to begin with
+
+#         # Initial connection setup
+#         connection = get_email_connection(email_account, decrypted_password)
+
+#         campaign = CampaignRecord.objects.get(id=campaign_record_id)
+
+#         campaign.total_recipients = len(leads) # Update total_recipients based on how many leads are left to send, if it was resumed
+#         campaign.status = 'processing'
+#         campaign.sent_count = sent_count
+#         campaign.save(update_fields=['status', 'total_recipients', 'sent_count'])
+#         stopped = False
+#         sent_leads_batch = []  # track last 5 leads
+
+#         for i, lead in enumerate(leads, 1):
+
+#             if i % 5 == 0:
+#                 campaign.refresh_from_db()
+#                 if campaign.status == 'cancelled':
+#                     print("🛑 Campaign was cancelled. Exiting task.")
+#                     stopped = True
+#                     break
+#                 else:
+#                     # Remove all the sent leads in the batch from campaign.leads_data
+#                     if campaign.leads_data:
+#                         campaign.leads_data = [
+#                             l for l in campaign.leads_data
+#                             if l not in sent_leads_batch
+#                         ]
+#                     campaign.sent_count = sent_count
+#                     campaign.save(update_fields=['sent_count', 'leads_data'])
+#                     sent_leads_batch = [] # Clear the batch
+
+
+#             if not isinstance(lead, dict) or 'Email' not in lead:
+#                 print(f"Skipping invalid lead: {lead}")
+#                 continue
+
+#             if not re.fullmatch(email_regex, lead['Email']):
+#                 print(f"Skipping invalid email format: {lead['Email']}")
+#                 continue
+            
+#             if sent_count > 0 and sent_count % 10 == 0:
+#                 try:
+#                     connection.close()
+#                 except Exception:
+#                     pass
+#                 connection = get_email_connection(email_account, decrypted_password)
+            
+#             # Personalize subject and body (only once per lead)
+#             personalized_subject = personalize_template(subject, lead)
+#             personalized_body = personalize_template(body, lead)
+#             message_id = make_msgid(idstring=uuid.uuid4().hex, domain='dispatchskool.com')
+
+#             delay = random.randint(min_delay, max_delay)
+
+#             # 🚨 CRITICAL FIX: Close connections before sleeping
+#             connections.close_all()
+            
+#             time.sleep(delay)
+
+#             if campaign.track_campaign:
+
+#                 unique_id = uuid.uuid4()
+#                 pixel_url = reverse('dashboard:track_open', kwargs={'unique_identifier': unique_id})
+#                 pixel_link = urljoin(settings.BASE_URL, pixel_url)
+
+#                 try:
+#                     email_log = EmailOpen.objects.create(
+#                         campaign = campaign,
+#                         recipient_email = lead['Email'],
+#                         unique_identifier = unique_id,
+#                         mc_number = lead.get('MC Number', ''),
+#                         legal_name = lead.get('Legal Name', '')
+#                     )
+#                 except Exception as e:
+#                     print(f"Exception dring email log entry: {e}")
+
+#                 tracking_pixel = f'<img src="{pixel_link}" width="1" height="1" style="display:none;" alt="">'
+#                 personalized_body += tracking_pixel
+
+#                 print("\nTracking campaign\n")
+
+#             try:
+#                 msg = EmailMultiAlternatives(
+#                     subject=personalized_subject,
+#                     body=personalized_body,
+#                     from_email=email_account.email_address,
+#                     to=[lead['Email']],
+#                     connection=connection
+#                 )
+#                 msg.extra_headers = {'Message-ID': message_id}
+#                 msg.attach_alternative(personalized_body, "text/html")
+                
+#                 try:
+#                     msg.send()
+#                 except Exception as e:
+#                     if "please run connect() first" in str(e).lower() or "connection expired" in str(e).lower():
+#                         print("SMTP connection lost, reconnecting...")
+#                         connection = get_email_connection(email_account, decrypted_password)
+#                         msg.connection = connection
+#                         msg.send()
+#                     else:
+#                         raise e
+
+#                 sent_count += 1
+#                 sent_leads_batch.append(lead)
+
+#                 print(f"Celery Task: Sent to {lead['Email']} (via {email_account.email_address}).")
+
+#                 if mailbox_instance: # Reason explained above
+                    
+#                     thread, created  = EmailThread.objects.get_or_create(
+#                         mailbox=mailbox_instance, 
+#                         email1=email_account.email_address,
+#                         email2=lead['Email'],
+#                         subject=personalized_subject,
+#                         defaults={
+#                             'is_read': True,
+#                         }
+#                     )
+
+#                     OutgoingEmailMessage.objects.create(
+#                         thread=thread,  # Attach to the new thread
+#                         subject=personalized_subject,
+#                         body=personalized_body,
+#                         recipient=lead['Email'],
+#                         sender=email_account.email_address,
+#                         message_id=message_id,
+#                         in_reply_to=None,  # It's not a reply, it's a first message
+#                     )
+
+#             except Exception as e:
+#                 print(f"Celery Task: Failed to send to {lead['Email']} (via {email_account.email_address}): {e}")
+
+#                 error_message = str(e)
+#                 if "Daily user sending limit exceeded" in error_message:
+#                     email_limit_exceeded = True
+                    
+#                     # Send notification email to the affected account
+#                     notification_subject = f"⚠️ Campaign Halted: Daily Sending Limit Exceeded for {email_account.email_address}"
+#                     notification_body = (
+#                         f"Dear user,\n\n"
+#                         f"Your email campaign using the account '{email_account.email_address}' has been halted "
+#                         f"because **Gmail has indicated that the daily sending limit for this email account has been exceeded.**\n\n"
+#                         f"**This limit is imposed by Gmail, not by DispatchSkool.**\n\n"
+#                         f"For more information on Gmail sending limits, please visit: "
+#                         f"https://support.google.com/a/answer/166852\n\n"
+#                         f"Please wait 24 hours before trying to send new campaigns from this account.\n\n"
+#                         f"Regards,\nThe DispatchSkool Team"
+#                     )
+                    
+#                     try:
+#                         send_mail(
+#                             notification_subject,
+#                             notification_body,
+#                             settings.EMAIL_HOST_USER, # Sender: Your system's configured email host user
+#                             [email_account.email_address], # Recipient: The email account that hit the limit
+#                             fail_silently=False,
+#                         )
+#                         print(f"Celery Task: Sent daily limit exceeded notification to {email_account.email_address}")
+#                     except Exception as notify_e:
+#                         print(f"Celery Task: Failed to send limit exceeded notification: {notify_e}")
+                    
+#                     # Stop processing this chunk for the current email_account
+#                     break # This will break the loop and halt the campaign, freeing the celry worker
+
+#                 elif "timeout exceeded" in str(error_message).lower() or "timed out" in str(error_message).lower() or "Connection unexpectedly closed" in str(error_message).lower():
+                    
+#                     try:
+#                         connection.close()
+#                     except Exception:
+#                         pass
+#                     connection = get_email_connection(email_account, decrypted_password)
+
+#                     try:
+#                         msg.send()
+#                         sent_count += 1
+#                     except Exception as e:
+#                         if "please run connect() first" in str(e).lower():
+#                             print("SMTP connection lost, reconnecting...")
+#                             connection = get_email_connection(email_account, decrypted_password)
+#                             msg.connection = connection
+#                             msg.send()
+#                             sent_count += 1
+#                         else:
+#                             raise e
+
+#         # Update the status of the above created new_campaign after finishing the loop and sending all the mails
+
+#         if not stopped:
+#             campaign.status = 'launched'
+#             campaign.save(update_fields=['status'])
+
+#         # Final cleanup for any remaining leads in batch
+#         if sent_leads_batch:
+#             campaign.leads_data = [
+#                 l for l in campaign.leads_data
+#                 if l not in sent_leads_batch
+#             ]
+#             campaign.save(update_fields=['leads_data'])
+
+#         campaign.sent_count = sent_count
+#         campaign.save(update_fields=['sent_count'])
+
+#         connection.close()
+#         print(f"Celery Task: {sent_count}/{len(leads)} emails sent for chunk using {email_account.email_address}.")
+
+#     except EmailAccount.DoesNotExist:
+#         print(f"Celery Task Error: EmailAccount with ID {email_account_id} does not exist.")
+#     except Exception as e:
+#         print(f"Celery Task Error: An unexpected error occurred in send_emails_chunk_celery_task: {e}")
+
+
+@app.task(name="dashboard.send_single_email")
+def send_single_email(email_account_id, lead, subject, body, campaign_record_id):
     
     try:
         email_account = EmailAccount.objects.get(id=email_account_id)
-        print(f"Celery Task Debug: Successfully retrieved EmailAccount: {email_account.email_address}.")
-        
         decrypted_password = email_account.get_password()
-
-        sent_count = 0
         mailbox_instance = None
 
         try:
@@ -76,216 +321,187 @@ def send_emails_chunk_celery_task(email_account_id, leads, subject, body, min_de
         except: # Not a mailbox instance, bcz not necessary that every account sending out emails will have Gmail API connected (Gmail Token instance)
             pass # the reason might be that this specifc account hasn't been connected yet or it's not even a Gmail Account to begin with
 
-        # Initial connection setup
-        connection = get_email_connection(email_account, decrypted_password)
-
         campaign = CampaignRecord.objects.get(id=campaign_record_id)
+        increment_count = False
+        
+        if campaign.status in ('cancelled', 'launched', 'failed'):
+            print("Campaign was finished. Exiting task.")
+            return
+        if lead['sent_status'] == True:
+            print(f"Lead {lead['Email']} already sent, skipping.")
+            return
+        if not isinstance(lead, dict) or 'Email' not in lead:
+            print(f"Skipping invalid lead: {lead}")
+            return
+        if not re.fullmatch(email_regex, lead['Email']):
+            print(f"Skipping invalid email format: {lead['Email']}")
+            return
+        
+        connection = get_email_connection(email_account, decrypted_password)
+        
+        personalized_subject = personalize_template(subject, lead)
+        personalized_body = personalize_template(body, lead)
+        message_id = make_msgid(idstring=uuid.uuid4().hex, domain='dispatchskool.com')
 
-        campaign.total_recipients = len(leads) # Update total_recipients based on how many leads are left to send, if it was resumed
-        campaign.status = 'processing'
-        campaign.sent_count = sent_count
-        campaign.save(update_fields=['status', 'total_recipients', 'sent_count'])
-        stopped = False
-        sent_leads_batch = []  # track last 5 leads
+        if campaign.track_campaign:
 
-        for i, lead in enumerate(leads, 1):
+            unique_id = uuid.uuid4()
+            pixel_url = reverse('dashboard:track_open', kwargs={'unique_identifier': unique_id})
+            pixel_link = urljoin(settings.BASE_URL, pixel_url)
 
-            if i % 5 == 0:
-                campaign.refresh_from_db()
-                if campaign.status == 'cancelled':
-                    print("🛑 Campaign was cancelled. Exiting task.")
-                    stopped = True
-                    break
-                else:
-                    # Remove all the sent leads in the batch from campaign.leads_data
-                    if campaign.leads_data:
-                        campaign.leads_data = [
-                            l for l in campaign.leads_data
-                            if l not in sent_leads_batch
-                        ]
-                    campaign.sent_count = sent_count
-                    campaign.save(update_fields=['sent_count', 'leads_data'])
-                    sent_leads_batch = [] # Clear the batch
+            try:
+                email_log = EmailOpen.objects.create(
+                    campaign = campaign,
+                    recipient_email = lead['Email'],
+                    unique_identifier = unique_id,
+                    mc_number = lead.get('MC Number', ''),
+                    legal_name = lead.get('Legal Name', '')
+                )
+            except Exception as e:
+                print(f"Exception dring email log entry: {e}")
 
-
-            if not isinstance(lead, dict) or 'Email' not in lead:
-                print(f"Skipping invalid lead: {lead}")
-                continue
-
-            if not re.fullmatch(email_regex, lead['Email']):
-                print(f"Skipping invalid email format: {lead['Email']}")
-                continue
+            tracking_pixel = f'<img src="{pixel_link}" width="1" height="1" style="display:none;" alt="">'
+            personalized_body += tracking_pixel
+        
+        try:
+            msg = EmailMultiAlternatives(
+                subject=personalized_subject,
+                body=personalized_body,
+                from_email=email_account.email_address,
+                to=[lead['Email']],
+                connection=connection
+            )
+            msg.extra_headers = {'Message-ID': message_id}
+            msg.attach_alternative(personalized_body, "text/html")
             
-            if sent_count > 0 and sent_count % 10 == 0:
+            try:
+                msg.send()
+            except Exception as e:
+                if "please run connect() first" in str(e).lower() or "connection expired" in str(e).lower():
+                    print("SMTP connection lost, reconnecting...")
+                    connection = get_email_connection(email_account, decrypted_password)
+                    msg.connection = connection
+                    msg.send()
+                else:
+                    raise e
+                
+            increment_count = True
+            mark_lead_sent(campaign.id, lead["Email"])
+
+            print(f"Celery Task: Sent to {lead['Email']} (via {email_account.email_address}).")
+
+            if mailbox_instance: # Reason explained above
+          
+                thread, created  = EmailThread.objects.get_or_create(
+                    mailbox=mailbox_instance, 
+                    email1=email_account.email_address,
+                    email2=lead['Email'],
+                    subject=personalized_subject,
+                    defaults={
+                        'is_read': True,
+                    }
+                )
+                OutgoingEmailMessage.objects.create(
+                    thread=thread,  # Attach to the new thread
+                    subject=personalized_subject,
+                    body=personalized_body,
+                    recipient=lead['Email'],
+                    sender=email_account.email_address,
+                    message_id=message_id,
+                    in_reply_to=None,  # It's not a reply, it's a first message
+                )
+
+        except Exception as e:
+            print(f"Celery Task: Failed to send to {lead['Email']} (via {email_account.email_address}): {e}")
+
+            error_message = str(e)
+            if "Daily user sending limit exceeded" in error_message:
+                
+                # Send notification email to the affected account
+                notification_subject = f"⚠️ Campaign Halted: Daily Sending Limit Exceeded for {email_account.email_address}"
+                notification_body = (
+                    f"Dear user,\n\n"
+                    f"Your email campaign using the account '{email_account.email_address}' has been halted "
+                    f"because **Gmail has indicated that the daily sending limit for this email account has been exceeded.**\n\n"
+                    f"**This limit is imposed by Gmail, not by DispatchSkool.**\n\n"
+                    f"For more information on Gmail sending limits, please visit: "
+                    f"https://support.google.com/a/answer/166852\n\n"
+                    f"Please wait 24 hours before trying to send new campaigns from this account.\n\n"
+                    f"Regards,\nThe DispatchSkool Team"
+                )
+                
+                try:
+                    send_mail(
+                        notification_subject,
+                        notification_body,
+                        settings.EMAIL_HOST_USER, # Sender: Your system's configured email host user
+                        [email_account.email_address], # Recipient: The email account that hit the limit
+                        fail_silently=False,
+                    )
+                    print(f"Celery Task: Sent daily limit exceeded notification to {email_account.email_address}")
+                except Exception as notify_e:
+                    print(f"Celery Task: Failed to send limit exceeded notification: {notify_e}")
+                finally:
+                  # Stop processing this chunk for the current email_account
+                  campaign.status = 'failed'
+                  campaign.save(update_fields=['status'])
+                
+            elif "timeout exceeded" in str(error_message).lower() or "timed out" in str(error_message).lower() or "Connection unexpectedly closed" in str(error_message).lower():
+                
                 try:
                     connection.close()
                 except Exception:
                     pass
                 connection = get_email_connection(email_account, decrypted_password)
-            
-            # Personalize subject and body (only once per lead)
-            personalized_subject = personalize_template(subject, lead)
-            personalized_body = personalize_template(body, lead)
-            message_id = make_msgid(idstring=uuid.uuid4().hex, domain='dispatchskool.com')
 
-            delay = random.randint(min_delay, max_delay)
-
-            # 🚨 CRITICAL FIX: Close connections before sleeping
-            connections.close_all()
-            
-            time.sleep(delay)
-
-            if campaign.track_campaign:
-
-                unique_id = uuid.uuid4()
-                pixel_url = reverse('dashboard:track_open', kwargs={'unique_identifier': unique_id})
-                pixel_link = urljoin(settings.BASE_URL, pixel_url)
-
-                try:
-                    email_log = EmailOpen.objects.create(
-                        campaign = campaign,
-                        recipient_email = lead['Email'],
-                        unique_identifier = unique_id,
-                        mc_number = lead.get('MC Number', ''),
-                        legal_name = lead.get('Legal Name', '')
-                    )
-                except Exception as e:
-                    print(f"Exception dring email log entry: {e}")
-
-                tracking_pixel = f'<img src="{pixel_link}" width="1" height="1" style="display:none;" alt="">'
-                personalized_body += tracking_pixel
-
-                print("\nTracking campaign\n")
-
-            try:
-                msg = EmailMultiAlternatives(
-                    subject=personalized_subject,
-                    body=personalized_body,
-                    from_email=email_account.email_address,
-                    to=[lead['Email']],
-                    connection=connection
-                )
-                msg.extra_headers = {'Message-ID': message_id}
-                msg.attach_alternative(personalized_body, "text/html")
-                
                 try:
                     msg.send()
+                    increment_count = True
                 except Exception as e:
-                    if "please run connect() first" in str(e).lower() or "connection expired" in str(e).lower():
+                    if "please run connect() first" in str(e).lower():
                         print("SMTP connection lost, reconnecting...")
                         connection = get_email_connection(email_account, decrypted_password)
                         msg.connection = connection
                         msg.send()
+                        increment_count = True
                     else:
                         raise e
 
-                sent_count += 1
-                sent_leads_batch.append(lead)
+        if increment_count:
+            CampaignRecord.objects.filter(id=campaign.id).update(sent_count=F('sent_count') + 1)
 
-                print(f"Celery Task: Sent to {lead['Email']} (via {email_account.email_address}).")
-
-                if mailbox_instance: # Reason explained above
-                    
-                    thread, created  = EmailThread.objects.get_or_create(
-                        mailbox=mailbox_instance, 
-                        email1=email_account.email_address,
-                        email2=lead['Email'],
-                        subject=personalized_subject,
-                        defaults={
-                            'is_read': True,
-                        }
-                    )
-
-                    OutgoingEmailMessage.objects.create(
-                        thread=thread,  # Attach to the new thread
-                        subject=personalized_subject,
-                        body=personalized_body,
-                        recipient=lead['Email'],
-                        sender=email_account.email_address,
-                        message_id=message_id,
-                        in_reply_to=None,  # It's not a reply, it's a first message
-                    )
-
-            except Exception as e:
-                print(f"Celery Task: Failed to send to {lead['Email']} (via {email_account.email_address}): {e}")
-
-                error_message = str(e)
-                if "Daily user sending limit exceeded" in error_message:
-                    email_limit_exceeded = True
-                    
-                    # Send notification email to the affected account
-                    notification_subject = f"⚠️ Campaign Halted: Daily Sending Limit Exceeded for {email_account.email_address}"
-                    notification_body = (
-                        f"Dear user,\n\n"
-                        f"Your email campaign using the account '{email_account.email_address}' has been halted "
-                        f"because **Gmail has indicated that the daily sending limit for this email account has been exceeded.**\n\n"
-                        f"**This limit is imposed by Gmail, not by DispatchSkool.**\n\n"
-                        f"For more information on Gmail sending limits, please visit: "
-                        f"https://support.google.com/a/answer/166852\n\n"
-                        f"Please wait 24 hours before trying to send new campaigns from this account.\n\n"
-                        f"Regards,\nThe DispatchSkool Team"
-                    )
-                    
-                    try:
-                        send_mail(
-                            notification_subject,
-                            notification_body,
-                            settings.EMAIL_HOST_USER, # Sender: Your system's configured email host user
-                            [email_account.email_address], # Recipient: The email account that hit the limit
-                            fail_silently=False,
-                        )
-                        print(f"Celery Task: Sent daily limit exceeded notification to {email_account.email_address}")
-                    except Exception as notify_e:
-                        print(f"Celery Task: Failed to send limit exceeded notification: {notify_e}")
-                    
-                    # Stop processing this chunk for the current email_account
-                    break # This will break the loop and halt the campaign, freeing the celry worker
-
-                elif "timeout exceeded" in str(error_message).lower() or "timed out" in str(error_message).lower() or "Connection unexpectedly closed" in str(error_message).lower():
-                    
-                    try:
-                        connection.close()
-                    except Exception:
-                        pass
-                    connection = get_email_connection(email_account, decrypted_password)
-
-                    try:
-                        msg.send()
-                        sent_count += 1
-                    except Exception as e:
-                        if "please run connect() first" in str(e).lower():
-                            print("SMTP connection lost, reconnecting...")
-                            connection = get_email_connection(email_account, decrypted_password)
-                            msg.connection = connection
-                            msg.send()
-                            sent_count += 1
-                        else:
-                            raise e
-
-        # Update the status of the above created new_campaign after finishing the loop and sending all the mails
-
-        if not stopped:
-            campaign.status = 'launched'
-            campaign.save(update_fields=['status'])
-
-        # Final cleanup for any remaining leads in batch
-        if sent_leads_batch:
-            campaign.leads_data = [
-                l for l in campaign.leads_data
-                if l not in sent_leads_batch
-            ]
-            campaign.save(update_fields=['leads_data'])
-
-        campaign.sent_count = sent_count
-        campaign.save(update_fields=['sent_count'])
+        updated_campaign = CampaignRecord.objects.get(id=campaign.id)
+        if updated_campaign.sent_count >= updated_campaign.total_recipients:
+            updated_campaign.status = 'launched'
+            updated_campaign.save(update_fields=['status'])
 
         connection.close()
-        print(f"Celery Task: {sent_count}/{len(leads)} emails sent for chunk using {email_account.email_address}.")
 
     except EmailAccount.DoesNotExist:
         print(f"Celery Task Error: EmailAccount with ID {email_account_id} does not exist.")
     except Exception as e:
         print(f"Celery Task Error: An unexpected error occurred in send_emails_chunk_celery_task: {e}")
+
+
+@app.task(name="dashboard.send_emails_chunk_celery_task")
+def send_emails_chunk_celery_task(email_account_id, leads, subject, body, min_delay, max_delay, campaign_record_id):
+
+    """
+    Coordinator: schedules individual email tasks with countdown delays.
+    """
+    print(f"Celery Task: Starting send_emails_chunk_celery_task with EmailAccount ID {email_account_id} and {len(leads)} leads.")
+
+    campaign = CampaignRecord.objects.get(id=campaign_record_id)
+    campaign.total_recipients = len(leads)
+    campaign.status = 'processing'
+    campaign.save(update_fields=['status'])
+
+    for i, lead in enumerate(leads):
+        delay = random.randint(min_delay, max_delay)
+        send_single_email.apply_async(
+            args=[email_account_id, lead, subject, body, campaign_record_id],
+            countdown=delay
+        )
 
 
 
