@@ -371,10 +371,10 @@ def campaign(request, email_account_id):
             max_delay = form.cleaned_data.get('max_delay')
             
             # Silently cap delay values to protect system resources
-            if min_delay is not None and min_delay > 60:
-                min_delay = 60
-            if max_delay is not None and max_delay > 120:
-                max_delay = 120
+            # if min_delay is not None and min_delay > 60:
+            #     min_delay = 60
+            # if max_delay is not None and max_delay > 120:
+            #     max_delay = 120
                 
             scheduled_launch_datetime = form.cleaned_data.get('schedule_launch_datetime')
             skip_mc_numbers = form.cleaned_data.get("skip_mc_numbers")
@@ -704,11 +704,11 @@ def bulk_campaign(request):
             min_delay = form.cleaned_data.get('min_delay')
             max_delay = form.cleaned_data.get('max_delay')
             
-            # Silently cap delay values to protect system resources
-            if min_delay is not None and min_delay > 60:
-                min_delay = 60
-            if max_delay is not None and max_delay > 120:
-                max_delay = 120
+            # # Silently cap delay values to protect system resources
+            # if min_delay is not None and min_delay > 60:
+            #     min_delay = 60
+            # if max_delay is not None and max_delay > 120:
+            #     max_delay = 120
                 
             scheduled_launch_datetime = form.cleaned_data.get('schedule_launch_datetime')
             lead_source = cached_data.get('lead_source')
