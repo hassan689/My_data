@@ -8,3 +8,4 @@ media/
 google_secrets.py
 static/
 staticfiles/
+backups/

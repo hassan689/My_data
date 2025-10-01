@@ -8,7 +8,9 @@ urlpatterns = [
 		path('coming-soon/', views.coming_soon, name='coming_soon'),
 		path('daily-sheets/', views.daily_sheets_view, name='daily_sheets'),
 		path('campaign/<int:email_account_id>/', views.campaign, name='campaign'),
-    path('bulk-campaign', views.bulk_campaign, name='bulk_campaign'),
+    # path('bulk-campaign', views.bulk_campaign, name='bulk_campaign'),
+    path('bulk-campaign/', views.bulk_campaign_step1, name='bulk_campaign'),
+    path('bulk-campaign/<str:campaign_key>/', views.bulk_campaign_step2, name='bulk_campaign_step2'),
 
     path('emergency-stop/<int:email_account_id>/', views.emergency_stop, name='emergency_stop'),
     path('resume-stopped/<int:email_account_id>/', views.resume_stopped, name='resume_stopped'),

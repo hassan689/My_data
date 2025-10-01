@@ -68,15 +68,19 @@ def start_warmup_view(request, email_account_id):
 def stop_warmup_view(request, email_account_id):
     sender_account = get_object_or_404(EmailAccount, id=email_account_id)
 
-    #fetch latest warmup campaign for this sender account
-    warmup_campaign = sender_account.warmup_campaigns.filter(status='Active').order_by('-created_at').first()
+    # 1. Mark all active campaign as Complete
+    sender_account.warmup_campaigns.filter(status='Active').update(status = 'Complete')
 
-    if warmup_campaign:
-        warmup_campaign.status = 'Complete'
-        warmup_campaign.save(update_fields=['status'])
-        messages.success(request, f"Warmup campaign for {sender_account.email_address} has been stopped.")
-    else:
-        messages.error(request, f"No active warmup campaign found for {sender_account.email_address}.")
+    # 2. Remove this account from target_accounts of all campaigns
+    target_campaigns = WarmupCampaign.objects.filter(target_accounts=sender_account)
+    for campaign in target_campaigns:
+        campaign.target_accounts.remove(sender_account)
+        campaign.save()
 
+    # 3. Update sender account flags
+    sender_account.is_warmup_target = False
+    sender_account.save(update_fields=['is_warmup_target'])
+
+    messages.success(request, f"Warmup stopped for {sender_account.email_address}.")
     return redirect('dashboard:index')
 
