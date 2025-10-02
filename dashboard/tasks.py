@@ -343,6 +343,12 @@ def send_single_email(email_account_id, lead, subject, body, campaign_record_id)
         personalized_body = personalize_template(body, lead)
         message_id = make_msgid(idstring=uuid.uuid4().hex, domain='dispatchskool.com')
 
+        DOMAIN = "https://dispatchskool.com"
+
+        personalized_body = personalized_body.replace(
+            'src="/media/', f'src="{DOMAIN}/media/'
+        )
+
         if campaign.track_campaign:
 
             unique_id = uuid.uuid4()
@@ -690,5 +696,20 @@ def cleanup_email_opens():
     cutoff_date = timezone.now() - timedelta(days=30)
     deleted_count, _ = EmailOpen.objects.filter(
         timestamp__lt=cutoff_date
+    ).delete()
+
+
+@app.task(name="dashboard.tasks.clear_launched_campaigns")
+def clear_launched_campaigns():
+    """
+    Deletes CampaignRecord entries where:
+    - status is 'launched' AND
+    - launch_time is older than 7 days
+    """
+    cutoff_date = timezone.now() - timedelta(days=7)
+    status = ['launched', 'failed', 'cancelled']
+    deleted_count, _ = CampaignRecord.objects.filter(
+        status__in=status,
+        launch_time__lt=cutoff_date
     ).delete()
 
