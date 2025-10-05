@@ -348,6 +348,9 @@ def send_single_email(email_account_id, lead, subject, body, campaign_record_id)
         personalized_body = personalized_body.replace(
             'src="/media/', f'src="{DOMAIN}/media/'
         )
+        personalized_body = personalized_body.replace(
+            'href="/media/', f'href="{DOMAIN}/media/'
+        )
 
         if campaign.track_campaign:
 
@@ -502,12 +505,17 @@ def send_emails_chunk_celery_task(email_account_id, leads, subject, body, min_de
     campaign.status = 'processing'
     campaign.save(update_fields=['status'])
 
+    total_delay = 0
     for i, lead in enumerate(leads):
-        delay = random.randint(min_delay, max_delay)
-        send_single_email.apply_async(
-            args=[email_account_id, lead, subject, body, campaign_record_id],
-            countdown=delay
-        )
+        # ✅ Only send if not already marked as sent
+        if not lead.get('sent_status', False):
+            delay = random.randint(min_delay, max_delay)
+            total_delay += delay  # Accumulate total wait time so they are relative to each other, not relative to now
+
+            send_single_email.apply_async(
+                args=[email_account_id, lead, subject, body, campaign_record_id],
+                countdown=total_delay
+            )
 
 
 

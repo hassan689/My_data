@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     'unibox.apps.UniboxConfig',
     'affiliates.apps.AffiliatesConfig',
     'warmup.apps.WarmupConfig',
+    'drip_campaigns.apps.DripCampaignsConfig',
 
 		'widget_tweaks',
 		# 'django_q',
@@ -81,13 +82,20 @@ customColorPalette = [
         },
     ]
 
+CKEDITOR_5_ALLOW_ALL_FILE_TYPES = True
+CKEDITOR_5_UPLOAD_FILE_TYPES = [
+    'pdf', 'doc', 'docx', 'txt', 'csv', 'xls', 'xlsx',
+    'jpg', 'jpeg', 'png', 'gif', 'zip'
+]
+CKEDITOR_5_UPLOAD_PATH = "uploads/"
+
 CKEDITOR_5_CONFIGS = {
     "default": {
         "toolbar": {
             "items": [
                 "heading", "|", "bold", "italic", "underline", "strikethrough",
-                "highlight", "|", "link", "uploadImage", "fileUpload", # Changed "fileAttachment" to "fileUpload"
-                "bulletedList", "numberedList", "todoList", "outdent", "indent","|",
+                "highlight", "|", "link", "uploadImage", "fileUpload",
+                "bulletedList", "numberedList", "todoList", "outdent", "indent", "|",
                 "fontSize", "fontFamily", "fontColor", "fontBackgroundColor",
                 "removeFormat", "insertTable",
             ],
@@ -95,48 +103,25 @@ CKEDITOR_5_CONFIGS = {
         },
         "image": {
             "toolbar": [
-                "imageTextAlternative", "|", "imageStyle:alignLeft",
-                "imageStyle:block", # Changed "imageStyle:full" to "imageStyle:block"
-                "imageStyle:alignRight"
+                "imageTextAlternative", "|",
+                "imageStyle:alignLeft", "imageStyle:block", "imageStyle:alignRight"
             ],
-            "styles": [
-                "block", # Changed "full" to "block"
-                "alignLeft",
-                "alignRight"
-            ],
-            "upload": {
-                "url": "/ckeditor5/image_upload/",
+            "upload": {"url": "/ckeditor5/image_upload/"},
+        },
+        "fileUpload": {
+            "upload": {"url": "/ckeditor5/file_upload/"},
+        },
+        "link": {
+            "decorators": {
+                "isDownloadable": {
+                    "mode": "manual",
+                    "label": "Downloadable",
+                    "attributes": {"download": "file"},
+                }
             }
         },
-        "fileUpload": { # Changed "fileAttachment" to "fileUpload"
-            "toolbar": [
-                "fileUpload" # Changed "fileAttachment" to "fileUpload"
-            ],
-            "upload": {
-                "url": "/ckeditor5/file_upload/",
-            }
-        },
-        "table": {
-            "contentToolbar": [
-                "tableColumn", "tableRow", "mergeTableCells",
-                "tableProperties", "tableCellProperties"
-            ],
-        },
-        "heading": {
-            "options": [
-                {"model": "paragraph", "title": "Paragraph", "class": "ck-heading_paragraph"},
-                {"model": "heading1", "view": "h1", "title": "Heading 1", "class": "ck-heading_heading1"},
-                {"model": "heading2", "view": "h2", "title": "Heading 2", "class": "ck-heading_heading2"},
-                {"model": "heading3", "view": "h3", "title": "Heading 3", "class": "ck-heading_heading3"},
-            ]
-        },
-        # You may also need these general file upload settings if not already present:
-        # "CKEDITOR_5_ALLOW_ALL_FILE_TYPES": True,
-        # "CKEDITOR_5_UPLOAD_FILE_TYPES": ['jpeg', 'pdf', 'png'], # optional, specify allowed types
     }
 }
-# # CKEDITOR_5_ALLOW_ALL_FILE_TYPES = True
-CKEDITOR_5_UPLOAD_FILE_TYPES = ['jpeg', 'pdf', 'png', 'docx']
 
 
 MAINTENANCE_MODE = False
