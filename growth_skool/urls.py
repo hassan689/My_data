@@ -3,6 +3,7 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 from django.shortcuts import render
+from main.views import custom_ckeditor_upload
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -13,7 +14,8 @@ urlpatterns = [
     path('affiliates/', include('affiliates.urls')),
     path('warmup/', include('warmup.urls')),
     
-		path("ckeditor5/", include('django_ckeditor_5.urls')),
+		path("ckeditor5/image_upload/", custom_ckeditor_upload, name="custom_ckeditor_upload"),
+    path("ckeditor5/", include('django_ckeditor_5.urls')),
     # path('ckeditor/', include('ckeditor_uploader.urls')),
 ]
 

@@ -87,7 +87,8 @@ CKEDITOR_5_UPLOAD_FILE_TYPES = [
     'pdf', 'doc', 'docx', 'txt', 'csv', 'xls', 'xlsx',
     'jpg', 'jpeg', 'png', 'gif', 'zip'
 ]
-CKEDITOR_5_UPLOAD_PATH = "uploads/"
+CKEDITOR_5_UPLOAD_PATH = 'ckeditor_uploads/' 
+CK_EDITOR_5_UPLOAD_FILE_VIEW_NAME = "custom_ckeditor_upload"
 
 CKEDITOR_5_CONFIGS = {
     "default": {

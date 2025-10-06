@@ -2,9 +2,52 @@ from concurrent.futures import ThreadPoolExecutor
 from django.core.mail import EmailMessage
 from django.shortcuts import render, redirect
 from django.conf import settings
-from django.contrib import messages
 from .forms import ContactForm, PaymentVerificationForm, RequestReceipt
+import os
+from django.http import JsonResponse, Http404
+from django.views.decorators.csrf import csrf_exempt # Important for the file upload POST
+from django.contrib.auth.decorators import login_required
+from django.utils.translation import gettext_lazy as _
+from django.core.files.storage import default_storage
 
+
+@csrf_exempt
+@login_required
+def custom_ckeditor_upload(request):
+    """
+    Custom view for ALL authenticated users to upload ANY file type.
+    It uses Django's default storage and bypasses image-only validation.
+    """
+    if request.method != "POST":
+        raise Http404()
+
+    uploaded_file = request.FILES.get("upload")
+
+    if not uploaded_file:
+        return JsonResponse({"error": {"message": _("No file provided.")}}, status=400)
+
+    try:
+        # Define the desired path, ensuring it's relative to MEDIA_ROOT
+        # We use CKEDITOR_5_UPLOAD_PATH from settings.py
+        target_directory = settings.CKEDITOR_5_UPLOAD_PATH 
+
+        # Get a unique filename within the target directory
+        filename = default_storage.get_available_name(
+            os.path.join(target_directory, uploaded_file.name)
+        )
+        
+        # Save the file to disk
+        default_storage.save(filename, uploaded_file)
+        
+        # Construct the final URL for the editor
+        url = default_storage.url(filename)
+
+    except Exception as e:
+        # Catch any error during the file saving process
+        return JsonResponse({"error": {"message": f"Server save error: {e}"}}, status=500)
+    
+    # Return the URL in the format CKEditor expects
+    return JsonResponse({"url": url})
 
 executor = ThreadPoolExecutor(max_workers=5)  # Thread pool for async execution
 
