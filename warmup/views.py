@@ -5,20 +5,55 @@ from .models import WarmupTemplateSet, WarmupCampaign
 from django.utils import timezone
 from datetime import timedelta
 from users.models import EmailAccount
+import random
 
 
+# def refresh_targets(campaign):
+#     """Return a list of new target accounts for a campaign."""
+#     return list(
+#         EmailAccount.objects.filter(
+#             is_warmup_target=True
+#         ).exclude(
+#             id=campaign.sender_account.id
+#         ).exclude(
+#             black_list=True
+#         ).order_by('?')[:5]
+#     )
+
+
+# So that they only communicate with Ahmd bhai's accounts and their own accounts. Removing the conflict between users.
 def refresh_targets(campaign):
-    """Return a list of new target accounts for a campaign."""
-    return list(
-        EmailAccount.objects.filter(
-            is_warmup_target=True
-        ).exclude(
-            id=campaign.sender_account.id
-        ).exclude(
-            black_list=True
-        ).order_by('?')[:5]
+    # Step 1️⃣: Base target list (static)
+    target_emails = [
+        'loadtoload11@gmail.com', 'loadtoload3@gmail.com', 'loadtoload4@gmail.com',
+        'LoadtoLoad13@gmail.com', 'LoadtoLoad6@gmail.com', 'LoadtoLoad7@gmail.com',
+        'LoadtoLoad8@gmail.com', 'LoadtoLoad9@gmail.com', 'loadtoload2@gmail.com',
+        'LoadtoLoad10@gmail.com', 'LoadtoLoad12@gmail.com', 'LoadtoLoad14@gmail.com'
+    ]
+
+    # Step 3️⃣: Get sender and its user
+    sender_account = campaign.sender_account
+    sender_user = sender_account.user
+
+    # Step 4️⃣: Get all other email accounts for that user, excluding sender
+    user_email_accounts = EmailAccount.objects.filter(user=sender_user).exclude(id=sender_account.id)
+
+    # Step 6️⃣: Collect email addresses
+    user_owned_emails = list(user_email_accounts.values_list('email_address', flat=True))
+
+    # Step 7️⃣: Merge with static list
+    target_emails.extend(user_owned_emails)
+
+    # Step 8️⃣: Fetch only non-blacklisted EmailAccounts matching target_emails
+    valid_accounts = EmailAccount.objects.filter(
+        email_address__in=target_emails,
+        black_list=False
     )
 
+    # Step 9️⃣: Randomly pick up to 5
+    selected_accounts = random.sample(list(valid_accounts), min(5, valid_accounts.count()))
+
+    return selected_accounts
 
 def start_warmup_view(request, email_account_id):
     sender_account = get_object_or_404(EmailAccount, id=email_account_id)
