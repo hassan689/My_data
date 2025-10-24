@@ -140,6 +140,16 @@ class CampaignForm(forms.Form):
         required=False,
         label="Carrier Operation"
     )
+    operating_authority_status = forms.ChoiceField(
+        choices=[
+            ('', '---------'),  # "Any" option (no filter)
+            ('AUTHORIZED', 'Authorized'),
+            ('NOT AUTHORIZED', 'Not Authorized'),
+            ('OUT-OF-SERVICE', 'Out-of-Service'),
+        ],
+        required=False,
+        label="Operation Authority Status"
+    )
     cargo_classification_search = forms.CharField(
         max_length=255,
         required=False,

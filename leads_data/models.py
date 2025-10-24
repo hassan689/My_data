@@ -27,6 +27,9 @@ class Lead(models.Model):
     cargo_info = models.TextField(null=True, blank=True)
     city = models.CharField(max_length=60, null=True, blank=True)
     state = models.CharField(max_length=20, null=True, blank=True)
+
+    operating_authority_status = models.CharField(max_length=250, null=True, blank=True)
+    entity_type = models.CharField(max_length=250, null=True, blank=True)
     
     added_on = models.DateField(auto_now_add=True, null=True, blank=True)
 

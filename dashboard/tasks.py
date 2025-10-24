@@ -1,4 +1,3 @@
-import time
 import re
 from django.core.mail import EmailMultiAlternatives, get_connection, send_mail, EmailMessage
 from users.models import EmailAccount, CustomUser
@@ -10,15 +9,14 @@ from django.utils import timezone
 from email.utils import make_msgid
 import uuid
 from django.conf import settings
-from django_celery_results.models import TaskResult
-from django.utils.timezone import now, timedelta
+from django.utils.timezone import timedelta
 from django.urls import reverse
 from urllib.parse import urljoin
 from django.utils.encoding import force_str
 from django.db.models import F
 from django.db import transaction
 from bs4 import BeautifulSoup
-
+from celery import shared_task
 
 email_regex = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
 
@@ -59,65 +57,73 @@ def get_email_connection(email_account, decrypted_password):
     return connection
 
 
-def mark_lead_sent(campaign_id, lead_email):
-    """
-    Safely mark a single lead's sent_status=True in the JSONField with database-level locking.
-    """
-    with transaction.atomic():
-        # Use select_for_update to lock the row during the transaction
-        campaign = CampaignRecord.objects.select_for_update().get(id=campaign_id)
-        updated = False
-
-        for lead in campaign.leads_data:
-            if lead.get("Email") == lead_email:
-                if not lead.get("sent_status", False):  # Only update if not already sent
-                    lead["sent_status"] = True
-                    updated = True
-                break
-        if updated:
-            campaign.save(update_fields=["leads_data"])
-
-
 def sanitize_email_html(html_content, base_url, max_email_width=600):
     """
     1. Converts relative image URLs to absolute URLs.
-    2. Dynamically extracts the intended CKEditor width and enforces it in pixels.
+    2. Keeps the exact pixel width/height set by CKEditor on the <img> tag.
     """
+    # Assuming BeautifulSoup is imported correctly
     soup = BeautifulSoup(html_content, 'html.parser')
-    
-    # 1. Fix Images
+
+    # 1. Fix Images and enforce original dimensions
     for img in soup.find_all('img'):
         src = img.get('src')
+        
+        # Preserve original dimensions from the <img> tag
+        original_width = img.get('width')
+        original_height = img.get('height')
+
         if src and src.startswith('/media/'):
             # Make URL absolute
             img['src'] = base_url + src
 
-        figure = img.find_parent('figure')        
-        # 1. Look for the percentage width set by CKEditor on the <figure> tag
+        # --- REVISED LOGIC STARTS HERE ---
+        
+        # Get the parent <figure> tag (CKEditor puts width:XX% here)
+        figure = img.find_parent('figure')
+        
+        # 1. Check for CKEditor percentage width on the <figure>
+        # This part is now primarily for removing the <figure> style, but 
+        # it *can* still calculate the pixel width if needed.
         intended_width_px = None
         if figure and 'style' in figure.attrs:
             style = figure['style']
-            
-            # Use regex to find width:XX.XX%
             match = re.search(r'width:(\d+\.?\d*)%', style)
+            
+            # If a percentage is found, calculate the intended width (optional, 
+            # but good for robust handling).
             if match:
                 percentage = float(match.group(1))
-                # Convert percentage of the max email width to a pixel value
                 intended_width_px = round(percentage / 100 * max_email_width)
+            
+            # Always remove the unreliable style from the <figure> tag
+            figure.attrs.pop('style', None)
 
-        # 2. Apply the intended width or a safe fallback
-        if intended_width_px:
-            img['width'] = str(intended_width_px)
-            del figure.attrs['style']
-        else:
-            img['width'] = str(max_email_width) # Default to full width
+        # 2. **Apply the intended/original width.**
+        # Prioritize the width directly on the <img> tag (what CKEditor saved)
+        # If CKEditor saved a pixel width, use it. If not, use the max width.
         
+        if original_width and original_width.isdigit():
+            # Use the exact width saved by CKEditor (e.g., 568 or 305)
+            img['width'] = original_width
+        elif intended_width_px:
+            # Fallback to calculated pixel width from a percentage
+            img['width'] = str(intended_width_px)
+        else:
+            # Fallback to full email width
+            img['width'] = str(max_email_width)
+            
+        # Also re-apply the original height if it was present, or use 'auto'
+        if original_height and original_height.isdigit():
+            img['height'] = original_height
+        else:
+            img['height'] = "auto"
+            
         # Always remove other unreliable styles from the img tag
         if 'style' in img.attrs:
             del img.attrs['style']
         
-        # Set height to 'auto' to maintain aspect ratio
-        img['height'] = "auto"
+        # --- REVISED LOGIC ENDS HERE ---
 
     # 3. Fix other relative hrefs
     for tag in soup.find_all(href=True):
@@ -128,209 +134,265 @@ def sanitize_email_html(html_content, base_url, max_email_width=600):
     return str(soup)
 
 
-@app.task(name="dashboard.send_single_email")
-def send_single_email(email_account_id, lead, subject, body, campaign_record_id):
-    
+@shared_task(name="dashboard.send_single_email", acks_late=True, bind=True, default_retry_delay=300) # 5 min retry
+def send_single_email(self, campaign_record_id):
+    """
+    This is the self-perpetuating "Worker" task.
+    It processes ONE lead, saves progress, and reschedules itself.
+    - acks_late=True: Prevents task loss if the worker crashes mid-send.
+    - bind=True: Allows us to call self.retry() for network errors.
+    """
+    connection = None
     try:
-        email_account = EmailAccount.objects.get(id=email_account_id)
-        decrypted_password = email_account.get_password()
-        mailbox_instance = None
-
-        try:
-            mailbox_instance = GmailToken.objects.get(email_account=email_account)
-        except: # Not a mailbox instance, bcz not necessary that every account sending out emails will have Gmail API connected (Gmail Token instance)
-            pass # the reason might be that this specifc account hasn't been connected yet or it's not even a Gmail Account to begin with
-
+        # 1. --- Get Campaign ---
         campaign = CampaignRecord.objects.get(id=campaign_record_id)
-        increment_count = False
-        
+
         if campaign.status in ('cancelled', 'launched', 'failed'):
-            print("Campaign was finished. Exiting task.")
+            print(f"Campaign {campaign.id} is finished or cancelled. Stopping chain.")
             return
-        if lead['sent_status'] == True:
-            print(f"Lead {lead['Email']} already sent, skipping.")
+
+        if not campaign.leads_data:
+            print(f"Campaign {campaign.id} has no leads left. Finishing.")
+            campaign.status = 'launched'
+            campaign.save(update_fields=['status'])
             return
+
+        lead = campaign.leads_data[0] # Get the first lead
+        
+        # 4. --- Lead Validation ---
         if not isinstance(lead, dict) or 'Email' not in lead:
-            print(f"Skipping invalid lead: {lead}")
+            print(f"Skipping invalid lead: {lead}. Removing from queue.")
+            # Pop and save, then reschedule for the next lead immediately
+            campaign.leads_data.pop(0)
+            campaign.save(update_fields=['leads_data'])
+            send_single_email.apply_async(args=[campaign.id], countdown=1)
             return
+
         if not re.fullmatch(email_regex, lead['Email']):
-            print(f"Skipping invalid email format: {lead['Email']}")
+            print(f"Skipping invalid email format: {lead['Email']}. Removing from queue.")
+            # Pop and save, then reschedule for the next lead immediately
+            campaign.leads_data.pop(0)
+            campaign.save(update_fields=['leads_data'])
+            send_single_email.apply_async(args=[campaign.id], countdown=1)
             return
-        
+            
+        # 5. --- Get Account & Connection ---
+        email_account = campaign.sender_account
+        decrypted_password = email_account.get_password()
         connection = get_email_connection(email_account, decrypted_password)
-        
-        personalized_subject = personalize_template(subject, lead)
-        personalized_body = personalize_template(body, lead)
+        mailbox_instance = GmailToken.objects.filter(email_account=email_account).first()
+
+        # 6. --- Prepare Email ---
+        personalized_subject = personalize_template(campaign.subject, lead)
+        personalized_body = personalize_template(campaign.body, lead)
         message_id = make_msgid(idstring=uuid.uuid4().hex, domain='dispatchskool.com')
-
         DOMAIN = "https://dispatchskool.com"
-
         personalized_body = sanitize_email_html(personalized_body, DOMAIN)
 
         if campaign.track_campaign:
-
             unique_id = uuid.uuid4()
             pixel_url = reverse('dashboard:track_open', kwargs={'unique_identifier': unique_id})
             pixel_link = urljoin(settings.BASE_URL, pixel_url)
-
-            try:
-                email_log = EmailOpen.objects.create(
-                    campaign = campaign,
-                    recipient_email = lead['Email'],
-                    unique_identifier = unique_id,
-                    mc_number = lead.get('MC Number', ''),
-                    legal_name = lead.get('Legal Name', '')
-                )
-            except Exception as e:
-                print(f"Exception dring email log entry: {e}")
-
-            tracking_pixel = f'<img src="{pixel_link}" width="1" height="1" style="display:none;" alt="">'
-            personalized_body += tracking_pixel
-        
-        try:
-            msg = EmailMultiAlternatives(
-                subject=personalized_subject,
-                body=personalized_body,
-                from_email=email_account.email_address,
-                to=[lead['Email']],
-                connection=connection
-            )
-            msg.extra_headers = {'Message-ID': message_id}
-            msg.attach_alternative(personalized_body, "text/html")
             
             try:
-                msg.send()
+                EmailOpen.objects.create(
+                    campaign=campaign,
+                    recipient_email=lead['Email'],
+                    unique_identifier=unique_id,
+                    mc_number=lead.get('MC Number', ''),
+                    legal_name=lead.get('Legal Name', '')
+                )
             except Exception as e:
-                if "please run connect() first" in str(e).lower() or "connection expired" in str(e).lower():
-                    print("SMTP connection lost, reconnecting...")
-                    connection = get_email_connection(email_account, decrypted_password)
-                    msg.connection = connection
-                    msg.send()
-                else:
-                    raise e
-                
-            increment_count = True
-            mark_lead_sent(campaign.id, lead["Email"])
+                print(f"Failed to create EmailOpen log: {e}")
+            
+            tracking_pixel = f'<img src="{pixel_link}" width="1" height="1" style="display:none;" alt="">'
+            personalized_body += tracking_pixel
 
-            print(f"Celery Task: Sent to {lead['Email']} (via {email_account.email_address}).")
-
-            if mailbox_instance: # Reason explained above
-          
-                thread, created  = EmailThread.objects.get_or_create(
-                    mailbox=mailbox_instance, 
-                    email1=email_account.email_address,
-                    email2=lead['Email'],
-                    subject=personalized_subject,
-                    defaults={
-                        'is_read': True,
-                    }
-                )
-                OutgoingEmailMessage.objects.create(
-                    thread=thread,  # Attach to the new thread
-                    subject=personalized_subject,
-                    body=personalized_body,
-                    recipient=lead['Email'],
-                    sender=email_account.email_address,
-                    message_id=message_id,
-                    in_reply_to=None,  # It's not a reply, it's a first message
-                )
-
+        # 7. --- Send Email ---
+        msg = EmailMultiAlternatives(
+            subject=personalized_subject,
+            body=personalized_body, # Fallback body (plain text)
+            from_email=email_account.email_address,
+            to=[lead['Email']],
+            connection=connection
+        )
+        msg.extra_headers = {'Message-ID': message_id}
+        msg.attach_alternative(personalized_body, "text/html")
+        
+        try:
+            msg.send()
         except Exception as e:
-            print(f"Celery Task: Failed to send to {lead['Email']} (via {email_account.email_address}): {e}")
-
-            error_message = str(e)
-            if "Daily user sending limit exceeded" in error_message:
-                
-                # Send notification email to the affected account
-                notification_subject = f"⚠️ Campaign Halted: Daily Sending Limit Exceeded for {email_account.email_address}"
-                notification_body = (
-                    f"Dear user,\n\n"
-                    f"Your email campaign using the account '{email_account.email_address}' has been halted "
-                    f"because **Gmail has indicated that the daily sending limit for this email account has been exceeded.**\n\n"
-                    f"**This limit is imposed by Gmail, not by DispatchSkool.**\n\n"
-                    f"For more information on Gmail sending limits, please visit: "
-                    f"https://support.google.com/a/answer/166852\n\n"
-                    f"Please wait 24 hours before trying to send new campaigns from this account.\n\n"
-                    f"Regards,\nThe DispatchSkool Team"
-                )
-                
-                try:
-                    send_mail(
-                        notification_subject,
-                        notification_body,
-                        settings.EMAIL_HOST_USER, # Sender: Your system's configured email host user
-                        [email_account.email_address], # Recipient: The email account that hit the limit
-                        fail_silently=False,
-                    )
-                    print(f"Celery Task: Sent daily limit exceeded notification to {email_account.email_address}")
-                except Exception as notify_e:
-                    print(f"Celery Task: Failed to send limit exceeded notification: {notify_e}")
-                finally:
-                  # Stop processing this chunk for the current email_account
-                  campaign.status = 'failed'
-                  campaign.save(update_fields=['status'])
-                
-            elif "timeout exceeded" in str(error_message).lower() or "timed out" in str(error_message).lower() or "Connection unexpectedly closed" in str(error_message).lower():
-                
-                try:
-                    connection.close()
-                except Exception:
-                    pass
+            # Handle connection-lost error
+            if "please run connect() first" in str(e).lower() or "connection expired" in str(e).lower():
+                print("SMTP connection lost, reconnecting...")
+                connection.close() # Close old
                 connection = get_email_connection(email_account, decrypted_password)
+                msg.connection = connection
+                msg.send() # Retry send
+            else:
+                raise e # Re-raise other errors to be caught by outer try/except
+        
+        # 8. --- SUCCESS: Update DB & Log ---
+        print(f"Celery Task: Sent to {lead['Email']} via {campaign.sender_account.email_address}")
+        
+        # # Pop the lead *after* successful send
+        # campaign.leads_data.pop(0) 
+        
+        # # Update sent_count atomically and save the popped list
+        # CampaignRecord.objects.filter(id=campaign.id).update(sent_count=F('sent_count') + 1)
+        # campaign.save(update_fields=['leads_data'])
 
-                try:
-                    msg.send()
-                    increment_count = True
-                except Exception as e:
-                    if "please run connect() first" in str(e).lower():
-                        print("SMTP connection lost, reconnecting...")
-                        connection = get_email_connection(email_account, decrypted_password)
-                        msg.connection = connection
-                        msg.send()
-                        increment_count = True
-                    else:
-                        raise e
+        with transaction.atomic():
+            campaign_for_update = CampaignRecord.objects.select_for_update().get(id=campaign.id)
+            
+            if lead == campaign_for_update.leads_data[0]:
+                
+                # Pop the lead from the instance's data
+                campaign_for_update.leads_data.pop(0)
+                # Increment the count on the instance
+                campaign_for_update.sent_count += 1
+                # save
+                campaign_for_update.save(update_fields=['leads_data', 'sent_count'])
 
-        if increment_count:
-            CampaignRecord.objects.filter(id=campaign.id).update(sent_count=F('sent_count') + 1)
-
-        updated_campaign = CampaignRecord.objects.get(id=campaign.id)
-        if updated_campaign.sent_count >= updated_campaign.total_recipients:
-            updated_campaign.status = 'launched'
-            updated_campaign.save(update_fields=['status'])
-
-        connection.close()
-
-    except EmailAccount.DoesNotExist:
-        print(f"Celery Task Error: EmailAccount with ID {email_account_id} does not exist.")
-    except Exception as e:
-        print(f"Celery Task Error: An unexpected error occurred in send_emails_chunk_celery_task: {e}")
+            # Update the in-memory 'campaign' object to reflect the changes
+            campaign.leads_data = campaign_for_update.leads_data
+            campaign.sent_count = campaign_for_update.sent_count
 
 
-@app.task(name="dashboard.send_emails_chunk_celery_task")
-def send_emails_chunk_celery_task(email_account_id, leads, subject, body, min_delay, max_delay, campaign_record_id):
-
-    """
-    Coordinator: schedules individual email tasks with countdown delays.
-    """
-    print(f"Celery Task: Starting send_emails_chunk_celery_task with EmailAccount ID {email_account_id} and {len(leads)} leads.")
-
-    campaign = CampaignRecord.objects.get(id=campaign_record_id)
-    campaign.total_recipients = len(leads)
-    campaign.status = 'processing'
-    campaign.save(update_fields=['status'])
-
-    total_delay = 0
-    for i, lead in enumerate(leads):
-        # ✅ Only send if not already marked as sent
-        if not lead.get('sent_status', False):
-            delay = random.randint(min_delay, max_delay)
-            total_delay += delay  # Accumulate total wait time so they are relative to each other, not relative to now
-
-            send_single_email.apply_async(
-                args=[email_account_id, lead, subject, body, campaign_record_id],
-                countdown=total_delay
+        # Create thread/message log
+        if mailbox_instance:
+            thread, _ = EmailThread.objects.get_or_create(
+                mailbox=mailbox_instance,
+                email1=email_account.email_address,
+                email2=lead['Email'],
+                subject=personalized_subject,
+                defaults={'is_read': True}
             )
+            OutgoingEmailMessage.objects.create(
+                thread=thread,
+                subject=personalized_subject,
+                body=personalized_body,
+                recipient=lead['Email'],
+                sender=email_account.email_address,
+                message_id=message_id,
+                in_reply_to=None,
+            )
+
+    # 8. --- ERROR HANDLING ---
+    except (CampaignRecord.DoesNotExist, EmailAccount.DoesNotExist) as e:
+        print(f"Critical error: {e}. Stopping chain for campaign {campaign_record_id}.")
+        # Don't reschedule
+        return
+
+    except Exception as e:
+        print(f"Failed to send to {lead['Email']} (Campaign {campaign.id}): {e}")
+        error_message = str(e)
+        
+        # A) Daily Limit Exceeded (Fatal, stop chain)
+        if "Daily user sending limit exceeded" in error_message:
+            print(f"Daily limit exceeded for {email_account.email_address}. Halting campaign {campaign.id}.")
+            campaign.status = 'failed'
+            campaign.save(update_fields=['status'])
+            # ... (your notification_email logic) ...
+            return # Stop the chain
+
+        # B) Network/Timeout Error (Recoverable, retry task)
+        elif "timeout" in error_message.lower() or "connection" in error_message.lower():
+            print(f"Network error for campaign {campaign.id}. Retrying task.")
+            # Retry the whole task (will re-peek the same lead)
+            raise self.retry(exc=e, max_retries=3) 
+        
+        # C) Other Unhandled Error (Skip lead, continue chain)
+        else:
+            print(f"Unhandled error for {lead['Email']}: {e}. Skipping lead.")
+            # Pop the lead to skip it, save, and continue to reschedule
+            campaign.leads_data.pop(0)
+            campaign.save(update_fields=['leads_data'])
+
+    # 9. --- CLEANUP ---
+    finally:
+        if connection:
+            connection.close()
+            
+    # 10. --- RESCHEDULE (if not stopped by an error) ---
+    try:
+        # Refresh campaign from DB to get latest state
+        campaign.refresh_from_db() 
+        
+        # Check if complete
+        if not campaign.leads_data:
+            print(f"Campaign {campaign.id} finished.")
+            campaign.status = 'launched'
+            campaign.save(update_fields=['status'])
+            return # Chain ends
+
+        # Reschedule if still processing
+        if campaign.status == 'processing':
+            next_delay = random.randint(campaign.min_delay, campaign.max_delay)
+            print(f"Rescheduling next email for {campaign.id} in {next_delay} seconds.")
+            
+            send_single_email.apply_async(
+                args=[campaign_record_id],
+                countdown=next_delay
+            )
+    except CampaignRecord.DoesNotExist:
+        print(f"Campaign {campaign_record_id} was deleted. Stopping chain.")
+    except Exception as e:
+        print(f"Failed to reschedule campaign {campaign_record_id}: {e}")
+        CampaignRecord.objects.filter(id=campaign_record_id).update(status='failed')
+
+
+@shared_task(name="dashboard.send_emails_chunk_celery_task")
+def send_emails_chunk_celery_task(email_account_id, leads, subject, body, min_delay, max_delay, campaign_record_id):
+    """
+    This is the "Kicker" task.
+    It runs ONCE at the start of a campaign.
+    Its only job is to populate the CampaignRecord and schedule the
+    first processing task to run immediately.
+    """
+    print(f"Launching campaign {campaign_record_id} with {len(leads)} leads.")
+    
+    try:
+        # Use transaction.atomic to ensure all DB writes succeed or fail together
+        with transaction.atomic():
+            campaign = CampaignRecord.objects.get(id=campaign_record_id)
+            
+            # Populate the campaign object with all necessary data
+            campaign.leads_data = leads
+            campaign.total_recipients = len(leads)
+            campaign.sent_count = 0
+            campaign.status = 'processing'
+            
+            # Store the templates and settings on the model
+            campaign.subject = subject
+            campaign.body = body
+            campaign.min_delay = min_delay
+            campaign.max_delay = max_delay
+            campaign.sender_account_id = email_account_id
+            
+            campaign.save(update_fields=[
+                'leads_data', 'total_recipients', 'sent_count', 'status',
+                'subject', 'body', 'min_delay', 'max_delay', 'sender_account_id'
+            ])
+
+        # Schedule the *first* worker task.
+        # It runs with countdown=0 (immediately).
+        # The chain starts here.
+        send_single_email.apply_async(
+            args=[campaign_record_id],
+            countdown=0
+        )
+        print(f"Campaign {campaign_record_id} successfully launched. First task queued.")
+
+    except CampaignRecord.DoesNotExist:
+        print(f"Failed to launch: CampaignRecord {campaign_record_id} does not exist.")
+    except Exception as e:
+        print(f"Critical error launching campaign {campaign_record_id}: {e}")
+        # Optionally mark campaign as failed if setup fails
+        try:
+            CampaignRecord.objects.filter(id=campaign_record_id).update(status='failed')
+        except:
+            pass
 
 
 
@@ -460,18 +522,6 @@ def send_account_attach_notif_email(email_account_id, user_id):
 
     except Exception as e:
         print(f"Error sending notification email: {e}")
-
-
-
-@app.task(name="dashboard.tasks.clear_successful_task_results")
-def clear_successful_task_results():
-    # Delete only successful tasks older than 1 day (optional safety filter)
-    one_day_ago = now() - timedelta(days=1)
-    deleted, _ = TaskResult.objects.filter(
-        status="SUCCESS",
-        date_done__lt=one_day_ago
-    ).delete()
-    return f"Deleted {deleted} successful task results"
 
 
 

@@ -88,9 +88,6 @@ def process_excel_file(file):
                 if col != email_col: 
                     lead[col] = clean_value(row[col])
 
-            # Add default sent_status
-            lead['sent_status'] = False
-
             leads.append(lead)
 
         return leads
@@ -309,7 +306,6 @@ def get_leads_from_db(starting_mc_number=None, targets_count=None,
                 'Cargo Info': lead.cargo_info,
                 'Telephone': lead.telephone,
                 'Address': lead.address,
-                'sent_status': False
             }
             for lead in leads
         ]
