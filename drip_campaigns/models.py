@@ -1,28 +1,28 @@
 from django.db import models
 from users.models import EmailAccount, CustomUser
+from datetime import timedelta
 
-
-# The idea will be that the DripCampaign will have a 
 
 class DripCampaign(models.Model):
     
-    sender_account = models.ForeignKey(EmailAccount, on_delete=models.CASCADE, related_name="drip_campaigns")
-    launched_by = models.ForeignKey(CustomUser, on_delete=models.CASCADE, null=True, blank=True)
+    name = models.CharField(max_length=255)
+    launched_by = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
     
     min_delay = models.IntegerField(default=0, null=True, blank=True)
     max_delay = models.IntegerField(default=0, null=True, blank=True)
     
-    last_action_at = models.DateTimeField(null=True, blank=True) # can be calculated by the last sent template's sent_at
-    next_action_at = models.DateTimeField(null=True, blank=True) # can be calculated by the next pending template's scheduled_launch_time
-    
-    created_at = models.DateTimeField(auto_now_add=True)
-    total_recipients = models.IntegerField(default=0) # Total number of leads
-    current_step = models.IntegerField(default=0) # calculated by the number of associated templates
+    start_datetime = models.DateTimeField() 
+    step_delay = models.DurationField(default=timedelta(days=1)) # Gap between steps
+
+    current_step = models.IntegerField(default=1) 
+    next_action_at = models.DateTimeField(null=True, blank=True) 
+    last_action_at = models.DateTimeField(null=True, blank=True)
 
     CAMPAIGN_STATUS_CHOICES = [
-        ('Pending', 'Pending'),
-        ('Active', 'Active'),
-        ('Complete', 'Complete'),
+        ('Active', 'Active'),       
+        ('Processing', 'Processing'), 
+        ('Paused', 'Paused'),       
+        ('Completed', 'Completed'),   
         ('Failed', 'Failed'),
     ]
     status = models.CharField(max_length=20, choices=CAMPAIGN_STATUS_CHOICES, null=True, blank=True)
@@ -31,26 +31,41 @@ class DripCampaign(models.Model):
         ('DB', 'DB'),
     ]
     lead_source = models.CharField(max_length=10, choices=LEAD_SOURCE_CHOICES, null=True, blank=True)
-    leads_data = models.JSONField(default=list, null=True, blank=True) # Stores the list of leads as JSON for this tem
+    total_recipients = models.IntegerField(default=0)
 
     def __str__(self):
-        return f"Launched by {self.launched_by} via {self.sender_account} at {self.launch_time.strftime('%Y-%m-%d %H:%M')}"
+        return f"Campaign {self.id} launched by {self.launched_by}"
 
     class Meta:
         verbose_name = "Drip Campaign"
         verbose_name_plural = "Drip Campaigns"
 
 
+class EmailAccountAndLeads(models.Model):
+    
+    campaign = models.ForeignKey(DripCampaign, on_delete=models.CASCADE, related_name="email_accounts_and_leads")
+    email_account = models.ForeignKey(EmailAccount, on_delete=models.CASCADE)
+    lead_emails = models.JSONField(default=list) # Stores list of lead emails as JSON
+
+    recipient_count = models.IntegerField(default=0) # Number of leads associated with this email account for the latest step.
+    sent_count = models.IntegerField(default=0) # Number of emails sent from this account in this campaign for the latest step.
+
+    def __str__(self):
+        return f"Email Account {self.email_account.id} for Drip Campaign {self.campaign.id}"
+    
+    class Meta:
+        verbose_name = "Email Account and Leads"
+        verbose_name_plural = "Email Accounts and Leads"
+
+
 class DripTemplate(models.Model):
     
     campaign = models.ForeignKey(DripCampaign, on_delete=models.CASCADE, related_name="templates")
-    step_number = models.IntegerField()
-    body = models.JSONField(default=list) # Stores body for this step as JSON: {"subject": "...", "body": "..."}
+    step_number = models.IntegerField() # Order of this step in the drip campaign
+    subject_and_body = models.JSONField(default=dict) # Stores subject and body pair for this step as JSON: {"subject": "...", "body": "..."}
     
     track_template = models.BooleanField(default=False) # Individually track opens for this template
     open_rate = models.IntegerField(default=0)
-    
-    scheduled_launch_time = models.DateTimeField() # When this step is set to launch
 
     DELIVERED_STATUS_CHOICES = [
         ('Pending', 'Pending'),
@@ -63,6 +78,8 @@ class DripTemplate(models.Model):
         return f"Step {self.step_number} of Drip Campaign {self.campaign.id}"
     
     class Meta:
+        unique_together = ('campaign', 'step_number')
+        ordering = ['step_number']
         verbose_name = "Drip Template"
         verbose_name_plural = "Drip Templates"
 

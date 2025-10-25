@@ -17,6 +17,8 @@ from django.db.models import F
 from django.db import transaction
 from bs4 import BeautifulSoup
 from celery import shared_task
+from celery.exceptions import TimeLimitExceeded
+
 
 email_regex = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
 
@@ -134,7 +136,11 @@ def sanitize_email_html(html_content, base_url, max_email_width=600):
     return str(soup)
 
 
-@shared_task(name="dashboard.send_single_email", acks_late=True, bind=True, default_retry_delay=300) # 5 min retry
+# Set a time limit *less* than RabbitMQ's 30-min timeout
+# (e.g., 10 minutes = 600 seconds)
+EMAIL_TASK_TIME_LIMIT = 600
+
+@shared_task(name="dashboard.send_single_email", acks_late=True, bind=True, default_retry_delay=300, time_limit=EMAIL_TASK_TIME_LIMIT)
 def send_single_email(self, campaign_record_id):
     """
     This is the self-perpetuating "Worker" task.
@@ -143,6 +149,11 @@ def send_single_email(self, campaign_record_id):
     - bind=True: Allows us to call self.retry() for network errors.
     """
     connection = None
+    lead = None
+    email_account = None
+    campaign = None
+    lead_processed_by_this_worker = False
+
     try:
         # 1. --- Get Campaign ---
         campaign = CampaignRecord.objects.get(id=campaign_record_id)
@@ -235,12 +246,6 @@ def send_single_email(self, campaign_record_id):
         # 8. --- SUCCESS: Update DB & Log ---
         print(f"Celery Task: Sent to {lead['Email']} via {campaign.sender_account.email_address}")
         
-        # # Pop the lead *after* successful send
-        # campaign.leads_data.pop(0) 
-        
-        # # Update sent_count atomically and save the popped list
-        # CampaignRecord.objects.filter(id=campaign.id).update(sent_count=F('sent_count') + 1)
-        # campaign.save(update_fields=['leads_data'])
 
         with transaction.atomic():
             campaign_for_update = CampaignRecord.objects.select_for_update().get(id=campaign.id)
@@ -253,10 +258,14 @@ def send_single_email(self, campaign_record_id):
                 campaign_for_update.sent_count += 1
                 # save
                 campaign_for_update.save(update_fields=['leads_data', 'sent_count'])
+                lead_processed_by_this_worker = True
 
             # Update the in-memory 'campaign' object to reflect the changes
             campaign.leads_data = campaign_for_update.leads_data
             campaign.sent_count = campaign_for_update.sent_count
+
+        if not lead_processed_by_this_worker:
+            return
 
 
         # Create thread/message log
@@ -279,6 +288,44 @@ def send_single_email(self, campaign_record_id):
             )
 
     # 8. --- ERROR HANDLING ---
+
+    except TimeLimitExceeded as e:
+        print(f"Time limit exceeded for campaign {campaign_record_id}: {e}. Retrying task.")
+        try:
+            # Atomically remove the lead that timed out
+            with transaction.atomic():
+                campaign_for_update = CampaignRecord.objects.select_for_update().get(id=campaign.id)
+                
+                if not campaign_for_update.leads_data or campaign_for_update.leads_data[0]['Email'] != lead['Email']:
+                    print(f"Timeout handler: Lead {lead['Email']} was already processed. Stopping.")
+                    return # Another worker already handled it, or it's empty
+
+                # Pop the bad lead
+                campaign_for_update.leads_data.pop(0)
+                campaign_for_update.save(update_fields=['leads_data'])
+                
+                # Update in-memory object
+                campaign.leads_data = campaign_for_update.leads_data
+
+            # Reschedule for the *next* lead after a 5-min safety delay
+            if campaign.leads_data:
+                print(f"Timeout handler: Scheduling next lead for {campaign.id} in 5 minutes.")
+                send_single_email.apply_async(
+                    args=[campaign_record_id],
+                    countdown=300 # 5 minutes
+                )
+            else:
+                print(f"Timeout handler: Skipped last lead. Campaign {campaign.id} finished.")
+                campaign.status = 'launched'
+                campaign.save(update_fields=['status'])
+
+        except Exception as skip_e:
+            # If skipping fails, we have a bigger problem. Fail the campaign.
+            print(f"CRITICAL: Failed to skip timed-out lead! Failing campaign {campaign.id}. Error: {skip_e}")
+            CampaignRecord.objects.filter(id=campaign_record_id).update(status='failed')
+            
+        return # Stop the current (timed-out) task
+
     except (CampaignRecord.DoesNotExist, EmailAccount.DoesNotExist) as e:
         print(f"Critical error: {e}. Stopping chain for campaign {campaign_record_id}.")
         # Don't reschedule
@@ -576,7 +623,7 @@ def cleanup_email_opens():
 def clear_launched_campaigns():
     """
     Deletes CampaignRecord entries where:
-    - status is 'launched' AND
+    - status is 'launched', 'failed' or 'cancelled' AND
     - launch_time is older than 7 days
     """
     cutoff_date = timezone.now() - timedelta(days=7)
