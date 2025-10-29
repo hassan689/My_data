@@ -52,6 +52,30 @@ class DateTimePickerInput(DateTimeInput):
     input_type = 'datetime-local'
 
 class CampaignForm(forms.Form):
+    
+    # added for Drip Campaign Form ..... Name of the Campaign
+    name = forms.CharField(
+        max_length=255,
+        required=False,
+        widget=forms.TextInput(attrs={'placeholder': 'Name Your Outreach Sequence'})
+    )
+
+    # For Drip Campaign Form ..... Delay between each step
+    step_delay_hours = forms.IntegerField(
+        label="Delay (Hours)",
+        min_value=0,
+        required=False,
+        widget=forms.NumberInput(attrs={'placeholder': 'e.g., 2'})
+    )
+
+    step_delay_minutes = forms.IntegerField(
+        label="Delay (Minutes)",
+        min_value=0,
+        max_value=59,
+        required=False,
+        widget=forms.NumberInput(attrs={'placeholder': 'e.g., 30'})
+    )
+
     email_subject = forms.CharField(
         max_length=255,
         required=True,

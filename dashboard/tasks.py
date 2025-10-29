@@ -267,7 +267,6 @@ def send_single_email(self, campaign_record_id):
         if not lead_processed_by_this_worker:
             return
 
-
         # Create thread/message log
         if mailbox_instance:
             thread, _ = EmailThread.objects.get_or_create(

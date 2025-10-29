@@ -630,7 +630,7 @@ def bulk_campaign_step1(request):
                 }
 
             # not storing all the leads in the cache so it doesnt break
-            cache.set(cache_key, cache_data, timeout=300)
+            cache.set(cache_key, cache_data, timeout=3600)
             return redirect('dashboard:bulk_campaign_step2', campaign_key=campaign_key)
 
         else:
@@ -684,6 +684,17 @@ def bulk_campaign_step2(request, campaign_key):
             params = cached_data['params']
             refetched_leads = get_leads_from_db(**params)
         
+        # If refetch failed or returned no leads, surface a form error and re-render Step 2
+        if not refetched_leads:
+            form.add_error(None, "No leads could be reloaded. Please restart the bulk campaign flow and try again.")
+            return render(request, 'dashboard/bulk_campaign_step2.html', {
+                'form': form,
+                'email_accounts': email_accounts,
+                'email_accounts_count': email_accounts_count,
+                'leads_ready': bool(cached_data),
+                'leads_count': 0,
+            })
+
         if form.is_valid():
 
             leads = refetched_leads
@@ -708,12 +719,12 @@ def bulk_campaign_step2(request, campaign_key):
 
                 if not accounts.exists():
                     form.add_error(None, "No email accounts found for your user.")
-                    return render(request, 'dashboard/bulk_campaign.html', {
+                    return render(request, 'dashboard/bulk_campaign_step2.html', {
                         'form': form,
                         'email_accounts': email_accounts,
                         'email_accounts_count': email_accounts_count,
                         'leads_ready': bool(cached_data),
-                        'total_leads': len(leads),
+                        'leads_count': len(leads),
                     })
 
                 # ✅ Auto-distribute leads among the checked accounts only
@@ -734,12 +745,12 @@ def bulk_campaign_step2(request, campaign_key):
 
                 if total_requested_leads != len(leads):
                     form.add_error(None, f"Total assigned leads ({total_requested_leads}) must match total available ({len(leads)}).")
-                    return render(request, 'dashboard/bulk_campaign.html', {
+                    return render(request, 'dashboard/bulk_campaign_step2.html', {
                         'form': form,
                         'email_accounts': email_accounts,
                         'email_accounts_count': email_accounts_count,
                         'leads_ready': bool(cached_data),
-                        'total_leads': len(leads),
+                        'leads_count': len(leads),
                     })
 
             if not select_all:
@@ -752,12 +763,12 @@ def bulk_campaign_step2(request, campaign_key):
                             count = int(count[0]) if isinstance(count, list) else int(count)
                         except (ValueError, TypeError):
                             form.add_error(None, f"Invalid lead count for account {account}")
-                            return render(request, 'dashboard/bulk_campaign.html', {
+                            return render(request, 'dashboard/bulk_campaign_step2.html', {
                                 'form': form,
                                 'email_accounts': email_accounts,
                                 'email_accounts_count': email_accounts_count,
                                 'leads_ready': bool(cached_data),
-                                'total_leads': len(leads),
+                                'leads_count': len(leads),
                             })
 
                     updated_map[account] = leads[lead_index:lead_index + count]
@@ -958,7 +969,7 @@ def campaign_records(request):
     # Filter campaigns for the current user with a 'launched' status
     campaign_list = CampaignRecord.objects.filter(
         launched_by=request.user,
-        status='launched',
+        # status='launched', # So that the comapiangs also display while sending
         track_campaign=True
     ).order_by('-launch_time')
     

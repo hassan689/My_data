@@ -2,7 +2,7 @@
 
 {% load static %}
 {% load custom_filters %}
-{% block 'title' %}Dispatch Skool - Bulk Campaign{% endblock %}
+{% block 'title' %}Dispatch Skool - Drip Campaign{% endblock %}
 
 {% block 'head' %}
     {{ form.media }}
@@ -26,21 +26,6 @@
 {% block 'content' %}
 
 <div class="p-4 sm:ml-72">
-
-  {% if messages %}
-    <div class="container mx-auto px-4 max-w-6xl my-4">
-      {% for message in messages %}
-        <div class="p-4 rounded-lg text-center font-medium
-                    {% if message.tags == 'success' %} bg-green-100 text-green-800 border border-green-300
-                    {% elif message.tags == 'error' %} bg-red-100 text-red-800 border border-red-300
-                    {% else %} bg-blue-100 text-blue-800 border border-blue-300
-                    {% endif %}"
-            role="alert">
-          {{ message }}
-        </div>
-      {% endfor %}
-    </div>
-  {% endif %}
 
 	{% if request.user.subscription and request.user.subscription.status == "active" and email_accounts_count < 2 %}
 
@@ -216,7 +201,7 @@
 						Set Delay
 					</h2>
 					<p class="text-tertiary text-base mt-2">
-						Number of seconds to wait between each email send.  
+						Number of seconds to wait <span class="font-bold"> between each email send.</span>  
             The system will select a <span class="font-bold">random value between</span> the minimum and maximum range you specify.  
             This is done to <span class="font-bold">mimic natural human behavior</span> when sending campaigns.
 					</p>
@@ -227,7 +212,7 @@
         
             <div class="grid grid-cols-1 gap-4 p-6">
               <div>
-                {% render_field form.min_delay class="w-full border btn-border-hover rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none bg-primary text-primary" %}
+                {% render_field form.min_delay class="w-full border btn-border-hover rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none bg-primary text-primary" required="required" %}
                 {% if form.min_delay.errors %}
                   <div class="bg-red-200 p-5 my-3 rounded-xl border-2 border-solid border-red-700">
                     <p class="text-red-700 text-sm">{{ form.min_delay.errors|first }}</p>
@@ -235,7 +220,7 @@
                 {% endif %}
               </div>
               <div>
-                {% render_field form.max_delay class="w-full border btn-border-hover rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none bg-primary text-primary" %}
+                {% render_field form.max_delay class="w-full border btn-border-hover rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none bg-primary text-primary" required="required" %}
                 {% if form.max_delay.errors %}
                   <div class="bg-red-200 p-5 my-3 rounded-xl border-2 border-solid border-red-700">
                     <p class="text-red-700 text-sm">{{ form.max_delay.errors|first }}</p>
@@ -247,11 +232,14 @@
         </div>
 
         <section class="flex flex-col max-w-2xl mx-auto items-center text-center px-4 md:px-4 lg:px-5">
+					<span class="text-md font-medium text-secondary bg-secondary px-4 py-1 rounded-full">
+						Step 4
+					</span>
 					<h2 class="text-2xl md:text-3xl font-semibold mt-3 text-primary">
-						Schedule Campaign
+						Schedule The First Template Send
 					</h2>
 					<p class="text-tertiary text-base my-5">
-            <span class="font-bold">Optional: </span>Select a <span class="font-bold">future date and time (your local time)</span> to launch this campaign.
+            Select a <span class="font-bold">future date and time (Pakistan local time)</span> to start the <span class="font-bold">Drip Campaign</span>.
           </p>
 				</section>
 
@@ -260,7 +248,7 @@
         
             <div class="p-6">
               <div>
-                {% render_field form.schedule_launch_datetime class="w-full border rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none bg-primary text-primary" %}
+                {% render_field form.schedule_launch_datetime class="w-full border rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none bg-primary text-primary" required="required" %}
                 {% if form.schedule_launch_datetime.errors %}
                   <div class="bg-red-200 p-5 my-3 rounded-xl border-2 border-solid border-red-700">
                     <p class="text-red-700 text-sm">{{ form.schedule_launch_datetime.errors|first }}</p>
@@ -270,116 +258,60 @@
             </div>
 
           </div>
-          <div>
-            <p class="text-red-700 text-lg mt-3 text-center">
-              Scheduling is completely optional. If you prefer to launch the campaign immediately, you can skip selecting a date and time.
-            </p>
-          </div>
         </div>
         
-        <!-- Enter email subject and body -->
-        <section class="flex flex-col items-center text-center px-4 md:px-4 lg:px-5 py-6 mt-10">
-          <span class="text-md font-medium text-secondary bg-secondary px-4 py-1 rounded-full">
-            Step 4
-          </span>
-          <h2 class="text-2xl md:text-3xl font-semibold mt-3 text-primary">
-            Craft your Email
-          </h2>
-          <p class="text-tertiary text-base mt-2">
-            Customize the message that will be sent to your leads
+
+        <section class="flex flex-col max-w-2xl mx-auto items-center text-center px-4 md:px-4 lg:px-5">
+					<span class="text-md font-medium text-secondary bg-secondary px-4 py-1 rounded-full">
+						Step 5
+					</span>
+					<h2 class="text-2xl md:text-3xl font-semibold mt-3 text-primary">
+						Set the Delay Between Each Step
+					</h2>
+					<p class="text-tertiary text-base my-5">
+            Select a <span class="font-bold">delay duration</span> for each step in the campaign.
           </p>
-        </section>
+				</section>
+
+        <div class="container mx-auto px-4 max-w-2xl mb-20">
+          <div class="bg-primary rounded-lg shadow-md">
         
-        <div class="container mx-auto px-4 pt-8 pb-4 max-w-6xl">
+            <div class="p-6">
+              <div class="flex space-x-4">
 
-          <!-- Guidelines & Tips Box -->
-          <div class="p-6 bg-primary rounded-lg shadow-md my-6">
-            <h2 class="text-xl font-semibold text-secondary">Guidelines & Tips</h2>
-            <p class="text-tertiary">Best practices for effective campaigns</p>
-
-            <div class="mt-4 p-4 bg-secondary rounded-lg">
-                <h3 class="text-sm font-semibold text-secondary">General Instructions</h3>
-                <ul class="mt-2 text-sm text-primary space-y-1">
-                    <li>• Keep your message clear and concise</li>
-                    <li>• Personalize whenever possible</li>
-                    <li>• Include a clear call-to-action</li>
-                    <li>• Avoid spam-triggering words and phrases</li>
-                    <li>• Test your campaign with a small sample first</li>
-                </ul>
-            </div>
-          </div>
-              
-          <!-- Campaign Message Box -->
-          <div class="p-6 bg-primary rounded-lg shadow-md">
-              <h2 class="text-xl font-semibold text-secondary">Campaign Message</h2>
-              <p class="text-tertiary">Create a compelling message for your campaign</p>
-
-              
-              <div class="my-4 p-4 bg-secondary rounded-lg">
-                <h3 class="text-base font-bold text-secondary">Personalization Guide</h3>
-                <p class="mt-2 text-sm text-primary">
-                  <span class="font-bold text-blue-600">If you are using your custom sheet</span>: To personalize your message, use <strong>[column_name]</strong> where <span class="font-semibold">column_name matches exactly the column header from your uploaded file.</span>
-                </p>
-                <p class="text-sm text-primary mt-4">
-                  <span class="font-bold text-green-600">If you are using our database</span>, the following columns are available for personalization:
-                </p>
-                <div class="mt-2 flex flex-wrap gap-2 text-xs font-medium">
-                  <span class="px-2 py-1 bg-white rounded-md">[MC Number]</span>
-                  <span class="px-2 py-1 bg-white rounded-md">[Legal Name]</span>
-                  <span class="px-2 py-1 bg-white rounded-md">[Email]</span>
-                  <span class="px-2 py-1 bg-white rounded-md">[U.S DOT]</span>
-                  <span class="px-2 py-1 bg-white rounded-md">[VMT Year]</span>
-                  <span class="px-2 py-1 bg-white rounded-md">[Power Units]</span>
-                  <span class="px-2 py-1 bg-white rounded-md">[DUNS Number]</span>
-                  <span class="px-2 py-1 bg-white rounded-md">[Drivers]</span>
-                  <span class="px-2 py-1 bg-white rounded-md">[Telephone]</span>
-                  <span class="px-2 py-1 bg-white rounded-md">[Address]</span>
-                  <span class="px-2 py-1 bg-white rounded-md">[Cargo Classifications]</span>
-                </div>
-              </div>
-
-
-              <div class="mt-4">
-                <label class="block text-sm font-medium text-secondary mb-1">Email Subject</label>
-                
-                <div class="flex items-center gap-4">
-                  {{ form.email_subject|add_class:"w-2/3 p-3 border focus:ring-gray-500 focus:border-gray-500 rounded-lg outline-none text-primary bg-primary" }}
-
-                  <div class="flex items-center space-x-2">
-                    {{ form.track_campaign|add_class:"sr-only toggle-input" }}
+                  <div class="flex-1">
+                    {% render_field form.step_delay_hours class="w-full border rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none bg-primary text-primary" placeholder="Hours" required="required" %}
                     
-                    <label for="{{ form.track_campaign.id_for_label }}" class="toggle-label"></label>
-                    <span class="text-base text-primary">Track Open Rate</span>
+                    {% if form.step_delay_hours.errors %}
+                      <div class="bg-red-200 p-5 my-3 rounded-xl border-2 border-solid border-red-700">
+                        <p class="text-red-700 text-sm">{{ form.step_delay_hours.errors|first }}</p>
+                      </div>
+                    {% endif %}
                   </div>
-                </div>
 
-                {% if form.email_subject.errors %}
-                  <div class="bg-red-200 p-5 my-3 rounded-xl border-2 border-solid border-red-700">
-                    <p class="text-red-700 text-sm">{{ form.email_subject.errors.0 }}</p>
+                  <div class="flex-1">
+                    {% render_field form.step_delay_minutes class="w-full border rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none bg-primary text-primary" placeholder="Minutes" required="required" %}
+                    
+                    {% if form.step_delay_minutes.errors %}
+                      <div class="bg-red-200 p-5 my-3 rounded-xl border-2 border-solid border-red-700">
+                        <p class="text-red-700 text-sm">{{ form.step_delay_minutes.errors|first }}</p>
+                      </div>
+                    {% endif %}
                   </div>
-                {% endif %}
-              </div>
 
-              <div class="mt-4">
-                <label class="block text-sm font-medium text-secondary">Email Body</label>
-                <div class="mt-1 w-full border rounded-lg focus-within:ring-2 focus-within:ring-gray-500 focus-within:border-gray-500">
-                    {{ form.email_body }}
                 </div>
-                {% if form.email_body.errors %}
-                    <div class="bg-red-200 p-5 my-3 rounded-xl border-2 border-solid border-red-700"><p class="text-red-700 text-sm">{{ form.email_body.errors.0 }}</p></div>
-                {% endif %}
-              </div>
+            </div>
+
           </div>
-
         </div>
 
         <!-- Launch Button -->
         <section class="flex flex-col items-center text-center px-4 md:px-4 lg:px-5 py-6 my-5">
           <span class="text-md font-medium text-secondary bg-secondary px-4 py-1 rounded-full">
-            Step 5
+            Step 6
           </span>
           <h2 class="text-2xl md:text-3xl font-semibold mt-3 text-primary">
-            Ready to Launch
+            Set your Templates and Launch!
           </h2>
         </section>
 
@@ -393,8 +325,8 @@
           <!-- Submit button -->
           <div id="step-2-submit" class="container mx-auto px-4 mb-10 text-center">
             <div class="mt-6">
-              <button type="submit" class="btn-bg-primary btn-bg-hover btn-text font-semibold py-3 px-6 rounded-full shadow-lg text-lg">
-                Launch Bulk Campaign 🚀
+              <button type="submit" class="btn-bg-primary btn-bg-hover btn-text font-bold py-3 px-6 rounded-full shadow-lg text-lg">
+                Proceed to Templates & Launch Campaign 🚀
               </button>
             </div>
           </div>

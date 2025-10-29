@@ -13,6 +13,7 @@ urlpatterns = [
     path('dashboard/unibox/', include('unibox.urls')),
     path('affiliates/', include('affiliates.urls')),
     path('warmup/', include('warmup.urls')),
+    path('drip-campaigns/', include('drip_campaigns.urls')),
     
 		path("ckeditor5/image_upload/", custom_ckeditor_upload, name="custom_ckeditor_upload"),
     path("ckeditor5/", include('django_ckeditor_5.urls')),
