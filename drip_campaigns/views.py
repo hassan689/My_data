@@ -4,7 +4,7 @@ from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_http_methods
 from django.shortcuts import get_object_or_404
 
-from dashboard.views import process_excel_file, get_leads_from_db, save_temp_file, distribute_leads_among_accounts
+from dashboard.utilities import process_excel_file, get_leads_from_db, save_temp_file, distribute_leads_among_accounts
 from users.models import EmailAccount
 from .models import DripCampaign, EmailAccountAndLeads, DripTemplate
 

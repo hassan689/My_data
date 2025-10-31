@@ -1,5 +1,7 @@
 from django.utils.timezone import now
 from subscriptions.models import Subscription, Revenue, Expense
+from warmup.models import WarmupCampaign
+from users.models import EmailAccount
 from datetime import datetime
 from decimal import Decimal
 from growth_skool.celery import app
@@ -8,6 +10,37 @@ from django.conf import settings
 from datetime import timedelta
 from django.utils.timezone import get_current_timezone, make_aware
 from django.db.models import Sum
+from django.db import transaction
+
+
+@app.task(name="subscriptions.tasks.end_warmup")
+def end_warmup():
+    
+    # set their warmup campaigns to complete where their email accounts are sender_accounts
+    # Remove their accounts from those campaings as well where they are in target_accounts
+
+    expired_or_canceled_subscriptions = Subscription.objects.filter(
+        status__in=["expired", "canceled"]
+    )
+    for subscription in expired_or_canceled_subscriptions:
+        user = subscription.user
+        user_accounts = EmailAccount.objects.filter(user=user)
+
+        # Mark campaigns as completed where user's accounts are senders
+        WarmupCampaign.objects.filter(sender_account__in=user_accounts).update(status="Complete")
+
+        # Remove user's accounts from all target lists
+        for account in user_accounts:
+            with transaction.atomic():
+                try: # to avoid any issues
+                    for campaign in WarmupCampaign.objects.filter(target_accounts=account):
+                        campaign.target_accounts.remove(account)
+                        campaign.save(update_fields=["target_accounts"])
+
+                    account.is_warmup_target = False
+                    account.save(update_fields=["is_warmup_target"])
+                except:
+                    continue
 
 
 @app.task(name="subscriptions.tasks.expire_subscriptions.expire_subscriptions")
@@ -18,7 +51,6 @@ def expire_subscriptions():
     for subscription in expired_subscriptions:
         subscription.status = "expired"
         subscription.save(update_fields=["status"])
-
 
 
 @app.task(name="subscriptions.tasks.send_subscription_reminders.send_subscription_reminders")
@@ -43,7 +75,6 @@ The Dispatch Skool Team
             fail_silently=False,
         )
         
-
 
 
 @app.task(name="subscriptions.tasks.update_current_month_revenue.update_current_month_revenue")

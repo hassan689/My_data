@@ -1,139 +1,29 @@
-import re
-from django.core.mail import EmailMultiAlternatives, get_connection, send_mail, EmailMessage
 from users.models import EmailAccount, CustomUser
 from unibox.models import EmailThread, OutgoingEmailMessage
 from dashboard.models import GmailToken, CampaignRecord, EmailOpen
-import random
-from growth_skool.celery import app
+
 from django.utils import timezone
-from email.utils import make_msgid
-import uuid
 from django.conf import settings
 from django.utils.timezone import timedelta
 from django.urls import reverse
-from urllib.parse import urljoin
 from django.utils.encoding import force_str
-from django.db.models import F
 from django.db import transaction
-from bs4 import BeautifulSoup
+
+import re
+import random
+import uuid
+
+from email.utils import make_msgid
+from urllib.parse import urljoin
+from growth_skool.celery import app
 from celery import shared_task
 from celery.exceptions import TimeLimitExceeded
 
+from .utilities import get_email_connection, personalize_template, sanitize_email_html
+from django.core.mail import EmailMultiAlternatives, get_connection, send_mail, EmailMessage
+
 
 email_regex = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
-
-
-def personalize_template(template, lead):
-    
-    # Find all placeholders like [Some Column]
-    placeholders = re.findall(r'\[([^\]]+)\]', template)
-    
-    for ph in placeholders:
-        value = str(lead.get(ph, ph))  # Use the column name as fallback if missing
-        template = template.replace(f"[{ph}]", value)
-    
-    return template
-
-
-def get_email_connection(email_account, decrypted_password):
-    """
-    Establishes and opens an SMTP connection for sending emails.
-    """
-    use_tls = email_account.server_type == "STARTTLS" or email_account.server_type == "TLS"
-    use_ssl = email_account.server_type == "SSL"
-
-    if use_tls and use_ssl:
-        print("Invalid configuration: Cannot enable all TLS, SSL and STARTTLS.")
-        return
-
-    connection = get_connection(
-        backend="django.core.mail.backends.smtp.EmailBackend",
-        host=email_account.host,
-        port=email_account.port_number,
-        username=email_account.email_address,
-        password=decrypted_password,
-        use_tls=use_tls,
-        use_ssl=use_ssl,
-    )
-    connection.open()
-    return connection
-
-
-def sanitize_email_html(html_content, base_url, max_email_width=600):
-    """
-    1. Converts relative image URLs to absolute URLs.
-    2. Keeps the exact pixel width/height set by CKEditor on the <img> tag.
-    """
-    # Assuming BeautifulSoup is imported correctly
-    soup = BeautifulSoup(html_content, 'html.parser')
-
-    # 1. Fix Images and enforce original dimensions
-    for img in soup.find_all('img'):
-        src = img.get('src')
-        
-        # Preserve original dimensions from the <img> tag
-        original_width = img.get('width')
-        original_height = img.get('height')
-
-        if src and src.startswith('/media/'):
-            # Make URL absolute
-            img['src'] = base_url + src
-
-        # --- REVISED LOGIC STARTS HERE ---
-        
-        # Get the parent <figure> tag (CKEditor puts width:XX% here)
-        figure = img.find_parent('figure')
-        
-        # 1. Check for CKEditor percentage width on the <figure>
-        # This part is now primarily for removing the <figure> style, but 
-        # it *can* still calculate the pixel width if needed.
-        intended_width_px = None
-        if figure and 'style' in figure.attrs:
-            style = figure['style']
-            match = re.search(r'width:(\d+\.?\d*)%', style)
-            
-            # If a percentage is found, calculate the intended width (optional, 
-            # but good for robust handling).
-            if match:
-                percentage = float(match.group(1))
-                intended_width_px = round(percentage / 100 * max_email_width)
-            
-            # Always remove the unreliable style from the <figure> tag
-            figure.attrs.pop('style', None)
-
-        # 2. **Apply the intended/original width.**
-        # Prioritize the width directly on the <img> tag (what CKEditor saved)
-        # If CKEditor saved a pixel width, use it. If not, use the max width.
-        
-        if original_width and original_width.isdigit():
-            # Use the exact width saved by CKEditor (e.g., 568 or 305)
-            img['width'] = original_width
-        elif intended_width_px:
-            # Fallback to calculated pixel width from a percentage
-            img['width'] = str(intended_width_px)
-        else:
-            # Fallback to full email width
-            img['width'] = str(max_email_width)
-            
-        # Also re-apply the original height if it was present, or use 'auto'
-        if original_height and original_height.isdigit():
-            img['height'] = original_height
-        else:
-            img['height'] = "auto"
-            
-        # Always remove other unreliable styles from the img tag
-        if 'style' in img.attrs:
-            del img.attrs['style']
-        
-        # --- REVISED LOGIC ENDS HERE ---
-
-    # 3. Fix other relative hrefs
-    for tag in soup.find_all(href=True):
-        href = tag.get('href')
-        if href and href.startswith('/media/'):
-            tag['href'] = base_url + href
-            
-    return str(soup)
 
 
 # Set a time limit *less* than RabbitMQ's 30-min timeout
@@ -245,7 +135,6 @@ def send_single_email(self, campaign_record_id):
         
         # 8. --- SUCCESS: Update DB & Log ---
         print(f"Celery Task: Sent to {lead['Email']} via {campaign.sender_account.email_address}")
-        
 
         with transaction.atomic():
             campaign_for_update = CampaignRecord.objects.select_for_update().get(id=campaign.id)
@@ -337,7 +226,7 @@ def send_single_email(self, campaign_record_id):
         # A) Daily Limit Exceeded (Fatal, stop chain)
         if "Daily user sending limit exceeded" in error_message:
             print(f"Daily limit exceeded for {email_account.email_address}. Halting campaign {campaign.id}.")
-            campaign.status = 'failed'
+            campaign.status = 'launched'
             campaign.save(update_fields=['status'])
             # ... (your notification_email logic) ...
             return # Stop the chain
@@ -389,56 +278,38 @@ def send_single_email(self, campaign_record_id):
 
 
 @shared_task(name="dashboard.send_emails_chunk_celery_task")
-def send_emails_chunk_celery_task(email_account_id, leads, subject, body, min_delay, max_delay, campaign_record_id):
+def send_emails_chunk_celery_task(campaign_record_id):
     """
     This is the "Kicker" task.
     It runs ONCE at the start of a campaign.
     Its only job is to populate the CampaignRecord and schedule the
     first processing task to run immediately.
     """
-    print(f"Launching campaign {campaign_record_id} with {len(leads)} leads.")
-    
+    # Read campaign from DB (do NOT pass large `leads` through the broker)
     try:
-        # Use transaction.atomic to ensure all DB writes succeed or fail together
-        with transaction.atomic():
-            campaign = CampaignRecord.objects.get(id=campaign_record_id)
-            
-            # Populate the campaign object with all necessary data
-            campaign.leads_data = leads
-            campaign.total_recipients = len(leads)
-            campaign.sent_count = 0
-            campaign.status = 'processing'
-            
-            # Store the templates and settings on the model
-            campaign.subject = subject
-            campaign.body = body
-            campaign.min_delay = min_delay
-            campaign.max_delay = max_delay
-            campaign.sender_account_id = email_account_id
-            
-            campaign.save(update_fields=[
-                'leads_data', 'total_recipients', 'sent_count', 'status',
-                'subject', 'body', 'min_delay', 'max_delay', 'sender_account_id'
-            ])
+        campaign = CampaignRecord.objects.get(id=campaign_record_id)
+        leads = campaign.leads_data or []
+        print(f"Launching campaign {campaign_record_id} with {len(leads)} leads.")
 
-        # Schedule the *first* worker task.
-        # It runs with countdown=0 (immediately).
-        # The chain starts here.
-        send_single_email.apply_async(
-            args=[campaign_record_id],
-            countdown=0
-        )
+        # Ensure campaign object is in the expected initial state
+        with transaction.atomic():
+            campaign = CampaignRecord.objects.select_for_update().get(id=campaign_record_id)
+            campaign.total_recipients = len(leads)
+            campaign.sent_count = campaign.sent_count or 0
+            if campaign.status in ('pending', None):
+                campaign.status = 'processing'
+
+            # Save fields which might have been changed by the UI already
+            campaign.save(update_fields=['total_recipients', 'sent_count', 'status'])
+
+        # Schedule the *first* worker task immediately.
+        send_single_email.apply_async(args=[campaign_record_id], countdown=0)
         print(f"Campaign {campaign_record_id} successfully launched. First task queued.")
 
     except CampaignRecord.DoesNotExist:
         print(f"Failed to launch: CampaignRecord {campaign_record_id} does not exist.")
     except Exception as e:
         print(f"Critical error launching campaign {campaign_record_id}: {e}")
-        # Optionally mark campaign as failed if setup fails
-        try:
-            CampaignRecord.objects.filter(id=campaign_record_id).update(status='failed')
-        except:
-            pass
 
 
 
@@ -462,19 +333,8 @@ def launch_scheduled_campaign_checker():
     for campaign_record in campaigns_to_launch:
         try:
 
-            # Retrieve leads data from JSONField
-            leads = campaign_record.leads_data
-
-            # Trigger the actual email sending task
-            send_emails_chunk_celery_task.delay(
-                campaign_record.sender_account.id,
-                leads,
-                campaign_record.subject,
-                campaign_record.body,
-                campaign_record.min_delay,
-                campaign_record.max_delay,
-                campaign_record.id
-            )
+            # Trigger the kicker task by campaign id only; task will fetch leads and settings from DB
+            send_emails_chunk_celery_task.delay(campaign_record.id)
             print(f"Triggered send_emails_chunk_celery_task for CampaignRecord {campaign_record.id}.")
 
             campaign_record.sender_account.last_used_at = now_utc
@@ -488,6 +348,17 @@ def launch_scheduled_campaign_checker():
             # Optionally, set status to 'failed' if an error prevents launching
             campaign_record.status = 'failed'
             campaign_record.save(update_fields=['status'])
+
+
+
+@app.task(name="dashboard.tasks.revive_failed_launch")
+def revive_failed_launch():
+    
+    CampaignRecord.objects.filter(status='processing', sent_count=0).update(
+        status='pending',
+        scheduled_launch_time=timezone.now()
+    )
+    launch_scheduled_campaign_checker() # Immediately launch the above campaigns that were set to pending
 
 
 

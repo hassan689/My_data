@@ -1,4 +1,5 @@
 from django import forms
+import re
 from django.utils import timezone
 from users.models import EmailAccount
 from django_ckeditor_5.widgets import CKEditor5Widget
@@ -249,10 +250,24 @@ class CampaignForm(forms.Form):
         if max_delay < min_delay:
             self.add_error('max_delay', "Upper limit delay must be greater than lower limit.")
 
-        # MC number range validation
+        # MC number range validation — compare by numeric value, not raw string
         if lower_limit_mc_number is not None and upper_limit_mc_number is not None:
-            if lower_limit_mc_number > upper_limit_mc_number:
-                self.add_error('upper_limit_mc_number', "Upper limit MC Number must be greater than the lower limit.")
+            def _digits_int(val):
+                if val is None:
+                    return None
+                s = str(val).strip()
+                # remove leading 'MC' and non-digits
+                s = re.sub(r'(?i)^mc\s*', '', s)
+                digits = re.sub(r'\D', '', s)
+                return int(digits) if digits else None
+
+            lower_digits = _digits_int(lower_limit_mc_number)
+            upper_digits = _digits_int(upper_limit_mc_number)
+
+            # Only validate when both parsed to integers successfully
+            if lower_digits is not None and upper_digits is not None:
+                if lower_digits > upper_digits:
+                    self.add_error('upper_limit_mc_number', "Upper limit MC Number must be greater than the lower limit.")
 
         # Schedule datetime validation
         if schedule_launch_datetime:

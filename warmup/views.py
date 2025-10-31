@@ -8,19 +8,6 @@ from users.models import EmailAccount
 import random
 
 
-# def refresh_targets(campaign):
-#     """Return a list of new target accounts for a campaign."""
-#     return list(
-#         EmailAccount.objects.filter(
-#             is_warmup_target=True
-#         ).exclude(
-#             id=campaign.sender_account.id
-#         ).exclude(
-#             black_list=True
-#         ).order_by('?')[:5]
-#     )
-
-
 # So that they only communicate with Ahmd bhai's accounts and their own accounts. Removing the conflict between users.
 def refresh_targets(campaign):
     # Step 1️⃣: Base target list (static)
@@ -54,6 +41,7 @@ def refresh_targets(campaign):
     selected_accounts = random.sample(list(valid_accounts), min(5, valid_accounts.count()))
 
     return selected_accounts
+
 
 def start_warmup_view(request, email_account_id):
     sender_account = get_object_or_404(EmailAccount, id=email_account_id)
