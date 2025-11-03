@@ -371,7 +371,8 @@ def drip_campaign_step3(request, campaign_id):
             DripTemplate.objects.bulk_create(templates_to_create)
 
             messages.success(request, f"Drip campaign '{campaign.name}' successfully created!")
-            return redirect('drip_campaigns:index') # Or your dashboard
+            print("🎉 Redirecting to dashboard:index")
+            return redirect('dashboard:index') # temp till we have a campaigns list view
 
     else:
         # GET request: create a new, empty formset

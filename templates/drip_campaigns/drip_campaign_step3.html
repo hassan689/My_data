@@ -5,20 +5,17 @@
 {% block 'title' %}Dispatch Skool - Bulk Campaign{% endblock %}
 
 {% block 'head' %}
+  {# Ensure CKEditor widget media is output. If a single `form` exists use it; otherwise use the first form in `formset`. #}
+  {% if form %}
     {{ form.media }}
-    <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            const form = document.querySelector('form');
-            const datetimeInput = document.querySelector('input[name="schedule_launch_datetime"]');
-            const timezoneInput = document.createElement('input');
-            timezoneInput.type = 'hidden';
-            timezoneInput.name = 'user_timezone';
-            timezoneInput.value = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Karachi'; // Fallback
-            form.appendChild(timezoneInput);
+  {% else %}
+    {% for f in formset %}
+      {% if forloop.first %}
+        {{ f.media }}
+      {% endif %}
+    {% endfor %}
+  {% endif %}
 
-            if (!form || !datetimeInput) return;
-        });
-    </script>
 {% endblock %}
 
 {% load widget_tweaks %}
@@ -63,8 +60,18 @@
       {% endfor %}
     </div>
     {% endif %}
+
+    {% if formset.non_form_errors %}
+    <div class="bg-red-100 text-red-700 border border-red-300 rounded p-4 my-6 text-lg text-center font-medium">
+      {% for error in formset.non_form_errors %}
+        <p>{{ error }}</p>
+      {% endfor %}
+    </div>
+    {% endif %}
 		
 		</div>
+    
+    {% comment %}
     <!-- Step 2 - Rest of the inputs -->
     <div id="step-2-wrapper">
 
@@ -83,7 +90,7 @@
             Step 6
           </span>
           <h2 class="text-2xl md:text-3xl font-semibold mt-3 text-primary">
-            Craft your Email Templates
+            Craft your Email Templates for <span class="text-blue-700">{{ campaign.name }}</span>
           </h2>
           <p class="text-tertiary text-base mt-2">
             Customize the message that will be sent to your leads
@@ -153,12 +160,12 @@
                   <div class="mt-4">
                     <label class="block text-sm font-medium text-secondary mb-1">Email Subject</label>
                     <div class="flex items-center gap-4">
-                      {{ form.email_subject|add_class:"w-2/3 p-3 border focus:ring-gray-500 focus:border-gray-500 rounded-lg outline-none text-primary bg-primary" }}
+                      {{ form.subject|add_class:"w-2/3 p-3 border focus:ring-gray-500 focus:border-gray-500 rounded-lg outline-none text-primary bg-primary" }}
 
                       <div class="flex items-center space-x-2">
-                        {{ form.track_campaign|add_class:"sr-only toggle-input" }}
+                        {{ form.track_template|add_class:"sr-only toggle-input" }}
                         
-                        <label for="{{ form.track_campaign.id_for_label }}" class="toggle-label"></label>
+                        <label for="{{ form.track_template.id_for_label }}" class="toggle-label"></label>
                         <span class="text-base text-primary">Track Open Rate</span>
                       </div>
                     </div>
@@ -167,10 +174,10 @@
                   <div class="mt-4">
                     <label class="block text-sm font-medium text-secondary">Email Body</label>
                     <div class="mt-1 w-full border rounded-lg">
-                        {{ form.email_body }}
+                        {{ form.body }}
                     </div>
-                    {% if form.email_body.errors %}
-                      <div class="text-red-500 text-sm mt-1">{{ form.email_body.errors|first }}</div>
+                    {% if form.body.errors %}
+                      <div class="text-red-500 text-sm mt-1">{{ form.body.errors|first }}</div>
                     {% endif %}
                   </div>
 
@@ -211,6 +218,208 @@
           <div id="step-2-submit" class="container mx-auto px-4 mb-10 text-center">
             <div class="mt-6">
               <button type="submit" class="btn-bg-primary btn-bg-hover btn-text font-semibold py-3 px-6 rounded-full shadow-lg text-lg">
+                Launch Drip Campaign 🚀
+              </button>
+            </div>
+          </div>
+        </div>
+
+      </form>
+
+    </div>
+    {% endcomment %}
+
+    
+    <!-- Step 2 - Rest of the inputs -->
+    <div id="step-2-wrapper">
+
+      <form enctype="multipart/form-data" method="post">
+        {% csrf_token %}
+        
+        <!-- 
+          CRITICAL: The management form must be included for formsets to work.
+          It's hidden, but it tells Django how many forms are being submitted.
+        -->
+        {{ formset.management_form }}
+
+        {% if form.non_field_errors %}
+        <div class="text-red-500 text-sm mb-2">
+            {{ form.non_field_errors }}
+        </div>
+        {% endif %}
+        
+        <!-- ... (Your 'Craft your Email Templates' section) ... -->
+        <section class="flex flex-col items-center text-center px-4 md:px-4 lg:px-5 py-6 mt-10">
+          <span class="text-md font-medium text-secondary bg-secondary px-4 py-1 rounded-full">
+            Step 6
+          </span>
+          <h2 class="text-2xl md:text-3xl font-semibold mt-3 text-primary">
+            Craft your Email Templates for campaign: <span class="text-blue-700">{{ campaign.name }}</span>
+          </h2>
+          <p class="text-tertiary text-base mt-2">
+            Customize the message that will be sent to your leads
+          </p>
+        </section>
+        <!-- ... (End of section) ... -->
+
+        <div class="container mx-auto px-4 pt-8 pb-4 max-w-6xl">
+          <!-- ... (Your 'Guidelines' and 'Personalization' boxes) ... -->
+          <div class="p-6 bg-primary rounded-lg shadow-md my-6">
+            <h2 class="text-xl font-semibold text-secondary">Guidelines & Tips</h2>
+            <p class="text-tertiary">Best practices for effective campaigns</p>
+            <div class="mt-4 p-4 bg-secondary rounded-lg">
+                <h3 class="text-sm font-semibold text-secondary">General Instructions</h3>
+                <ul class="mt-2 text-sm text-primary space-y-1">
+                    <li>• Keep your message clear and concise</li>
+                    <li>• Personalize whenever possible</li>
+                    <li>• Include a clear call-to-action</li>
+                    <li>• Avoid spam-triggering words and phrases</li>
+                    <li>• Test your campaign with a small sample first</li>
+                </ul>
+            </div>
+          </div>
+          <div class="p-6 bg-primary rounded-lg shadow-md">
+              <h2 class="text-xl font-semibold text-secondary">Campaign Message</h2>
+              <p class="text-tertiary">Create a compelling message for your campaign</p>
+              <div class="my-4 p-4 bg-secondary rounded-lg">
+                <h3 class="text-base font-bold text-secondary">Personalization Guide</h3>
+                <p class="mt-2 text-sm text-primary">
+                  <span class="font-bold text-blue-600">If you are using your custom sheet</span>: To personalize your message, use <strong>[column_name]</strong> where <span class="font-semibold">column_name matches exactly the column header from your uploaded file.</span>
+                </p>
+                <p class="text-sm text-primary mt-4">
+                  <span class="font-bold text-green-600">If you are using our database</span>, the following columns are available for personalization:
+                </p>
+                <div class="mt-2 flex flex-wrap gap-2 text-xs font-medium">
+                  <span class="px-2 py-1 bg-white rounded-md">[MC Number]</span>
+                  <span class="px-2 py-1 bg-white rounded-md">[Legal Name]</span>
+                  <span class="px-2 py-1 bg-white rounded-md">[Email]</span>
+                  <span class="px-2 py-1 bg-white rounded-md">[U.S DOT]</span>
+                  <span class="px-2 py-1 bg-white rounded-md">[VMT Year]</span>
+                  <span class="px-2 py-1 bg-white rounded-md">[Power Units]</span>
+                  <span class="px-2 py-1 bg-white rounded-md">[DUNS Number]</span>
+                  <span class="px-2 py-1 bg-white rounded-md">[Drivers]</span>
+                  <span class="px-2 py-1 bg-white rounded-md">[Telephone]</span>
+                  <span class="px-2 py-1 bg-white rounded-md">[Address]</span>
+                  <span class="px-2 py-1 bg-white rounded-md">[Cargo Classifications]</span>
+                </div>
+              </div>
+          </div>
+          <!-- ... (End of info boxes) ... -->
+        </div>
+
+        <div class="container mx-auto px-4 pt-8 pb-4 max-w-6xl">
+
+          <!-- Campaign Message Box -->
+          <div class="p-6 bg-primary rounded-lg shadow-md">
+              
+              <!-- 
+                This container will hold all our forms.
+                This is what the JS will append new forms to.
+              -->
+              <div id="template-forms-container">
+                
+                {% for form in formset %}
+                  <div class="template-form p-6 bg-secondary rounded-lg shadow-md mb-6 border border-gray-700">
+                    <!-- Added a class here for JS to find -->
+                    <h2 class="template-day-counter text-xl font-semibold text-secondary">Day {{ forloop.counter }}</h2>
+                    
+                    <!-- This hidden field is used by the formset to identify each form -->
+                    {{ form.id }}
+
+                    <div class="mt-4">
+                      <label for="{{ form.subject.id_for_label }}" class="block text-sm font-medium text-secondary mb-1">Email Subject</label>
+                      <div class="flex items-center gap-4">
+                        {{ form.subject|add_class:"w-2/3 p-3 border focus:ring-gray-500 focus:border-gray-500 rounded-lg outline-none text-primary bg-primary" }}
+
+                        <div class="flex items-center space-x-2">
+                          {{ form.track_template|add_class:"sr-only toggle-input" }}
+                          
+                          <label for="{{ form.track_template.id_for_label }}" class="toggle-label"></label>
+                          <span class="text-base text-primary">Track Open Rate</span>
+                        </div>
+                      </div>
+                      {% if form.subject.errors %}
+                        <div class="text-red-500 text-sm mt-1">{{ form.subject.errors|first }}</div>
+                      {% endif %}
+                    </div>
+
+                    <div class="mt-4">
+                      <label for="{{ form.body.id_for_label }}" class="block text-sm font-medium text-secondary">Email Body</label>
+                      <div class="mt-1 w-full border rounded-lg">
+                          <!-- 
+                            This renders the CKEditor textarea AND its init script.
+                            This is why the dynamic adding works.
+                          -->
+                          {{ form.body }}
+                      </div>
+                      {% if form.body.errors %}
+                        <div class="text-red-500 text-sm mt-1">{{ form.body.errors|first }}</div>
+                      {% endif %}
+                    </div>
+
+                    <!-- 
+                      This area holds the delete checkbox for existing forms
+                      AND the remove button for dynamically added forms.
+                    -->
+                    <div class="flex items-center gap-4 mt-4 form-deletable-area">
+                      {% if form.instance.id %}
+                        <!-- This form is saved in the DB, show "Delete" checkbox -->
+                        <div class="flex items-center space-x-2">
+                          {{ form.DELETE }} <!-- This renders the hidden checkbox -->
+                          <label for="{{ form.DELETE.id_for_label }}" class="text-red-500 cursor-pointer hover:underline">Delete this step</label>
+                        </div>
+                      {% endif %}
+                      
+                      <!-- 
+                        A "Remove" button will be added here by JS for *new* forms.
+                        We can also add a visible "Remove" button for *existing* forms
+                        that just checks the box.
+                      -->
+                      {% if form.instance.id %}
+                        <!-- This is a *visible* button that just checks the hidden box -->
+                        <button type="button" class="remove-template-btn text-red-500 hover:text-red-400 font-medium">
+                          (Remove)
+                        </button>
+                      {% endif %}
+                    </div>
+
+                  </div>
+                {% endfor %}
+
+              </div> <!-- End #template-forms-container -->
+
+              <!-- "Add Another Step" Button -->
+              <div class="mt-6">
+                <button type="button" id="add-template-btn" class="btn-bg-primary btn-bg-hover btn-text font-semibold py-3 px-6 rounded-xl shadow-lg text-base">
+                  ➕ Add Another Day's Template
+                </button>
+              </div>
+          
+          </div>
+
+        </div>
+
+        <!-- ... (Your 'Ready to Launch' section) ... -->
+        <section class="flex flex-col items-center text-center px-4 md:px-4 lg:px-5 py-6 my-5">
+          <span class="text-md font-medium text-secondary bg-secondary px-4 py-1 rounded-full">
+            Step 7
+          </span>
+          <h2 class="text-2xl md:text-3xl font-semibold mt-3 text-primary">
+            Ready to Launch
+          </h2>
+        </section>
+        <!-- ... (End of section) ... -->
+
+        <input type="hidden" name="submit_allocation" value="1">
+
+        <div class="container mx-auto px-4 mb-10 text-center">
+          <!-- Error message container above the submit button -->
+          <div id="error-message" class="text-red-600 mt-4 hidden text-sm"></div>
+
+          <!-- Submit button -->
+          <div id="step-2-submit" class="container mx-auto px-4 mb-10 text-center">
+            <div class="mt-6">
+              <button type="submit" class="btn-bg-primary btn-bg-hover btn-text font-bold py-3 px-6 rounded-full shadow-lg text-lg">
                 Launch Bulk Campaign 🚀
               </button>
             </div>
@@ -221,16 +430,176 @@
 
     </div>
 
-		<script>
-			function updateFileName(input) {
-					const fileName = input.files.length ? input.files[0].name : "No file chosen";
-					document.getElementById("file-name").textContent = fileName;
-			}
-		</script>
+    <!-- 
+      =======================================================================
+      EMPTY FORM TEMPLATE
+      =======================================================================
+      This is hidden by default. JS will grab this, replace "__prefix__"
+      with the new form number, and append it to the container.
+    -->
+    <template id="empty-form-template">
+      <div class="template-form p-6 bg-secondary rounded-lg shadow-md mb-6 border border-gray-700">
+        
+        <!-- JS will update this text -->
+        <h2 class="template-day-counter text-xl font-semibold text-secondary">Day</h2>
+        
+        <!-- 
+          This renders the hidden ID tag for the new form
+          e.g. <input type="hidden" name="templates-__prefix__-id" id="id_templates-__prefix__-id">
+        -->
+        {{ formset.empty_form.id }}
+
+        <div class="mt-4">
+          <label for="{{ formset.empty_form.subject.id_for_label }}" class="block text-sm font-medium text-secondary mb-1">Email Subject</label>
+          <div class="flex items-center gap-4">
+            {{ formset.empty_form.subject|add_class:"w-2/3 p-3 border focus:ring-gray-500 focus:border-gray-500 rounded-lg outline-none text-primary bg-primary" }}
+
+            <div class="flex items-center space-x-2">
+              {{ formset.empty_form.track_template|add_class:"sr-only toggle-input" }}
+              <label for="{{ formset.empty_form.track_template.id_for_label }}" class="toggle-label"></label>
+              <span class="text-base text-primary">Track Open Rate</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-4">
+          <label for="{{ formset.empty_form.body.id_for_label }}" class="block text-sm font-medium text-secondary">Email Body</label>
+          <div class="mt-1 w-full border rounded-lg">
+              <!-- 
+                This is the magic part. It renders the textarea AND the CKEditor init script
+                with the __prefix__ placeholder.
+              -->
+              {{ formset.empty_form.body }}
+          </div>
+        </div>
+
+        <div class="flex items-center gap-4 mt-4 form-deletable-area">
+          <!-- 
+            This renders the hidden DELETE checkbox for the new form.
+            e.g. <input type="checkbox" name="templates-__prefix__-DELETE" id="id_templates-__prefix__-DELETE" class="... d-none">
+          -->
+          {{ formset.empty_form.DELETE|add_class:"hidden" }}
+
+          <!-- 
+            This button is visible and will check the hidden box above.
+          -->
+          <button type="button" class="remove-template-btn text-red-500 hover:text-red-400 font-medium">
+            Remove Template
+          </button>
+        </div>
+
+      </div>
+    </template>
 
 	{% endif %}
 
-	
 </div>
+
+
+<!-- 
+  =======================================================================
+  FORMSET JAVASCRIPT
+  =======================================================================
+-->
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const addBtn = document.getElementById('add-template-btn');
+    const formsContainer = document.getElementById('template-forms-container');
+    const template = document.getElementById('empty-form-template');
+    
+    // Find the management form's TOTAL_FORMS input.
+    const totalFormsInput = document.querySelector('input[name="templates-TOTAL_FORMS"]');
+    const formPrefix = 'templates'; // From your views.py
+
+    if (!addBtn || !formsContainer || !template || !totalFormsInput) {
+        console.warn('Formset JS: Missing one or more required elements.');
+        return;
+    }
+
+    /**
+     * Finds all visible forms and re-numbers their "Day X" headers
+     * in sequential order.
+     */
+    function updateDayCounters() {
+        // Find all form wrappers that are *not* hidden (by our remove logic)
+        const visibleForms = formsContainer.querySelectorAll('.template-form:not([style*="display: none"])');
+        
+        visibleForms.forEach((form, index) => {
+            const dayCounter = form.querySelector('.template-day-counter');
+            if (dayCounter) {
+                // `index` is 0-based, so add 1 for "Day 1", "Day 2", etc.
+                dayCounter.textContent = `Day ${index + 1}`;
+            }
+        });
+    }
+
+    // --- 1. "Add Step" Button Logic ---
+    addBtn.addEventListener('click', function() {
+        // Get the current number of forms. This is our new form's index.
+        let currentFormCount = parseInt(totalFormsInput.value, 10);
+
+        // Get the raw HTML from the template
+        let newFormHtml = template.innerHTML;
+
+        // Replace all instances of "__prefix__" with the new form's index
+        newFormHtml = newFormHtml.replace(/__prefix__/g, currentFormCount);
+
+        // Create a new div wrapper to hold the form
+        // We give it the .template-form class so updateDayCounters() can find it
+        const newFormWrapper = document.createElement('div');
+        newFormWrapper.className = 'template-form-wrapper'; // Wrapper for the form
+        newFormWrapper.innerHTML = newFormHtml;
+        
+        // Find the actual form *inside* the wrapper
+        const newFormElement = newFormWrapper.querySelector('.template-form');
+
+        // Append the new form to the container
+        formsContainer.appendChild(newFormElement);
+
+        // Increment the TOTAL_FORMS count in the management form
+        totalFormsInput.value = currentFormCount + 1;
+
+        // *** NEW ***
+        // Now that the form is added, re-run the counter function
+        updateDayCounters();
+
+        // Note: The CKEditor init script for the new form is *inside*
+        // newFormHtml and will execute automatically when added to the DOM.
+    });
+
+    // --- 2. "Remove Step" Button Logic (using Event Delegation) ---
+    formsContainer.addEventListener('click', function(e) {
+        // Check if the clicked element has the 'remove-template-btn' class
+        if (e.target && e.target.classList.contains('remove-template-btn')) {
+            e.preventDefault(); // Stop any default button action
+
+            // Find the closest parent form wrapper
+            const formWrapper = e.target.closest('.template-form');
+            if (!formWrapper) return;
+
+            // Find the hidden DELETE checkbox *within* this form
+            const deleteCheckbox = formWrapper.querySelector('input[type="checkbox"][name$="-DELETE"]');
+            
+            if (deleteCheckbox) {
+                // Check the box to mark this form for deletion
+                deleteCheckbox.checked = true;
+            }
+
+            // Hide the form from the user
+            formWrapper.style.display = 'none';
+
+            // *** NEW ***
+            // Now that the form is hidden, re-run the counter function
+            updateDayCounters();
+        }
+    });
+
+    // --- 3. Initial Run ---
+    // Run the counter once on page load to number existing forms
+    updateDayCounters();
+});
+</script>
+
 
 {% endblock %}
