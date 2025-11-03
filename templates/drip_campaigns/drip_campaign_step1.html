@@ -40,14 +40,14 @@
           You don't have enough accounts - Don't worry
       </p>
       <p class="text-tertiary text-lg md:text-xl mt-5">
-          The <strong>bulk sender</strong> feature requires <strong>at least two email accounts</strong> to get started. 
+          The <strong>Drip Campaign</strong> feature requires <strong>at least two email accounts</strong> to get started. 
           If you have fewer than two accounts, 
           {% if email_accounts_count == 0 %}
             <a class="text-blue-500 underline" href="{% url 'dashboard:email_account' %}">you can simply create an account</a>
           {% elif email_accounts_count == 1 %}
             you can still use the <strong>regular Launch Campaign</strong> method from 
             the <a class="text-blue-500 underline" href="{% url 'dashboard:index' %}">dashboard</a> 
-            or you can <a class="text-blue-500 underline" href="{% url 'dashboard:email_account' %}">create more accounts</a> to use the bulk sender.
+            or you can <a class="text-blue-500 underline" href="{% url 'dashboard:email_account' %}">create more accounts</a> to use the Drip Campaign Sender.
           {% endif %}
       </p>
     </div>
@@ -68,13 +68,29 @@
 		
 				<div class="mt-4 p-4 bg-secondary rounded-lg">
           <ul class="list-disc pl-5 text-secondary">
-            <li>Start by uploading your Excel file that contains all your leads or select from the database.</li>
-            <li>The system will show you a list of your connected email accounts.</li>
-            <li>You choose which email accounts you want to use for the campaign.</li>
-            <li>Manually assign how many leads each selected account should handle.</li>
-            <li>Once you launch the campaign, all selected accounts will start sending their assigned emails in parallel.</li>
-            <li><strong>Pro Tip:</strong> Try to spread leads across multiple accounts to send emails faster and boost your outreach efficiency.</li>
-          </ul>                             
+            <li>
+              <strong>Build Your List:</strong> Start by selecting your leads from the database or an Excel file and giving your campaign a name.
+            </li>
+            <li>
+              <strong>Assign Your Senders:</strong> Distribute your leads among your chosen email accounts.
+            </li>
+            <li>
+              <strong>Set Your Schedule:</strong> This is where the magic happens. You set two key times:
+              <ul class="list-circle pl-5 my-2">
+                <li><strong>Start Time:</strong> The exact date and time for the *first* email (Step 1) to go out.</li>
+                <li><strong>Delay:</strong> The "wait time" between all following steps (e.g., "wait 1 day and 2 hours" before sending Step 2).</li>
+              </ul>
+            </li>
+            <li>
+              <strong>Create Your Sequence:</strong> Write the emails for each step (Step 1, Step 2, Step 3...). This builds your automated follow-up sequence.
+            </li>
+            <li>
+              <strong>Launch & Relax:</strong> Once you save, the system takes over. It sends Step 1 at the scheduled time, waits for your chosen delay, sends Step 2 to the same leads, and continues automatically until your sequence is complete.
+            </li>
+            <li>
+              <strong>Pro Tip:</strong> This is a "set it and forget it" tool. A 2-day delay between follow-ups often feels more natural and less spammy than 1 day.
+            </li>
+          </ul>                            
 				</div>
 			</div>
 

@@ -40,14 +40,14 @@
           You don't have enough accounts - Don't worry
       </p>
       <p class="text-tertiary text-lg md:text-xl mt-5">
-          The <strong>bulk sender</strong> feature requires <strong>at least two email accounts</strong> to get started. 
+          The <strong>Drip Campaign</strong> feature requires <strong>at least two email accounts</strong> to get started. 
           If you have fewer than two accounts, 
           {% if email_accounts_count == 0 %}
             <a class="text-blue-500 underline" href="{% url 'dashboard:email_account' %}">you can simply create an account</a>
           {% elif email_accounts_count == 1 %}
             you can still use the <strong>regular Launch Campaign</strong> method from 
             the <a class="text-blue-500 underline" href="{% url 'dashboard:index' %}">dashboard</a> 
-            or you can <a class="text-blue-500 underline" href="{% url 'dashboard:email_account' %}">create more accounts</a> to use the bulk sender.
+            or you can <a class="text-blue-500 underline" href="{% url 'dashboard:email_account' %}">create more accounts</a> to use the Drip Campaign Sender.
           {% endif %}
       </p>
     </div>
@@ -56,14 +56,14 @@
 
 		<div class="text-center max-w-4xl mx-auto px-4 p-5">
       
-    {% if form.non_field_errors %}
-    <div class="bg-red-100 text-red-700 border border-red-300 rounded p-4 my-6 text-lg text-center font-medium">
-      {% for error in form.non_field_errors %}
-        <p>{{ error }}</p>
-      {% endfor %}
-    </div>
-    {% endif %}
-		
+      {% if form.non_field_errors %}
+      <div class="bg-red-100 text-red-700 border border-red-300 rounded p-4 my-6 text-lg text-center font-medium">
+        {% for error in form.non_field_errors %}
+          <p>{{ error }}</p>
+        {% endfor %}
+      </div>
+      {% endif %}
+      
 		</div>
 
     <section class="flex flex-col items-center text-center px-4 md:px-4 lg:px-5 py-6">

@@ -9,5 +9,8 @@ urlpatterns = [
     path('campaign-creator-1/', views.drip_campaign_step1, name='campaign_creator_step1'),
     path('campaign-creator-2/<str:campaign_key>/', views.drip_campaign_step2, name='campaign_creator_step2'),
     path('campaign-creator-3/<int:campaign_id>/', views.drip_campaign_step3, name='campaign_creator_step3'),
+
+    path('update-campaign/<int:campaign_id>/', views.update_drip, name='update_drip'),
+    path('view-campaign/<int:campaign_id>/', views.view_drip, name='view_drip'),
 ]
 

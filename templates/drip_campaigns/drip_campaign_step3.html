@@ -491,7 +491,11 @@
       </div>
     </template>
 
-	{% endif %}
+	{% else %}
+
+    {% include 'price_base.html' %}
+  
+  {% endif %}
 
 </div>
 
@@ -503,7 +507,7 @@
 -->
 
 <script>
-document.addEventListener('DOMContentLoaded', function () {
+  document.addEventListener('DOMContentLoaded', function () {
     const addBtn = document.getElementById('add-template-btn');
     const formsContainer = document.getElementById('template-forms-container');
     const template = document.getElementById('empty-form-template');

@@ -3,6 +3,7 @@ from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_http_methods
 from django.shortcuts import get_object_or_404
+from django.core.paginator import Paginator
 
 from dashboard.utilities import process_excel_file, get_leads_from_db, save_temp_file, distribute_leads_among_accounts
 from users.models import EmailAccount
@@ -20,8 +21,21 @@ import uuid
 import os
 
 
+@login_required
 def index(request):
-    return render(request, 'drip_campaigns/index.html')
+    
+    campaign_list = DripCampaign.objects.filter(launched_by=request.user).order_by('-created_at')
+
+    # Paginate the results, 20 cords per page
+    paginator = Paginator(campaign_list, 20)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    context = {
+        'page_obj': page_obj
+    }
+
+    return render(request, 'drip_campaigns/index.html', context)
 
 
 ######################################### Campaign Creation
@@ -386,4 +400,35 @@ def drip_campaign_step3(request, campaign_id):
         'formset': formset,
         'email_accounts_count': email_accounts_count
     })
+
+
+######################################### Campaign View and Update
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def update_drip(request, campaign_id):
+    
+    campaign = get_object_or_404(DripCampaign, id=campaign_id, launched_by=request.user)
+
+    # Fetch the forms
+    # Fill them with existing campaign data
+    # Let the user have their fun and submit changes
+    # Redirect to view page after successful update
+    
+    return render(request, 'drip_campaigns/update_drip.html', {
+        'campaign': campaign,
+    })
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def view_drip(request, campaign_id):
+    
+    campaign = get_object_or_404(DripCampaign, id=campaign_id, launched_by=request.user)
+    
+    return render(request, 'drip_campaigns/view_drip.html', {
+        'campaign': campaign,
+    })
+
+
 

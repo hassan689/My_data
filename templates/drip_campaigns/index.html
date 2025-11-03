@@ -1,0 +1,151 @@
+{% extends "dshbrd_base.html" %}
+
+{% load static %}
+{% block 'title' %}Dispatch Skool - Drip Campaigns{% endblock %}
+
+{% block 'content' %}
+
+
+<div class="p-4 sm:ml-72">
+
+  <div class="text-center max-w-4xl mx-auto px-4 pt-10 pb-10 text-primary">
+      <h2 class="text-3xl md:text-4xl font-bold">Your Drip Campaigns, <span class="text-blue-600 font-bold">All in One Place</span></h2>
+			<div class="overflow-auto max-w-full">
+				{% if not page_obj %}
+				<div class="text-center mx-auto max-w-4xl p-5">
+					<p class="text-primary text-lg md:text-xl">
+						Welcome! It looks like you haven't launched any campaigns yet. Get started by launching your first campaign to see how they're performing!
+					</p>
+				</div>
+        {% endif %}
+        {% if messages %}
+          {% for message in messages %}
+              <div class="p-5 my-3 rounded-xl border-2 border-solid 
+                  {% if message.tags == 'success' %} bg-green-200 border-green-700 text-green-800 
+                  {% elif message.tags == 'error' %} bg-red-200 border-red-700 text-red-700
+                  {% elif message.tags == 'warning' %} bg-yellow-200 border-yellow-700 text-red-700
+                  {% endif %}">
+                  <p class="text-sm">{{ message }}</p>
+              </div>
+          {% endfor %}
+        {% endif %}
+      </div>
+  </div>
+
+	<div class="flex flex-col md:flex-row gap-6">
+		<!-- Email Campaigns Table -->
+		<div class="flex-1 p-6 bg-primary shadow-md rounded-lg">
+			
+        <div class="flex flex-col md:flex-row justify-end gap-3 font-semibold text-lg md:text-base mb-5">
+          <a href="{% url 'drip_campaigns:campaign_creator_step1' %}" 
+            class="btn-bg-hover btn-bg-primary btn-text px-4 py-2 rounded-lg flex items-center justify-center">
+            📩 New Drip Campaign
+          </a>
+        </div>
+				<table class="w-full min-w-[600px] border-collapse overflow-x-auto text-primary">
+					<thead>
+							<tr class="bg-secondary">
+									<th class="text-left p-3">Campaign Title</th>
+									<th class="text-left p-3">Status</th>
+									<th class="text-left p-3">Completed Days</th>
+                  <th class="text-left p-3">Next launch</th>
+                  <th class="text-left p-3">Actions</th>
+							</tr>
+					</thead>
+					<tbody>
+						{% for campaign in page_obj %}
+						<tr class="border-b bg-hover-light">
+								<td class="p-3">{{ campaign.name }}</td>
+								<td class="p-3">{{ campaign.status }}</td>
+								<td class="p-3">{{ campaign.current_step }}</td>
+								<td class="p-3">{{ campaign.next_action_at }}</td>
+								<td class="p-3">
+                    <a href="{% url 'drip_campaigns:update_drip' campaign_id=campaign.id %}" 
+                      class="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 text-center whitespace-nowrap">
+                      Update
+                    </a>
+                    <a href="{% url 'drip_campaigns:view_drip' campaign_id=campaign.id %}" 
+                      class="bg-lime-500 text-white px-3 py-1 mx-3 rounded hover:bg-lime-600 text-center whitespace-nowrap">
+                      View
+                    </a>
+                </td>
+						</tr>
+						{% endfor %}
+					</tbody>
+
+					<tfoot>
+						<tr class="border-t bg-secondary">
+								<td colspan="5" class="p-3 text-secondary font-bold">Total Campaign Records: {{ page_obj|length }}</td>
+						</tr>
+					</tfoot>
+				</table>
+
+        <!-- Pagination -->
+        {% if page_obj.has_other_pages %}
+        <nav aria-label="Page navigation" class="mt-6 flex justify-center">
+          <ul class="inline-flex -space-x-px text-sm">
+
+            <!-- Previous button -->
+            {% if page_obj.has_previous %}
+              <li>
+                <a href="?page={{ page_obj.previous_page_number }}"
+                  class="flex items-center justify-center px-3 h-8 leading-tight text-primary bg-primary border border-secondary rounded-s-lg hover:bg-secondary hover:text-primary">
+                  Previous
+                </a>
+              </li>
+            {% else %}
+              <li>
+                <span class="flex items-center justify-center px-3 h-8 leading-tight text-primary bg-primary border border-secondary rounded-s-lg opacity-50 cursor-not-allowed">
+                  Previous
+                </span>
+              </li>
+            {% endif %}
+
+            <!-- Page numbers -->
+            {% for num in page_obj.paginator.page_range %}
+              {% if page_obj.number == num %}
+                <li>
+                  <span class="flex items-center justify-center px-3 h-8 text-blue-600 border border-secondary bg-secondary font-bold">
+                    {{ num }}
+                  </span>
+                </li>
+              {% else %}
+                <li>
+                  <a href="?page={{ num }}"
+                    class="flex items-center justify-center px-3 h-8 leading-tight text-primary bg-primary border border-secondary hover:bg-secondary hover:text-primary">
+                    {{ num }}
+                  </a>
+                </li>
+              {% endif %}
+            {% endfor %}
+
+            <!-- Next button -->
+            {% if page_obj.has_next %}
+              <li>
+                <a href="?page={{ page_obj.next_page_number }}"
+                  class="flex items-center justify-center px-3 h-8 leading-tight text-primary bg-primary border border-secondary rounded-e-lg hover:bg-secondary hover:text-primary">
+                  Next
+                </a>
+              </li>
+            {% else %}
+              <li>
+                <span class="flex items-center justify-center px-3 h-8 leading-tight text-primary bg-primary border border-secondary rounded-e-lg opacity-50 cursor-not-allowed">
+                  Next
+                </span>
+              </li>
+            {% endif %}
+
+          </ul>
+        </nav>
+        {% endif %}
+
+				
+			</div>
+		</div>
+	</div>
+
+</div>	
+
+
+
+{% endblock %}

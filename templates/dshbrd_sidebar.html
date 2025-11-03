@@ -59,6 +59,43 @@
         </a>
       </li>
       <li>
+        <button 
+            type="button" 
+            class="flex items-center justify-between w-full p-2 text-primary rounded-lg bg-hover-light group" 
+            aria-controls="dropdown-example" 
+            data-collapse-toggle="dropdown-example"
+          >
+          <div class="flex items-center">
+            <i class="fa-solid fa-droplet shrink-0 w-5 h-5 text-tertiary transition duration-75 group-hover:text-primary"></i>
+            <span class="ms-3 whitespace-nowrap">Drip Campaigns</span>
+            <span class="ml-2 text-xs font-semibold bg-green-100 text-green-800 px-2 py-0.5 rounded-full">New</span>
+          </div>
+          <svg class="w-3 h-3 ml-2" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 10 6">
+            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 4 4 4-4"/>
+          </svg>
+        </button>
+        <ul id="dropdown-example" class="hidden py-2 space-y-2">
+              <li>
+                  <a href="{% url 'drip_campaigns:index' %}" class="flex items-center p-2 text-primary rounded-lg bg-hover-light group pl-11">
+                    <i class="fa-solid fa-list shrink-0 w-5 h-5 text-tertiary transition duration-75 group-hover:text-primary"></i>
+                    <span class="flex-1 ms-3 whitespace-nowrap">Campaigns List</span>
+                  </a>
+              </li>
+              <li>
+                  <a href="{% url 'drip_campaigns:campaign_creator_step1' %}" class="flex items-center p-2 text-primary rounded-lg bg-hover-light group pl-11">
+                    <i class="fa-solid fa-plus shrink-0 w-5 h-5 text-tertiary transition duration-75 group-hover:text-primary"></i>
+                    <span class="flex-1 ms-3 whitespace-nowrap">New Campaign</span>
+                  </a>
+              </li>
+              <li>
+                  <a href="" class="flex items-center p-2 text-primary rounded-lg bg-hover-light group pl-11">
+                    <i class="fa-solid fa-chart-simple shrink-0 w-5 h-5 text-tertiary transition duration-75 group-hover:text-primary"></i>
+                    <span class="flex-1 ms-3 whitespace-nowrap">Track Campaigns</span>
+                  </a>
+              </li>
+        </ul>
+      </li>
+      <li>
         <a href="{% url 'unibox:index' %}" class="flex items-center p-2 text-primary rounded-lg bg-hover-light group">
           <i class="fa-solid fa-comments shrink-0 w-5 h-5 text-tertiary transition duration-75 group-hover:text-primary"></i>
           <span class="flex-1 ms-3 whitespace-nowrap">Unified Inboxes</span>
