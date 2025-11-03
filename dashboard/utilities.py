@@ -11,6 +11,7 @@ import pandas as pd
 import re
 import json
 import os
+import smtplib
 from bs4 import BeautifulSoup
 
 
@@ -384,17 +385,22 @@ def get_email_connection(email_account, decrypted_password):
         print("Invalid configuration: Cannot enable all TLS, SSL and STARTTLS.")
         return
 
-    connection = get_connection(
-        backend="django.core.mail.backends.smtp.EmailBackend",
-        host=email_account.host,
-        port=email_account.port_number,
-        username=email_account.email_address,
-        password=decrypted_password,
-        use_tls=use_tls,
-        use_ssl=use_ssl,
-    )
-    connection.open()
-    return connection
+    try:
+        connection = get_connection(
+            backend="django.core.mail.backends.smtp.EmailBackend",
+            host=email_account.host,
+            port=email_account.port_number,
+            username=email_account.email_address,
+            password=decrypted_password,
+            use_tls=use_tls,
+            use_ssl=use_ssl,
+            timeout=30,  # lower global timeout
+        )
+        connection.open()
+        return connection
+    except (TimeoutError, OSError, smtplib.SMTPConnectError, smtplib.SMTPServerDisconnected) as e:
+        print(f"[SMTP Timeout] Could not connect to {email_account.email_address}: {e}")
+        return None
 
 
 def sanitize_email_html(html_content, base_url, max_email_width=600):
