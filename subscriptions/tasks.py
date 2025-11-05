@@ -23,24 +23,29 @@ def end_warmup():
         status__in=["expired", "canceled"]
     )
     for subscription in expired_or_canceled_subscriptions:
-        user = subscription.user
-        user_accounts = EmailAccount.objects.filter(user=user)
+        try:
+            user = subscription.user
+            user_accounts = EmailAccount.objects.filter(user=user)
 
-        # Mark campaigns as completed where user's accounts are senders
-        WarmupCampaign.objects.filter(sender_account__in=user_accounts).update(status="Complete")
+            if not user_accounts.exists():
+                # No accounts for this user, skip
+                continue
 
-        # Remove user's accounts from all target lists
-        for account in user_accounts:
-            with transaction.atomic():
-                try: # to avoid any issues
-                    for campaign in WarmupCampaign.objects.filter(target_accounts=account):
-                        campaign.target_accounts.remove(account)
-                        campaign.save(update_fields=["target_accounts"])
+            # Mark campaigns as completed where user's accounts are senders
+            WarmupCampaign.objects.filter(sender_account__in=user_accounts).update(status="Complete")
 
+            # Remove user's accounts from all target lists
+            for account in user_accounts:
+                with transaction.atomic():
+                    
+                    account.target_of_warmup_campaigns.clear()
                     account.is_warmup_target = False
                     account.save(update_fields=["is_warmup_target"])
-                except:
-                    continue
+                    
+        except Exception as e:
+            print(f"Error processing subscription {subscription.id} for user {user.id}: {e}")
+            continue
+        
 
 
 @app.task(name="subscriptions.tasks.expire_subscriptions.expire_subscriptions")

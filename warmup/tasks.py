@@ -240,7 +240,7 @@ def send_warmup_step(campaign_id, step_number):
                             raise e
                         
                     connections.close_all()
-                    time.sleep(random.randint(30, 600))
+                    # time.sleep(random.randint(30, 600)) # No need to sleep during targets' turn, cz each sender here is different 
 
                     # WarmupMessage.objects.create(
                     #     campaign=campaign,

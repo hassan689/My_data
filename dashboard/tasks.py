@@ -12,6 +12,8 @@ from django.db import transaction
 import re
 import random
 import uuid
+import time
+from typing import List, Dict
 
 from email.utils import make_msgid
 from urllib.parse import urljoin
@@ -19,7 +21,7 @@ from growth_skool.celery import app
 from celery import shared_task
 from celery.exceptions import TimeLimitExceeded
 
-from .utilities import get_email_connection, personalize_template, sanitize_email_html
+from .utilities import get_email_connection, personalize_template, sanitize_email_html, should_use_batch_processing
 from django.core.mail import EmailMultiAlternatives, get_connection, send_mail, EmailMessage
 
 
@@ -277,6 +279,191 @@ def send_single_email(self, campaign_record_id):
         CampaignRecord.objects.filter(id=campaign_record_id).update(status='failed')
 
 
+@shared_task(name="dashboard.send_emails_batch", acks_late=True, bind=True, default_retry_delay=300, time_limit=EMAIL_TASK_TIME_LIMIT)
+def send_emails_batch(self, campaign_record_id, batch_size=10):
+    """
+    Batch processor that updates count and lead list atomically *per email*.
+    """
+    connection = None
+    campaign = None
+    email_account = None
+    iter_count = 0
+
+    try:
+        campaign = CampaignRecord.objects.get(id=campaign_record_id)
+        
+        if campaign.status in ('cancelled', 'launched', 'failed'):
+            print(f"Campaign {campaign.id} is finished or cancelled. Stopping batch processing.")
+            return
+            
+        if not campaign.leads_data:
+            print(f"Campaign {campaign.id} has no leads left. Finishing.")
+            campaign.status = 'launched'
+            campaign.save(update_fields=['status'])
+            return
+            
+        # Get current batch size. This list is static for the loop.
+        current_batch = campaign.leads_data[:batch_size]
+        
+        # Setup SMTP connection for the batch
+        email_account = campaign.sender_account
+        decrypted_password = email_account.get_password()
+        connection = get_email_connection(email_account, decrypted_password)
+        mailbox_instance = GmailToken.objects.filter(email_account=email_account).first()
+        
+        # Process each lead in the static batch
+        for lead in current_batch:
+            iter_count += 1 # Increment just to count the iteration
+            try:
+                # Basic lead validation
+                if not isinstance(lead, dict) or 'Email' not in lead:
+                    print(f"Skipping invalid lead: {lead}")
+                    continue
+                    
+                if not re.fullmatch(email_regex, lead['Email']):
+                    print(f"Skipping invalid email: {lead['Email']}")
+                    continue
+                
+                # Prepare email content
+                personalized_subject = personalize_template(campaign.subject, lead)
+                personalized_body = personalize_template(campaign.body, lead)
+                message_id = make_msgid(idstring=uuid.uuid4().hex, domain='dispatchskool.com')
+                DOMAIN = "https://dispatchskool.com"
+                personalized_body = sanitize_email_html(personalized_body, DOMAIN)
+                
+                # Add tracking pixel if enabled
+                if campaign.track_campaign:
+                    unique_id = uuid.uuid4()
+                    pixel_url = reverse('dashboard:track_open', kwargs={'unique_identifier': unique_id})
+                    pixel_link = urljoin(settings.BASE_URL, pixel_url)
+                    
+                    try:
+                        EmailOpen.objects.create(
+                            campaign=campaign,
+                            recipient_email=lead['Email'],
+                            unique_identifier=unique_id,
+                            mc_number=lead.get('MC Number', ''),
+                            legal_name=lead.get('Legal Name', '')
+                        )
+                        tracking_pixel = f'<img src="{pixel_link}" width="1" height="1" style="display:none;" alt="">'
+                        personalized_body += tracking_pixel
+                    except Exception as e:
+                        print(f"Failed to create EmailOpen log: {e}")
+                
+                # Send email
+                msg = EmailMultiAlternatives(
+                    subject=personalized_subject,
+                    body=personalized_body,
+                    from_email=email_account.email_address,
+                    to=[lead['Email']],
+                    connection=connection
+                )
+                msg.extra_headers = {'Message-ID': message_id}
+                msg.attach_alternative(personalized_body, "text/html")
+                try:
+                    msg.send()
+                except Exception as e:
+                    # Handle connection-lost error
+                    if "please run connect() first" in str(e).lower() or "connection expired" in str(e).lower():
+                        print("SMTP connection lost, reconnecting...")
+                        connection.close() # Close old
+                        connection = get_email_connection(email_account, decrypted_password)
+                        msg.connection = connection
+                        msg.send() # Retry send
+                    else:
+                        raise e # Re-raise other errors to be caught by outer try/except
+                
+                # --- SUCCESS: ATOMIC UPDATE ---
+                # Send was successful. Increment count AND remove lead.
+                with transaction.atomic():
+                    campaign_for_update = CampaignRecord.objects.select_for_update().get(id=campaign_record_id)
+                    campaign_for_update.sent_count += 1
+                    
+                    current_leads = campaign_for_update.leads_data or []
+                    try:
+                        # Find and remove this specific lead
+                        current_leads.remove(lead)
+                        campaign_for_update.leads_data = current_leads
+                    except ValueError:
+                        # This should not happen if logic is correct, but as a safeguard
+                        print(f"Warning: Sent lead {lead.get('Email')} but it was not in leads_data.")
+                    
+                    campaign_for_update.save(update_fields=['sent_count', 'leads_data'])
+                    # Update local campaign object for the next loop's "if" check
+                    campaign.leads_data = campaign_for_update.leads_data
+
+                print(f"Celery Task: Sent to {lead['Email']} via {campaign.sender_account.email_address}")
+
+                # --- (Thread/message log creation) ---
+                if mailbox_instance:
+                    thread, _ = EmailThread.objects.get_or_create(
+                        mailbox=mailbox_instance,
+                        email1=email_account.email_address,
+                        email2=lead['Email'],
+                        subject=personalized_subject,
+                        defaults={'is_read': True}
+                    )
+                    OutgoingEmailMessage.objects.create(
+                        thread=thread,
+                        subject=personalized_subject,
+                        body=personalized_body,
+                        recipient=lead['Email'],
+                        sender=email_account.email_address,
+                        message_id=message_id,
+                        in_reply_to=None,
+                    )
+                
+                if iter_count < len(current_batch):
+                    # Apply delay between emails
+                    time.sleep(random.randint(campaign.min_delay, campaign.max_delay))
+
+            except Exception as e:
+                # --- FAILURE: ATOMIC UPDATE ---
+                # Send failed. *Only* remove lead, DO NOT increment count.
+                # This prevents infinite retries on a bad lead.
+                print(f"Error processing lead {lead['Email']}: {e}. Skipping and removing.")
+                with transaction.atomic():
+                    campaign_for_update = CampaignRecord.objects.select_for_update().get(id=campaign_record_id)
+                    current_leads = campaign_for_update.leads_data or []
+                    try:
+                        current_leads.remove(lead)
+                        campaign_for_update.leads_data = current_leads
+                    except ValueError:
+                        print(f"Warning: Failed lead {lead.get('Email')} was already removed.")
+                    
+                    campaign_for_update.save(update_fields=['leads_data'])
+                    # Update local campaign object
+                    campaign.leads_data = campaign_for_update.leads_data
+                
+                # Continue to the next lead in the batch
+                continue
+                
+        # --- End of batch processing ---
+        
+        # We need to re-fetch the campaign state as it was modified in the loop
+        campaign = CampaignRecord.objects.get(id=campaign_record_id)
+        
+        if campaign.leads_data:
+            print(f"Scheduling next batch for campaign {campaign.id}")
+            send_emails_batch.apply_async(
+                args=[campaign_record_id],
+                countdown=campaign.max_delay  # delay between batches
+            )
+        else:
+            print(f"Campaign {campaign.id} finished")
+            campaign.status = 'launched'
+            campaign.save(update_fields=['status'])
+            
+    except Exception as e:
+        print(f"Batch processing error: {e}")
+        if campaign:
+            campaign.status = 'failed'
+            campaign.save(update_fields=['status'])
+    finally:
+        if connection:
+            connection.close()
+
+
 @shared_task(name="dashboard.send_emails_chunk_celery_task")
 def send_emails_chunk_celery_task(campaign_record_id):
     """
@@ -284,8 +471,10 @@ def send_emails_chunk_celery_task(campaign_record_id):
     It runs ONCE at the start of a campaign.
     Its only job is to populate the CampaignRecord and schedule the
     first processing task to run immediately.
+
+    Modified kicker task that chooses between single or batch processing
+    based on the campaign's delay settings.
     """
-    # Read campaign from DB (do NOT pass large `leads` through the broker)
     try:
         campaign = CampaignRecord.objects.get(id=campaign_record_id)
         leads = campaign.leads_data or []
@@ -302,9 +491,19 @@ def send_emails_chunk_celery_task(campaign_record_id):
             # Save fields which might have been changed by the UI already
             campaign.save(update_fields=['total_recipients', 'sent_count', 'status'])
 
-        # Schedule the *first* worker task immediately.
-        send_single_email.apply_async(args=[campaign_record_id], countdown=0)
-        print(f"Campaign {campaign_record_id} successfully launched. First task queued.")
+        # # Schedule the *first* worker task immediately.
+        # send_single_email.apply_async(args=[campaign_record_id], countdown=0)
+        # print(f"Campaign {campaign_record_id} successfully launched. First task queued.")
+
+        # Determine processing mode based on delay settings
+        if should_use_batch_processing(campaign.min_delay, campaign.max_delay, batch_size=10):
+            print(f"Using batch processing for campaign {campaign_record_id}.")
+            send_emails_batch.apply_async(args=[campaign_record_id, 10], countdown=0)
+        else:
+            print(f"Using single email processing for campaign {campaign_record_id}.")
+            send_single_email.apply_async(args=[campaign_record_id], countdown=0)
+            
+        print(f"Campaign {campaign_record_id} successfully launched.")
 
     except CampaignRecord.DoesNotExist:
         print(f"Failed to launch: CampaignRecord {campaign_record_id} does not exist.")

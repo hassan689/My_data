@@ -8,37 +8,18 @@ from users.models import EmailAccount
 import random
 
 
-# So that they only communicate with Ahmd bhai's accounts and their own accounts. Removing the conflict between users.
+# So that they only communicate with their own accounts. Removing the conflict between users.
 def refresh_targets(campaign):
-    # Step 1️⃣: Base target list (static)
-    target_emails = [
-        'loadtoload11@gmail.com', 'loadtoload3@gmail.com', 'loadtoload4@gmail.com',
-        'LoadtoLoad13@gmail.com', 'LoadtoLoad6@gmail.com', 'LoadtoLoad7@gmail.com',
-        'LoadtoLoad8@gmail.com', 'LoadtoLoad9@gmail.com', 'loadtoload2@gmail.com',
-        'LoadtoLoad10@gmail.com', 'LoadtoLoad12@gmail.com', 'LoadtoLoad14@gmail.com'
-    ]
 
-    # Step 3️⃣: Get sender and its user
+    # Step 1: Get sender and its user
     sender_account = campaign.sender_account
     sender_user = sender_account.user
 
-    # Step 4️⃣: Get all other email accounts for that user, excluding sender
-    user_email_accounts = EmailAccount.objects.filter(user=sender_user).exclude(id=sender_account.id)
+    # Step 2: Get all other email account instances for that user, excluding sender
+    user_email_accounts = EmailAccount.objects.filter(user=sender_user, black_list=False).exclude(id=sender_account.id)
 
-    # Step 6️⃣: Collect email addresses
-    user_owned_emails = list(user_email_accounts.values_list('email_address', flat=True))
-
-    # Step 7️⃣: Merge with static list
-    target_emails.extend(user_owned_emails)
-
-    # Step 8️⃣: Fetch only non-blacklisted EmailAccounts matching target_emails
-    valid_accounts = EmailAccount.objects.filter(
-        email_address__in=target_emails,
-        black_list=False
-    )
-
-    # Step 9️⃣: Randomly pick up to 5
-    selected_accounts = random.sample(list(valid_accounts), min(5, valid_accounts.count()))
+    # Step 3: Randomly pick up to 5
+    selected_accounts = random.sample(list(user_email_accounts), min(5, user_email_accounts.count()))
 
     return selected_accounts
 
@@ -62,11 +43,13 @@ def start_warmup_view(request, email_account_id):
 
         if campaign:
             # Found a campaign, reactivate it
+            print(f"Reactivating campaign {campaign.id}")
             campaign.status = 'Active'
             campaign.current_step = 0
             campaign.save(update_fields=['status', 'current_step'])
         else:
             # Create a new campaign
+            print("Creating new campaign")
             campaign = WarmupCampaign.objects.create(
                 sender_account=sender_account,
                 template_set=template_set,
@@ -74,10 +57,18 @@ def start_warmup_view(request, email_account_id):
                 current_step=0,
                 next_action_at=timezone.now() + timedelta(minutes=5)  # First step after 5 minutes
             )
-            targets = refresh_targets(campaign)
-            if targets:
-                campaign.target_accounts.set(targets)
 
+        # Refresh targets *after* the if/else block, so it
+        # runs every time the warmup is started.
+        
+        print(f"Refreshing targets for campaign {campaign.id}...")
+        targets = refresh_targets(campaign)
+        
+        if targets:
+            print(f"Assigning {len(targets)} targets.")
+            campaign.target_accounts.set(targets)
+
+        # This call was already in the right place
         send_warmup_step.delay(campaign.id, campaign.current_step)
 
         messages.success(request, f"Warmup campaign for {sender_account.email_address} has been started.")
@@ -87,7 +78,6 @@ def start_warmup_view(request, email_account_id):
         messages.error(request, "Default warmup template set not found.")
         return redirect('dashboard:index')
 
-
 def stop_warmup_view(request, email_account_id):
     sender_account = get_object_or_404(EmailAccount, id=email_account_id)
 
@@ -95,10 +85,19 @@ def stop_warmup_view(request, email_account_id):
     sender_account.warmup_campaigns.filter(status='Active').update(status = 'Complete')
 
     # 2. Remove this account from target_accounts of all campaigns
-    target_campaigns = WarmupCampaign.objects.filter(target_accounts=sender_account)
-    for campaign in target_campaigns:
-        campaign.target_accounts.remove(sender_account)
-        campaign.save()
+    target_campaigns_manager = sender_account.target_of_warmup_campaigns
+    campaign_count = target_campaigns_manager.count()
+
+    print(f"Removing {sender_account.email_address} from {campaign_count} campaigns where it is a target...")
+
+    sender_account.target_of_warmup_campaigns.clear()
+
+    # target_campaigns = WarmupCampaign.objects.filter(target_accounts=sender_account)
+    # print(f"Removing {sender_account.email_address} from {target_campaigns.count()} campaigns' targets.")
+    # for campaign in target_campaigns:
+    #     campaign.target_accounts.remove(sender_account)
+    #     campaign.save()
+    #     print(campaign.target_accounts.all())
 
     # 3. Update sender account flags
     sender_account.is_warmup_target = False

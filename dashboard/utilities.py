@@ -481,3 +481,28 @@ def sanitize_email_html(html_content, base_url, max_email_width=600):
     wrapped_html = f'<div style="margin:0;padding:0;">{cleaned_html}</div>'
     return wrapped_html
 
+
+EMAIL_TASK_TIME_LIMIT = 600
+def should_use_batch_processing(min_delay: int, max_delay: int, batch_size: int = 20) -> bool:
+    """
+    Decide whether to use batch processing.
+    Conditions:
+      - variance small
+      - average short enough
+      - estimated batch time within safe task runtime
+    """
+    MAX_VARIANCE_SECONDS = 30
+    MAX_AVERAGE_SECONDS = 60
+    MAX_BATCH_TASK_TIME = int(EMAIL_TASK_TIME_LIMIT * 0.8)  # keep headroom
+
+    variance = max_delay - min_delay
+    average_delay = (max_delay + min_delay) / 2.0
+    estimated_batch_time = average_delay * batch_size
+
+    # For debugging/visibility you can log estimated_batch_time here
+    print(f"Batch decision: variance={variance}s, average={average_delay}s, estimated_batch_time={estimated_batch_time}s")
+
+    if variance <= MAX_VARIANCE_SECONDS and average_delay <= MAX_AVERAGE_SECONDS and estimated_batch_time <= MAX_BATCH_TASK_TIME:
+        return True
+    return False
+
