@@ -1,0 +1,423 @@
+{% extends "dshbrd_base.html" %}
+
+{% load static %}
+{% load custom_filters %}
+{% load widget_tweaks %}
+
+{% block 'title' %}Dispatch Skool - Update Drip Campaign{% endblock %}
+
+{% block 'head' %}
+    {# Use the media from both the form and the formset #}
+    {{ campaign_form.media }}
+    {{ template_formset.media }}
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const form = document.querySelector('form');
+            const datetimeInput = document.querySelector('input[name="schedule_launch_datetime"]');
+            const timezoneInput = document.createElement('input');
+            timezoneInput.type = 'hidden';
+            timezoneInput.name = 'user_timezone';
+            timezoneInput.value = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Karachi'; // Fallback
+            form.appendChild(timezoneInput);
+
+            if (!form || !datetimeInput) return;
+        });
+    </script>
+{% endblock %}
+
+
+{% block 'content' %}
+
+<div class="p-4 sm:ml-72">
+
+  {% if request.user.subscription.status == "active" %}
+  
+    <div class="text-center max-w-4xl mx-auto px-4 pt-16 pb-5">
+      <h2 class="text-3xl md:text-4xl font-semibold text-primary">
+        Edit and Tune Your Campaign: <span class="text-blue-700 font-bold">{{ campaign.name }}</span>
+      </h2>
+    </div>
+
+    <!-- General Info -->
+    <div class="p-6 bg-primary rounded-lg shadow-md my-6 text-left max-w-4xl mx-auto">
+        <h2 class="text-2xl font-semibold text-secondary">General Info</h2>
+  
+        <div class="mt-4 p-4 bg-secondary rounded-lg">
+          <div class="grid grid-cols-2 gap-4 text-secondary">
+            
+            <div class="border rounded-md p-3 bg-primary">
+              <span class="font-semibold">Created At: </span>{{ campaign.created_at }}
+            </div>
+            <div class="border rounded-md p-3 bg-primary">
+              <span class="font-semibold">Current Step Number: </span>{{ campaign.current_step }}
+            </div>
+            <div class="border rounded-md p-3 bg-primary">
+              <span class="font-semibold">Total Recipients: </span>{{ campaign.total_recipients }}
+            </div>
+            <div class="border rounded-md p-3 bg-primary">
+              <span class="font-semibold">Previous Launch at: </span>{{ campaign.created_at }}
+            </div>
+            <div class="border rounded-md p-3 bg-primary">
+              <span class="font-semibold">Next Launch Sheduled at: </span>{{ campaign.next_action_at }}
+            </div>
+            <div class="border rounded-md p-3 bg-primary">
+              <span class="font-semibold">Campaign Status: </span>{{ campaign.status }}
+            </div>
+
+          </div>
+        </div>
+    </div>
+
+    <!-- Removed MC Numbers -->
+    <div class="p-6 bg-primary rounded-lg shadow-md my-6 text-left max-w-4xl mx-auto">
+        <h2 class="text-2xl font-semibold text-secondary">Removed MC Numbers from the Targets List</h2>
+  
+        <div class="mt-4 p-4 bg-secondary rounded-lg">
+          <ul class="list-disc pl-5 text-secondary">
+            {% for mc_number in campaign.removed_mc_numbers %}
+              <li>{{ mc_number }}</li>
+            {% empty %}
+              <p class="text-primary text-lg text-center">No MC numbers have been removed from this campaign's target list.</p>
+            {% endfor %}
+          </ul>                             
+        </div>
+    </div>
+
+    <!-- Email Accounts and Assigned leads -->
+    <div class="p-6 bg-primary rounded-lg shadow-md my-6 max-w-4xl mx-auto">
+        <h2 class="text-2xl font-semibold text-secondary">Email Accounts and Assigned Leads</h2>
+        <div class="mt-4 p-4 bg-secondary rounded-lg">
+          <div class="overflow-x-auto">
+
+            <table class="w-full table-auto border border-gray-200 rounded-md overflow-hidden">
+              <thead class="text-secondary text-sm">
+                <tr>
+                  <th class="border-t border-b px-4 py-2 text-left text-xl">Email Accounts</th>
+                  <th class="border-t border-b px-4 py-2 text-left text-xl">Assigned leads</th>
+                </tr>
+              </thead>
+              <tbody class="text-sm text-primary">
+                {% for account in email_accounts_info %}
+                  <tr class="border-b bg-hover-light ">
+                    <td class="px-4 py-2">
+                      <p class="font-semibold">{{ account.email_account.email_address }}</p>
+                    </td>
+                    <td class="px-4 py-2">
+                      <p>{{ account.recipient_count }}</p>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+            
+          </div>
+        </div>
+    </div>
+
+
+    <form enctype="multipart/form-data" method="post">
+        {% csrf_token %}
+        
+        {{ template_formset.management_form }}
+
+        {% if campaign_form.non_field_errors %}
+        <div class="bg-red-100 text-red-700 border border-red-300 rounded p-4 my-6 text-lg text-center font-medium max-w-4xl mx-auto">
+            {% for error in campaign_form.non_field_errors %}
+              <p>{{ error }}</p>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if template_formset.non_form_errors %}
+        <div class="bg-red-100 text-red-700 border border-red-300 rounded p-4 my-6 text-lg text-center font-medium max-w-4xl mx-auto">
+            {% for error in template_formset.non_form_errors %}
+              <p>{{ error }}</p>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+
+        <div class="p-6 bg-primary rounded-lg shadow-md my-6 max-w-4xl mx-auto">
+          <h2 class="text-2xl font-semibold text-secondary">Adjust Delays</h2>
+
+          <div class="mt-4 p-4 bg-secondary rounded-lg">
+              <div class="grid grid-cols-1 gap-4 p-6 items-center">
+
+              <p class="text-lg font-semibold mt-3 text-primary">
+                Minimum and Maximum delay between each e-mail send
+              </p>
+
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  {% render_field campaign_form.min_delay class="w-full border btn-border-hover rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none bg-primary text-primary" %}
+                  {% if campaign_form.min_delay.errors %}
+                    <div class="bg-red-200 p-5 my-3 rounded-xl border-2 border-solid border-red-700">
+                      <p class="text-red-700 text-sm">{{ campaign_form.min_delay.errors|first }}</p>
+                    </div>
+                  {% endif %}
+                </div>
+                <div>
+                  {% render_field campaign_form.max_delay class="w-full border btn-border-hover rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none bg-primary text-primary" %}
+                  {% if campaign_form.max_delay.errors %}
+                    <div class="bg-red-200 p-5 my-3 rounded-xl border-2 border-solid border-red-700">
+                      <p class="text-red-700 text-sm">{{ campaign_form.max_delay.errors|first }}</p>
+                    </div>
+                  {% endif %}
+                </div>
+              </div>
+
+              <p class="text-lg font-semibold mt-3 text-primary">
+                Time to wait before launching the next step
+              </p>
+
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  {% render_field campaign_form.step_delay_hours class="w-full border rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none bg-primary text-primary" placeholder="Hours" required="required" %}
+                  
+                  {% if campaign_form.step_delay_hours.errors %}
+                    <div class="bg-red-200 p-5 my-3 rounded-xl border-2 border-solid border-red-700">
+                      <p class="text-red-700 text-sm">{{ campaign_form.step_delay_hours.errors|first }}</p>
+                    </div>
+                  {% endif %}
+                </div>
+
+                <div> {% render_field campaign_form.step_delay_minutes class="w-full border rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none bg-primary text-primary" placeholder="Minutes" required="required" %}
+                  
+                  {% if campaign_form.step_delay_minutes.errors %}
+                    <div class="bg-red-200 p-5 my-3 rounded-xl border-2 border-solid border-red-700">
+                      <p class="text-red-700 text-sm">{{ campaign_form.step_delay_minutes.errors|first }}</p>
+                    </div>
+                  {% endif %}
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+        <div id="step-2-wrapper">
+          <div class="container pt-8 pb-4 max-w-4xl mx-auto">
+
+              <div class="p-6 bg-primary rounded-lg shadow-md">
+                  
+                  <div id="template-forms-container">
+                    
+                    {% for form in template_formset %}
+                      <div class="template-form p-6 bg-secondary rounded-lg shadow-md mb-6 border border-gray-700">
+                        <h2 class="template-day-counter text-xl font-semibold text-secondary">Day {{ forloop.counter }}</h2>
+                        {{ form.id }}
+
+                        <div class="mt-4">
+                          <label for="{{ form.subject.id_for_label }}" class="block text-sm font-medium text-secondary mb-1">Email Subject</label>
+                          <div class="flex items-center gap-4">
+                            {{ form.subject|add_class:"w-2/3 p-3 border focus:ring-gray-500 focus:border-gray-500 rounded-lg outline-none text-primary bg-primary" }}
+
+                            <div class="flex items-center space-x-2">
+                              {{ form.track_template|add_class:"sr-only toggle-input" }}
+                              <label for="{{ form.track_template.id_for_label }}" class="toggle-label"></label>
+                              <span class="text-base text-primary">Track Open Rate</span>
+                            </div>
+                          </div>
+                          {% if form.subject.errors %}
+                            <div class="text-red-500 text-sm mt-1">{{ form.subject.errors|first }}</div>
+                          {% endif %}
+                        </div>
+
+                        <div class="mt-4">
+                          <label for="{{ form.body.id_for_label }}" class="block text-sm font-medium text-secondary">Email Body</label>
+                          <div class="mt-1 w-full border rounded-lg">
+                              {{ form.body }}
+                          </div>
+                          {% if form.body.errors %}
+                            <div class="text-red-500 text-sm mt-1">{{ form.body.errors|first }}</div>
+                          {% endif %}
+                        </div>
+
+                        <div class="flex items-center gap-4 mt-4 form-deletable-area">
+                          {% if form.instance.id %}
+                            <div class="flex items-center space-x-2">
+                              {{ form.DELETE|add_class:"hidden" }} 
+                              <label for="{{ form.DELETE.id_for_label }}" class="text-red-500 cursor-pointer hover:underline">Delete this step</label>
+                            </div>
+                          {% endif %}
+                          
+                          {% if form.instance.id %}
+                            <button type="button" class="remove-template-btn text-red-500 hover:text-red-400 font-medium">
+                              (Remove)
+                            </button>
+                          {% endif %}
+                        </div>
+
+                      </div>
+                    {% endfor %}
+
+                  </div> <div class="mt-6">
+                    <button type="button" id="add-template-btn" class="btn-bg-primary btn-bg-hover btn-text font-semibold py-3 px-6 rounded-xl shadow-lg text-base">
+                      ➕ Add Another Day's Template
+                    </button>
+                  </div>
+              
+              </div>
+
+            </div>
+            </div>
+
+
+          <div id="error-message" class="text-red-600 mt-4 hidden text-sm"></div>
+
+          <div id="step-2-submit" class="container mx-auto px-4 mb-10 text-center">
+            <div class="mt-6">
+              <button type="submit" class="btn-bg-primary btn-bg-hover btn-text font-bold py-3 px-6 rounded-full shadow-lg text-lg">
+                Confirm Updates 👍
+              </button>
+            </div>
+          </div>
+        </div>
+
+    </form>
+    <template id="empty-form-template">
+      <div class="template-form p-6 bg-secondary rounded-lg shadow-md mb-6 border border-gray-700">
+        
+        <h2 class="template-day-counter text-xl font-semibold text-secondary">Day</h2>
+        
+        {{ template_formset.empty_form.id }}
+
+        <div class="mt-4">
+          <label for="{{ template_formset.empty_form.subject.id_for_label }}" class="block text-sm font-medium text-secondary mb-1">Email Subject</label>
+          <div class="flex items-center gap-4">
+            {{ template_formset.empty_form.subject|add_class:"w-2/3 p-3 border focus:ring-gray-500 focus:border-gray-500 rounded-lg outline-none text-primary bg-primary" }}
+
+            <div class="flex items-center space-x-2">
+              {{ template_formset.empty_form.track_template|add_class:"sr-only toggle-input" }}
+              <label for="{{ template_formset.empty_form.track_template.id_for_label }}" class="toggle-label"></label>
+              <span class="text-base text-primary">Track Open Rate</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-4">
+          <label for="{{ template_formset.empty_form.body.id_for_label }}" class="block text-sm font-medium text-secondary">Email Body</label>
+          <div class="mt-1 w-full border rounded-lg">
+              {{ template_formset.empty_form.body }}
+          </div>
+        </div>
+
+        <div class="flex items-center gap-4 mt-4 form-deletable-area">
+          {{ template_formset.empty_form.DELETE|add_class:"hidden" }}
+          <button type="button" class="remove-template-btn text-red-500 hover:text-red-400 font-medium">
+            Remove Template
+          </button>
+        </div>
+
+      </div>
+    </template>
+
+  {% else %}
+      {% include 'price_base.html' %}
+  {% endif %}
+
+</div>
+
+
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    const addBtn = document.getElementById('add-template-btn');
+    const formsContainer = document.getElementById('template-forms-container');
+    const template = document.getElementById('empty-form-template');
+    
+    // Find the management form's TOTAL_FORMS input.
+    // ** IMPORTANT ** This prefix must match your view!
+    // Your view uses 'templates', so this is correct.
+    const totalFormsInput = document.querySelector('input[name="templates-TOTAL_FORMS"]');
+
+    if (!addBtn || !formsContainer || !template || !totalFormsInput) {
+        console.warn('Formset JS: Missing one or more required elements.');
+        return;
+    }
+
+    /**
+     * Finds all visible forms and re-numbers their "Day X" headers
+     * in sequential order.
+     */
+    function updateDayCounters() {
+        // Find all form wrappers that are *not* hidden (by our remove logic)
+        const visibleForms = formsContainer.querySelectorAll('.template-form:not([style*="display: none"])');
+        
+        visibleForms.forEach((form, index) => {
+            const dayCounter = form.querySelector('.template-day-counter');
+            if (dayCounter) {
+                // `index` is 0-based, so add 1 for "Day 1", "Day 2", etc.
+                dayCounter.textContent = `Day ${index + 1}`;
+            }
+        });
+    }
+
+    // --- 1. "Add Step" Button Logic ---
+    addBtn.addEventListener('click', function() {
+        // Get the current number of forms. This is our new form's index.
+        let currentFormCount = parseInt(totalFormsInput.value, 10);
+
+        // Get the raw HTML from the template
+        let newFormHtml = template.innerHTML;
+
+        // Replace all instances of "__prefix__" with the new form's index
+        newFormHtml = newFormHtml.replace(/__prefix__/g, currentFormCount);
+
+        // Create a new div wrapper to hold the form
+        // We give it the .template-form class so updateDayCounters() can find it
+        const newFormWrapper = document.createElement('div');
+        newFormWrapper.className = 'template-form-wrapper'; // Wrapper for the form
+        newFormWrapper.innerHTML = newFormHtml;
+        
+        // Find the actual form *inside* the wrapper
+        const newFormElement = newFormWrapper.querySelector('.template-form');
+
+        // Append the new form to the container
+        formsContainer.appendChild(newFormElement);
+
+        // Increment the TOTAL_FORMS count in the management form
+        totalFormsInput.value = currentFormCount + 1;
+
+        // *** NEW ***
+        // Now that the form is added, re-run the counter function
+        updateDayCounters();
+
+        // Note: The CKEditor init script for the new form is *inside*
+        // newFormHtml and will execute automatically when added to the DOM.
+    });
+
+    // --- 2. "Remove Step" Button Logic (using Event Delegation) ---
+    formsContainer.addEventListener('click', function(e) {
+        // Check if the clicked element has the 'remove-template-btn' class
+        if (e.target && e.target.classList.contains('remove-template-btn')) {
+            e.preventDefault(); // Stop any default button action
+
+            // Find the closest parent form wrapper
+            const formWrapper = e.target.closest('.template-form');
+            if (!formWrapper) return;
+
+            // Find the hidden DELETE checkbox *within* this form
+            const deleteCheckbox = formWrapper.querySelector('input[type="checkbox"][name$="-DELETE"]');
+            
+            if (deleteCheckbox) {
+                // Check the box to mark this form for deletion
+                deleteCheckbox.checked = true;
+            }
+
+            // Hide the form from the user
+            formWrapper.style.display = 'none';
+
+            // *** NEW ***
+            // Now that the form is hidden, re-run the counter function
+            updateDayCounters();
+        }
+    });
+
+    // --- 3. Initial Run ---
+    // Run the counter once on page load to number existing forms
+    updateDayCounters();
+});
+</script>
+
+{% endblock %}

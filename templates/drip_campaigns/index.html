@@ -39,7 +39,7 @@
         <div class="flex flex-col md:flex-row justify-end gap-3 font-semibold text-lg md:text-base mb-5">
           <a href="{% url 'drip_campaigns:campaign_creator_step1' %}" 
             class="btn-bg-hover btn-bg-primary btn-text px-4 py-2 rounded-lg flex items-center justify-center">
-            📩 New Drip Campaign
+            💧New Drip Campaign
           </a>
         </div>
 				<table class="w-full min-w-[600px] border-collapse overflow-x-auto text-primary">
@@ -67,6 +67,14 @@
                     <a href="{% url 'drip_campaigns:view_drip' campaign_id=campaign.id %}" 
                       class="bg-lime-500 text-white px-3 py-1 mx-3 rounded hover:bg-lime-600 text-center whitespace-nowrap">
                       View
+                    </a>
+                    <a href="{% url 'drip_campaigns:track_drip' campaign.id %}" 
+                      class="bg-amber-600 text-white px-3 py-1 mx-3 rounded hover:bg-amber-700 text-center whitespace-nowrap">
+                      Track Campaign
+                    </a>
+                    <a href="{% url 'drip_campaigns:delete_drip' campaign.id %}" 
+                      class="bg-red-600 text-white px-3 py-1 mx-3 rounded hover:bg-red-700 text-center whitespace-nowrap">
+                      Delete
                     </a>
                 </td>
 						</tr>

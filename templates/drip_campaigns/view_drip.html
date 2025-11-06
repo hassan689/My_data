@@ -1,0 +1,254 @@
+{% extends "dshbrd_base.html" %}
+
+{% load static %}
+{% load custom_filters %}
+{% block 'title' %}Dispatch Skool - View Drip Campaign{% endblock %}
+
+{% block 'head' %}
+    {{ form.media }}
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const form = document.querySelector('form');
+            const datetimeInput = document.querySelector('input[name="schedule_launch_datetime"]');
+            const timezoneInput = document.createElement('input');
+            timezoneInput.type = 'hidden';
+            timezoneInput.name = 'user_timezone';
+            timezoneInput.value = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Karachi'; // Fallback
+            form.appendChild(timezoneInput);
+
+            if (!form || !datetimeInput) return;
+        });
+    </script>
+{% endblock %}
+
+{% load widget_tweaks %}
+
+{% block 'content' %}
+
+<div class="p-4 sm:ml-72">
+
+  {% if request.user.subscription.status == "active" %}
+  
+    <div class="text-center max-w-4xl mx-auto px-4 pt-16 pb-5">
+      <h2 class="text-3xl md:text-4xl font-semibold text-primary">
+        Campaign briefs for: <span class="text-blue-700 font-bold">{{ campaign.name }}</span>
+      </h2>
+    </div>
+
+    <!-- General Info -->
+    <div class="p-6 bg-primary rounded-lg shadow-md my-6 text-left max-w-4xl mx-auto">
+      
+      <div class="flex flex-col md:flex-row md:justify-between md:items-center gap-3">
+        <h2 class="text-2xl font-semibold text-secondary">General Info</h2>
+        <div class="flex flex-col md:flex-row justify-end gap-3 font-semibold text-lg md:text-base mb-5 mt-2">
+          <a href="{% url 'drip_campaigns:update_drip' campaign_id=campaign.id %}" 
+            class="btn-bg-hover btn-bg-primary btn-text px-4 py-2 rounded-lg flex items-center justify-center">
+            ✏️ Edit Campaign
+          </a>
+        </div>
+      </div>
+  
+      <div class="mt-4 p-4 bg-secondary rounded-lg">
+        <div class="grid grid-cols-2 gap-4 text-secondary">
+          
+          <div class="border rounded-md p-3 bg-primary">
+            <span class="font-semibold">Created At: </span>{{ campaign.created_at }}
+          </div>
+          <div class="border rounded-md p-3 bg-primary">
+            <span class="font-semibold">Current Step Number: </span>{{ campaign.current_step }}
+          </div>
+          <div class="border rounded-md p-3 bg-primary">
+            <span class="font-semibold">Total Recipients: </span>{{ campaign.total_recipients }}
+          </div>
+          <div class="border rounded-md p-3 bg-primary">
+            <span class="font-semibold">Previous Launch at: </span>{{ campaign.created_at }}
+          </div>
+          <div class="border rounded-md p-3 bg-primary">
+            <span class="font-semibold">Next Launch Sheduled at: </span>{{ campaign.next_action_at }}
+          </div>
+          <div class="border rounded-md p-3 bg-primary">
+            <span class="font-semibold">Campaign Status: </span>{{ campaign.status }}
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- Removed MC Numbers -->
+    <div class="p-6 bg-primary rounded-lg shadow-md my-6 text-left max-w-4xl mx-auto">
+      <h2 class="text-2xl font-semibold text-secondary">Removed MC Numbers from the Targets List</h2>
+  
+      <div class="mt-4 p-4 bg-secondary rounded-lg">
+        <ul class="list-disc pl-5 text-secondary">
+          {% for mc_number in campaign.removed_mc_numbers %}
+            <li>{{ mc_number }}</li>
+          {% empty %}
+            <p class="text-primary text-lg text-center">No MC numbers have been removed from this campaign's target list.</p>
+          {% endfor %}
+        </ul>                             
+      </div>
+    </div>
+
+        <!-- Templates and details -->
+    <div class="p-6 bg-primary rounded-lg shadow-md my-6 max-w-4xl mx-auto">
+      <h2 class="text-2xl font-semibold text-secondary">Templates Briefing</h2>
+      <div class="mt-4 p-4 bg-secondary rounded-lg">
+        <div class="overflow-x-auto">
+
+          <table class="w-full table-auto border border-gray-200 rounded-md overflow-hidden">
+            <thead class="text-secondary text-sm">
+              {% if not templates_qs %}
+                  <p class="text-primary text-lg text-center">No templates for this campaign.</p>
+              {% else %}
+              <!-- Table Headers -->
+              <tr>
+                <th class="border-t border-b px-4 py-2 text-left text-lg">Subjects</th>
+                <th class="border-t border-b px-4 py-2 text-left text-lg">Step Number</th>
+                <th class="border-t border-b px-4 py-2 text-left text-lg">Delivery Status</th>
+                <th class="border-t border-b px-4 py-2 text-left text-lg">Trackable</th>
+                <th class="border-t border-b px-4 py-2 text-left text-lg">Email Opens</th>
+              </tr>
+            </thead>
+            <tbody class="text-sm text-primary">
+              {% for temp in templates_qs %}
+                <tr class="border-b bg-hover-light ">
+                  <td class="px-4 py-2">
+                    <p class="font-semibold">{{ temp.subject }}</p>
+                  </td>
+                  <td class="px-4 py-2">
+                    <p class="font-semibold">{{ temp.step_number }}</p>
+                  </td>
+                  <td class="px-4 py-2">
+                    <p class="font-semibold">{{ temp.delivered_status }}</p>
+                  </td>
+                  <td class="px-4 py-2">
+                    {% if temp.track_template %}
+                      <p class="font-semibold">
+                        <a href="{% url 'drip_campaigns:track_drip' campaign.id %}" class="text-blue-600 underline">Track Campaign</a>
+                      </p>
+                    {% else %}
+                    <p class="font-semibold">Not set for Tracking</p>
+                    {% endif %}
+                  </td>
+                  <td class="px-4 py-2">
+                    <p class="font-semibold">{{ temp.open_rate }}</p>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+            {% endif %}
+          </table>
+          
+        </div>
+      </div>
+    </div>
+
+    <!-- Email Accounts and Assigned Leads -->
+    <div class="p-6 bg-primary rounded-lg shadow-md my-6 max-w-4xl mx-auto">
+      <h2 class="text-2xl font-semibold text-secondary">Email Accounts and Sent Counts</h2>
+      <div class="mt-4 p-4 bg-secondary rounded-lg">
+        <div class="overflow-x-auto">
+
+          <table class="w-full table-auto border border-gray-200 rounded-md overflow-hidden">
+            <thead class="text-secondary text-sm">
+              <tr>
+                <th class="border-t border-b px-4 py-2 text-left text-lg">Email Accounts</th>
+                <th class="border-t border-b px-4 py-2 text-left text-lg">Assigned leads</th>
+                <th class="border-t border-b px-4 py-2 text-left text-lg">Current Processing Step</th>
+                <th class="border-t border-b px-4 py-2 text-left text-lg">Sent Count</th>
+              </tr>
+            </thead>
+            <tbody class="text-sm text-primary">
+              {% for account in email_accounts_info %}
+                <tr class="border-b bg-hover-light ">
+                  <td class="px-4 py-2">
+                    <p class="font-semibold">{{ account.email_account.email_address }}</p>
+                  </td>
+                  <td class="px-4 py-2">
+                    <p>{{ account.recipient_count }}</p>
+                  </td>
+                  <td class="px-4 py-2">
+                    <p>{{ campaign.current_step }}</p>
+                  </td>
+                  <td class="px-4 py-2">
+                    {% with account.sent_count as sent %}
+                      {% with account.recipient_count as total %}
+                        <div class="w-full bg-tertiary rounded-full h-5">
+                          
+                          {% if total > 0 %}
+                            {% widthratio sent total 100 as percentage %}
+                            <div id="sent-count-box-{{ account.email_account.id }}"
+                                class="bg-blue-600 text-xs font-semibold text-white text-center h-full rounded-full"
+                                style="width: {{ percentage }}%;">
+                              {{ sent }}/{{ total }}
+                            </div>
+                          {% else %}
+                            <div id="sent-count-box-{{ account.email_account.id }}"
+                                class="bg-blue-600 text-xs font-semibold text-white text-center h-full rounded-full"
+                                style="width: 0%;">
+                              {{ sent }}/0
+                            </div>
+                          {% endif %}
+
+                        </div>
+                      {% endwith %}
+                    {% endwith %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          
+        </div>
+      </div>
+    </div>
+
+
+  {% else %}
+      {% include 'price_base.html' %}
+  {% endif %}
+
+  <script>
+    function updateProgressBars() {
+      
+      // 1. Fetch data from your NEW JSON endpoint
+      fetch("{% url 'drip_campaigns:get_drip_progress_json' campaign_id=campaign.id %}")
+        .then(response => {
+          if (!response.ok) {
+            throw new Error('Network response was not ok');
+          }
+          return response.json(); // This will now work!
+        })
+        .then(data => {
+          // 2. Loop through all accounts in the JSON response
+          Object.keys(data).forEach(accountId => {
+            
+            const sent = data[accountId].sent_count;
+            const total = data[accountId].total;
+
+            // 3. Find the progress bar for this account
+            const sentBox = document.querySelector(`#sent-count-box-${accountId}`);
+            
+            // 4. Update the bar's width and text
+            if (sentBox) {
+              const percent = total === 0 ? 0 : Math.round((sent / total) * 100);
+              sentBox.style.width = `${percent}%`;
+              sentBox.textContent = `${sent}/${total}`;
+            }
+          });
+        })
+        .catch(error => {
+          // You can check your browser console (F12) for this error
+          console.error('Error updating campaign progress:', error);
+        });
+    }
+
+    // 5. Run this function every 5 seconds and once on load
+    setInterval(updateProgressBars, 5000);
+    updateProgressBars(); 
+  </script>
+
+{% endblock %}
+
+
+

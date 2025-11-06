@@ -74,7 +74,7 @@ def refresh_targets(campaign):
     sender_user = sender_account.user
 
     # Step 2: Get all other email account instances for that user, excluding sender
-    user_email_accounts = EmailAccount.objects.filter(user=sender_user, black_list=False).exclude(id=sender_account.id)
+    user_email_accounts = EmailAccount.objects.filter(user=sender_user, black_list=False, is_warmup_target=True).exclude(id=sender_account.id)
 
     # Step 3: Randomly pick up to 5
     selected_accounts = random.sample(list(user_email_accounts), min(5, user_email_accounts.count()))

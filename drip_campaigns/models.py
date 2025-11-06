@@ -17,6 +17,9 @@ class DripCampaign(models.Model):
     current_step = models.IntegerField(default=1) 
     next_action_at = models.DateTimeField(null=True, blank=True) 
     last_action_at = models.DateTimeField(null=True, blank=True)
+    
+    # need a json field to store the MC numbers that were removed from the recipients list due to bounces/unsubscribes
+    removed_mc_numbers = models.JSONField(default=list, null=True, blank=True)
 
     CAMPAIGN_STATUS_CHOICES = [
         ('Active', 'Active'),       

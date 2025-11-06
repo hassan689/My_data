@@ -121,12 +121,14 @@
                       </div>
                     {% endif %}
                     
+                    {% comment %}
                     {% if account.is_gmail and not account.is_connected and is_unibox_eligible %}
                         <a href="{% url 'dashboard:oauth_start' account.id %}" 
                           class="bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600 text-center whitespace-nowrap">
                           Connect Gmail
                         </a>
                     {% endif %}
+                    {% endcomment %}
 
                   </div>
                 </td>
@@ -220,7 +222,7 @@
 		</div>
 	</div>
 
-</div>	
+</div>
 
 <script>
   function updateCampaignStatuses() {

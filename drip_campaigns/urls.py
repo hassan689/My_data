@@ -12,5 +12,9 @@ urlpatterns = [
 
     path('update-campaign/<int:campaign_id>/', views.update_drip, name='update_drip'),
     path('view-campaign/<int:campaign_id>/', views.view_drip, name='view_drip'),
+    path('campaign-progress/<int:campaign_id>/', views.get_drip_progress_json, name='get_drip_progress_json'),
+    
+    path('delete-campaign/<int:campaign_id>/', views.delete_drip, name='delete_drip'),
+    path('track-campaign/<int:campaign_id>/', views.track_drip, name='track_drip'),
 ]
 

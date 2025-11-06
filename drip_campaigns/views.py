@@ -3,22 +3,24 @@ from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_http_methods
 from django.shortcuts import get_object_or_404
+from django.forms import modelformset_factory
 from django.core.paginator import Paginator
+from django.core.cache import cache
+from django.contrib import messages
+from django.db import transaction
+from django.db.models import Sum, Max
+from django.http import JsonResponse
 
 from dashboard.utilities import process_excel_file, get_leads_from_db, save_temp_file, distribute_leads_among_accounts
 from users.models import EmailAccount
 from .models import DripCampaign, EmailAccountAndLeads, DripTemplate
 
-from django.forms import modelformset_factory
 from dashboard.forms import BulkCampaignForm
 from .forms import DripTemplateModelForm
 
-from django.core.cache import cache
-from django.contrib import messages
-from django.db import transaction
-
 import uuid
 import os
+import datetime
 
 
 @login_required
@@ -404,31 +406,178 @@ def drip_campaign_step3(request, campaign_id):
 
 ######################################### Campaign View and Update
 
+# --- Define the FormSet ---
+# We define this outside the view so it's created only once.
+# extra=0: Don't show any new, blank forms by default.
+# can_delete=True: Allow existing templates to be marked for deletion.
+DripTemplateFormSet = modelformset_factory(
+    DripTemplate,
+    form=DripTemplateModelForm,
+    extra=0,
+    can_delete=True 
+)
+
 @login_required
 @require_http_methods(["GET", "POST"])
 def update_drip(request, campaign_id):
     
+    # 1. Fetch the main campaign object
     campaign = get_object_or_404(DripCampaign, id=campaign_id, launched_by=request.user)
 
-    # Fetch the forms
-    # Fill them with existing campaign data
-    # Let the user have their fun and submit changes
-    # Redirect to view page after successful update
+    # 2. Get data for display (needed for both GET and POST-failure)
+    email_accounts_info = campaign.email_accounts_and_leads.all().select_related('email_account')
     
-    return render(request, 'drip_campaigns/update_drip.html', {
+    # 3. Define the queryset for the formset
+    template_queryset = campaign.templates.all().order_by('step_number')
+
+    if request.method == 'POST':
+        # 4. Process the submitted data
+        # We use prefixes to keep the forms separate in the POST data
+        campaign_form = BulkCampaignForm(request.POST, prefix='campaign')
+        template_formset = DripTemplateFormSet(request.POST, queryset=template_queryset, prefix='templates')
+
+        if campaign_form.is_valid() and template_formset.is_valid():
+            # Save CampaignForm data
+            cd = campaign_form.cleaned_data
+            hours = cd.get('step_delay_hours') or 0
+            minutes = cd.get('step_delay_minutes') or 0
+            
+            campaign.step_delay = datetime.timedelta(hours=hours, minutes=minutes)
+            campaign.min_delay = cd.get('min_delay')
+            campaign.max_delay = cd.get('max_delay')
+            campaign.save()
+
+            # Get all modified and new instances without saving to DB
+            templates = template_formset.save(commit=False)
+
+            # Get the current highest step number for this campaign
+            max_step = campaign.templates.all().aggregate(Max('step_number'))['step_number__max'] or 0
+
+            step_counter = 1
+
+            for template in templates:
+                # Check if it's a new instance (no primary key)
+                if not template.id: 
+                    template.campaign = campaign
+                    template.step_number = max_step + step_counter
+                    step_counter += 1
+
+                # Save the instance (whether new or modified)
+                template.save()
+
+            # Handle any deletions
+            for form in template_formset.deleted_forms:
+                if form.instance.id:
+                    form.instance.delete()
+
+            messages.success(request, f"Campaign '{campaign.name}' has been updated successfully.")
+            return redirect('drip_campaigns:index') # Assumed URL name
+        
+        else:
+            # If forms are invalid, fall through to render the page again
+            # with error messages.
+            messages.error(request, "Please correct the errors below.")
+
+    else:
+        # 5. Handle GET request: Populate forms with existing data
+        
+        # Deconstruct the timedelta into hours and minutes
+        total_seconds = campaign.step_delay.total_seconds()
+        initial_hours = int(total_seconds // 3600)
+        initial_minutes = int((total_seconds % 3600) // 60)
+        
+        # Pre-fill the CampaignForm
+        campaign_form = BulkCampaignForm(prefix='campaign', initial={
+            'step_delay_hours': initial_hours,
+            'step_delay_minutes': initial_minutes,
+            'min_delay': campaign.min_delay,
+            'max_delay': campaign.max_delay
+        })
+        
+        # Pre-fill the DripTemplateFormSet
+        template_formset = DripTemplateFormSet(queryset=template_queryset, prefix='templates')
+
+    # 6. Render the page
+    context = {
         'campaign': campaign,
+        'campaign_form': campaign_form,
+        'template_formset': template_formset,
+        'email_accounts_info': email_accounts_info
+    }
+    
+    return render(request, 'drip_campaigns/update_drip.html', context)
+
+
+@login_required
+def view_drip(request, campaign_id): # to display general info and show email accounts and their sent/recip counts
+    
+    campaign = get_object_or_404(DripCampaign, id=campaign_id, launched_by=request.user)
+    templates_qs = campaign.templates.all().order_by('step_number')
+    email_accounts_info = campaign.email_accounts_and_leads.all().select_related('email_account')
+    
+    return render(request, 'drip_campaigns/view_drip.html', {
+        'campaign': campaign,
+        'email_accounts_info': email_accounts_info,
+        'templates_qs': templates_qs
     })
 
 
 @login_required
-@require_http_methods(["GET", "POST"])
-def view_drip(request, campaign_id):
+@require_http_methods(["GET"])
+def get_drip_progress_json(request, campaign_id):
+    """
+    Returns the latest sent/recipient counts for a campaign as JSON.
+    """
     
+    # 1. Get the campaign, ensuring it belongs to the logged-in user
     campaign = get_object_or_404(DripCampaign, id=campaign_id, launched_by=request.user)
     
-    return render(request, 'drip_campaigns/view_drip.html', {
+    # 2. Get all the associated email account data
+    email_accounts_info = campaign.email_accounts_and_leads.all()
+    
+    # 3. Build the data dictionary in the format your JavaScript expects
+    data = {}
+    for account in email_accounts_info:
+        data[account.email_account.id] = {
+            'sent_count': account.sent_count,
+            'total': account.recipient_count  # Use 'total' to match your JS
+        }
+        
+    # 4. Return the data as a JSON response
+    return JsonResponse(data)
+
+
+@login_required
+def delete_drip(request, campaign_id):
+    campaign = get_object_or_404(DripCampaign, id=campaign_id, launched_by=request.user)
+    campaign_name = campaign.name
+    campaign.delete()
+
+    messages.success(request, f"Campaign '{campaign_name}' and all its related data have been successfully deleted.")
+    return redirect('drip_campaigns:index')
+
+
+@login_required
+@require_http_methods(["GET"])
+def track_drip(request, campaign_id):
+    
+    campaign = get_object_or_404(DripCampaign, id=campaign_id, launched_by=request.user)
+    templates_qs = campaign.templates.filter(track_template=True).order_by('step_number')
+
+    recipient_data = EmailAccountAndLeads.objects.filter(campaign=campaign).aggregate(
+        total_recipients=Sum('recipient_count')
+    )
+    campaign_total_recipients = recipient_data['total_recipients'] or 0
+    
+    campaign_total_opens = 0
+    for template in templates_qs:
+        campaign_total_opens += template.open_rate
+
+    context = {
         'campaign': campaign,
-    })
-
-
+        'templates_qs': templates_qs,
+        'campaign_total_opens': campaign_total_opens,
+        'campaign_total_recipients': campaign_total_recipients,
+    }
+    return render(request, 'drip_campaigns/track_drip.html', context)
 
