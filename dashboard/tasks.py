@@ -13,7 +13,6 @@ import re
 import random
 import uuid
 import time
-from typing import List, Dict
 
 from email.utils import make_msgid
 from urllib.parse import urljoin

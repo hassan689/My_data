@@ -76,6 +76,7 @@ class DripTemplate(models.Model):
         ('Processing', 'Processing'),
         ('Sent', 'Sent'),
         ('Failed', 'Failed'),
+        ('Cancelled', 'Cancelled'),
     ]
     delivered_status = models.CharField(max_length=20, choices=DELIVERED_STATUS_CHOICES, default='Pending')
 

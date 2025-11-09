@@ -202,6 +202,8 @@
               <div class="p-6 bg-primary rounded-lg shadow-md">
                   
                   <div id="template-forms-container">
+
+                    <h2 class="text-2xl font-semibold text-secondary mt-3 mb-6">Templates for Each Day/Step</h2>
                     
                     {% for form in template_formset %}
                       <div class="template-form p-6 bg-secondary rounded-lg shadow-md mb-6 border border-gray-700">
@@ -213,11 +215,13 @@
                           <div class="flex items-center gap-4">
                             {{ form.subject|add_class:"w-2/3 p-3 border focus:ring-gray-500 focus:border-gray-500 rounded-lg outline-none text-primary bg-primary" }}
 
+                            {% comment %}
                             <div class="flex items-center space-x-2">
                               {{ form.track_template|add_class:"sr-only toggle-input" }}
                               <label for="{{ form.track_template.id_for_label }}" class="toggle-label"></label>
                               <span class="text-base text-primary">Track Open Rate</span>
                             </div>
+                            {% endcomment %}
                           </div>
                           {% if form.subject.errors %}
                             <div class="text-red-500 text-sm mt-1">{{ form.subject.errors|first }}</div>
@@ -235,20 +239,20 @@
                         </div>
 
                         <div class="flex items-center gap-4 mt-4 form-deletable-area">
+  
                           {% if form.instance.id %}
-                            <div class="flex items-center space-x-2">
-                              {{ form.DELETE|add_class:"hidden" }} 
-                              <label for="{{ form.DELETE.id_for_label }}" class="text-red-500 cursor-pointer hover:underline">Delete this step</label>
+                            <div class="flex items-center space-x-2" style="display: none;">
+                              {{ form.DELETE }}
+                              <label for="{{ form.DELETE.id_for_label }}">Delete</label>
                             </div>
+
+                            <button type="button" class="remove-template-btn text-red-500 hover:text-red-400 font-medium">
+                              Remove Template
+                            </button>
+                          
                           {% endif %}
                           
-                          {% if form.instance.id %}
-                            <button type="button" class="remove-template-btn text-red-500 hover:text-red-400 font-medium">
-                              (Remove)
-                            </button>
-                          {% endif %}
-                        </div>
-
+                          </div>
                       </div>
                     {% endfor %}
 
@@ -288,11 +292,13 @@
           <div class="flex items-center gap-4">
             {{ template_formset.empty_form.subject|add_class:"w-2/3 p-3 border focus:ring-gray-500 focus:border-gray-500 rounded-lg outline-none text-primary bg-primary" }}
 
+            {% comment %}
             <div class="flex items-center space-x-2">
               {{ template_formset.empty_form.track_template|add_class:"sr-only toggle-input" }}
               <label for="{{ template_formset.empty_form.track_template.id_for_label }}" class="toggle-label"></label>
               <span class="text-base text-primary">Track Open Rate</span>
             </div>
+            {% endcomment %}
           </div>
         </div>
 

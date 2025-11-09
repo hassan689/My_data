@@ -387,8 +387,7 @@ def drip_campaign_step3(request, campaign_id):
             DripTemplate.objects.bulk_create(templates_to_create)
 
             messages.success(request, f"Drip campaign '{campaign.name}' successfully created!")
-            print("🎉 Redirecting to dashboard:index")
-            return redirect('dashboard:index') # temp till we have a campaigns list view
+            return redirect('drip_campaigns:index') # temp till we have a campaigns list view
 
     else:
         # GET request: create a new, empty formset
@@ -471,7 +470,7 @@ def update_drip(request, campaign_id):
                     form.instance.delete()
 
             messages.success(request, f"Campaign '{campaign.name}' has been updated successfully.")
-            return redirect('drip_campaigns:index') # Assumed URL name
+            return redirect('drip_campaigns:view_drip', campaign.id) # Assumed URL name
         
         else:
             # If forms are invalid, fall through to render the page again
