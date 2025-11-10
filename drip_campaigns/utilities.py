@@ -58,3 +58,32 @@ def reschedule_or_finalize(campaign_id, account, template, next_lead_index, dela
             args=[campaign_id, account.id, template.id, next_lead_index],
             countdown=delay_seconds
         )
+
+
+
+def normalize_provider(provider_string):
+    """
+    Cleans the user-entered provider string to match a key
+    in our IMAP_SETTINGS_MAP.
+    """
+    if not provider_string:
+        return None
+        
+    provider_low = provider_string.lower()
+    
+    # Check for keywords
+    if 'gmail' in provider_low or 'google' in provider_low:
+        return 'gmail'
+    if 'yahoo' in provider_low:
+        return 'yahoo'
+    if 'zoho' in provider_low:
+        return 'zoho'
+    if 'hostinger' in provider_low:
+        return 'hostinger'
+    if 'namecheap' in provider_low or 'privateemail' in provider_low:
+        return 'namecheap'
+    if 'outlook' in provider_low or 'hotmail' in provider_low:
+        return 'outlook'
+        
+    return None # We don't recognize it
+

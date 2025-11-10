@@ -78,79 +78,6 @@
       </div>
     </div>
 
-    <!-- Removed MC Numbers -->
-    <div class="p-6 bg-primary rounded-lg shadow-md my-6 text-left max-w-4xl mx-auto">
-      <h2 class="text-2xl font-semibold text-secondary">Removed MC Numbers from the Targets List</h2>
-  
-      <div class="mt-4 p-4 bg-secondary rounded-lg">
-        <ul class="list-disc pl-5 text-secondary">
-          {% for mc_number in campaign.removed_mc_numbers %}
-            <li>{{ mc_number }}</li>
-          {% empty %}
-            <p class="text-primary text-lg text-center">No MC numbers have been removed from this campaign's target list.</p>
-          {% endfor %}
-        </ul>                             
-      </div>
-    </div>
-
-        <!-- Templates and details -->
-    <div class="p-6 bg-primary rounded-lg shadow-md my-6 max-w-4xl mx-auto">
-      <h2 class="text-2xl font-semibold text-secondary">Templates Briefing</h2>
-      <div class="mt-4 p-4 bg-secondary rounded-lg">
-        <div class="overflow-x-auto">
-
-          <table class="w-full table-auto border border-gray-200 rounded-md overflow-hidden">
-            <thead class="text-secondary text-sm">
-              {% if not templates_qs %}
-                  <p class="text-primary text-lg text-center">No templates for this campaign.</p>
-              {% else %}
-              <!-- Table Headers -->
-              <tr>
-                <th class="border-t border-b px-4 py-2 text-left text-lg">Subjects</th>
-                <th class="border-t border-b px-4 py-2 text-left text-lg">Step Number</th>
-                <th class="border-t border-b px-4 py-2 text-left text-lg">Delivery Status</th>
-                {% comment %}
-                <th class="border-t border-b px-4 py-2 text-left text-lg">Trackable</th>
-                {% endcomment %}
-                <th class="border-t border-b px-4 py-2 text-left text-lg">Email Opens</th>
-              </tr>
-            </thead>
-            <tbody class="text-sm text-primary">
-              {% for temp in templates_qs %}
-                <tr class="border-b bg-hover-light ">
-                  <td class="px-4 py-2">
-                    <p class="font-semibold">{{ temp.subject }}</p>
-                  </td>
-                  <td class="px-4 py-2">
-                    <p class="font-semibold">{{ temp.step_number }}</p>
-                  </td>
-                  <td class="px-4 py-2">
-                    <p class="font-semibold">{{ temp.delivered_status }}</p>
-                  </td>
-                  {% comment %}
-                  <td class="px-4 py-2">
-                    {% if temp.track_template %}
-                      <p class="font-semibold">
-                        <a href="{% url 'drip_campaigns:track_drip' campaign.id %}" class="text-blue-600 underline">Track Campaign</a>
-                      </p>
-                    {% else %}
-                    <p class="font-semibold">Not set for Tracking</p>
-                    {% endif %}
-                  </td>
-                  {% endcomment %}
-                  <td class="px-4 py-2">
-                    <p class="font-semibold">{{ temp.open_rate }}</p>
-                  </td>
-                </tr>
-              {% endfor %}
-            </tbody>
-            {% endif %}
-          </table>
-          
-        </div>
-      </div>
-    </div>
-
     <!-- Email Accounts and Assigned Leads -->
     <div class="p-6 bg-primary rounded-lg shadow-md my-6 max-w-4xl mx-auto">
       <h2 class="text-2xl font-semibold text-secondary">Email Accounts and Sent Counts</h2>
@@ -205,6 +132,79 @@
                 </tr>
               {% endfor %}
             </tbody>
+          </table>
+          
+        </div>
+      </div>
+    </div>
+
+    <!-- Removed MC Numbers -->
+    <div class="p-6 bg-primary rounded-lg shadow-md my-6 text-left max-w-4xl mx-auto">
+      <h2 class="text-2xl font-semibold text-secondary">Removed MC Numbers from the Targets List</h2>
+  
+      <div class="mt-4 p-4 bg-secondary rounded-lg">
+        <ul class="list-disc pl-5 text-secondary">
+          {% for mc_number in campaign.removed_mc_numbers %}
+            <li>{{ mc_number }}</li>
+          {% empty %}
+            <p class="text-primary text-lg text-center">No MC numbers have been removed from this campaign's target list.</p>
+          {% endfor %}
+        </ul>                             
+      </div>
+    </div>
+
+    <!-- Templates and details -->
+    <div class="p-6 bg-primary rounded-lg shadow-md my-6 max-w-4xl mx-auto">
+      <h2 class="text-2xl font-semibold text-secondary">Templates Briefing</h2>
+      <div class="mt-4 p-4 bg-secondary rounded-lg">
+        <div class="overflow-x-auto">
+
+          <table class="w-full table-auto border border-gray-200 rounded-md overflow-hidden">
+            <thead class="text-secondary text-sm">
+              {% if not templates_qs %}
+                  <p class="text-primary text-lg text-center">No templates for this campaign.</p>
+              {% else %}
+              <!-- Table Headers -->
+              <tr>
+                <th class="border-t border-b px-4 py-2 text-left text-lg">Subjects</th>
+                <th class="border-t border-b px-4 py-2 text-left text-lg">Step Number</th>
+                <th class="border-t border-b px-4 py-2 text-left text-lg">Delivery Status</th>
+                {% comment %}
+                <th class="border-t border-b px-4 py-2 text-left text-lg">Trackable</th>
+                {% endcomment %}
+                <th class="border-t border-b px-4 py-2 text-left text-lg">Email Opens</th>
+              </tr>
+            </thead>
+            <tbody class="text-sm text-primary">
+              {% for temp in templates_qs %}
+                <tr class="border-b bg-hover-light ">
+                  <td class="px-4 py-2">
+                    <p class="font-semibold">{{ temp.subject }}</p>
+                  </td>
+                  <td class="px-4 py-2">
+                    <p class="font-semibold">{{ temp.step_number }}</p>
+                  </td>
+                  <td class="px-4 py-2">
+                    <p class="font-semibold">{{ temp.delivered_status }}</p>
+                  </td>
+                  {% comment %}
+                  <td class="px-4 py-2">
+                    {% if temp.track_template %}
+                      <p class="font-semibold">
+                        <a href="{% url 'drip_campaigns:track_drip' campaign.id %}" class="text-blue-600 underline">Track Campaign</a>
+                      </p>
+                    {% else %}
+                    <p class="font-semibold">Not set for Tracking</p>
+                    {% endif %}
+                  </td>
+                  {% endcomment %}
+                  <td class="px-4 py-2">
+                    <p class="font-semibold">{{ temp.open_rate }}</p>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+            {% endif %}
           </table>
           
         </div>

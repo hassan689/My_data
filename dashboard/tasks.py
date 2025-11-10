@@ -784,7 +784,8 @@ def revive_failed_launch():
     
     CampaignRecord.objects.filter(status='processing', sent_count=0).update(
         status='pending',
-        scheduled_launch_time=timezone.now()
+        scheduled_launch_time=timezone.now(),
+        is_campaign_dispatched=False
     )
     launch_scheduled_campaign_checker() # Immediately launch the above campaigns that were set to pending
 

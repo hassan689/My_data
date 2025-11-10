@@ -40,7 +40,7 @@ class DripCampaignAdmin(admin.ModelAdmin):
     
     fieldsets = (
         (None, {
-            'fields': ('name', 'launched_by', 'status', 'total_recipients', 'created_at')
+            'fields': ('name', 'launched_by', 'status', 'total_recipients', 'created_at', 'removed_mc_numbers')
         }),
         ('Scheduling', {
             'fields': ('step_delay', 'current_step', 'next_action_at', 'last_action_at')

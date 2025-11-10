@@ -1,0 +1,159 @@
+{% extends "dshbrd_base.html" %}
+
+{% load static %}
+{% load widget_tweaks %}
+
+{% block 'title' %}Dispatch Skool - Skip Lists{% endblock %}
+
+{% block 'content' %}
+
+<div class="p-4 sm:ml-72">
+
+  <div class="text-center max-w-4xl mx-auto px-4 pt-16 pb-5">
+    <h2 class="text-3xl md:text-4xl font-bold text-primary">
+      Your <span class="text-blue-500">Personalised Skip Manager</span>
+    </h2>
+    <p class="text-lg text-gray-500 my-6">Save all the leads you want to be <span class="font-bold">skipped out of your campaigns AUTOMATICALLY</span> in one place. You can do so using either <span class="font-bold">Email Address</span> or <span class="font-bold">MC Number</span></p>
+  </div>
+
+  <!-- Form Inputs -->
+  <div class="flex flex-row gap-6 w-full max-w-4xl mx-auto">
+
+    <div class="p-6 bg-primary rounded-lg shadow-md my-6 text-left w-full">
+      <h2 class="text-xl font-semibold text-center text-secondary">Use either one of Email Address or MC Number</h2>
+
+      <form method="POST">
+        {% csrf_token %}
+
+        <div class="flex flex-col lg:flex-row gap-4 mt-4">
+
+          <div class="p-4 bg-secondary rounded-lg lg:w-1/2">
+            <h2 class="text-lg font-semibold text-primary mb-4 flex items-center">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2 text-blue-600" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M2.003 5.884L10 10.884l7.997-5H2.003zM18 7.116l-8 4.884-8-4.884V14a2 2 0 002 2h12a2 2 0 002-2V7.116z" />
+              </svg>
+              Skip using Email
+            </h2>
+            <div class="flex space-x-3">
+                <div class="flex-grow">
+                  {% render_field form.emails class="block w-full rounded-md px-2 bg-primary text-primary border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" %}
+                  <p class="text-secondary text-sm mt-1">e.g., john.doe@gmail.com</p>
+                </div>
+                <button type="submit" class="inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                  Add
+                </button>
+            </div>
+            {% if form.emails.errors %}
+                {% for error in form.emails.errors %}
+                    <p class="mt-2 text-sm text-red-600">{{ error }}</p>
+                {% endfor %}
+            {% endif %}
+          </div>
+
+          <div class="p-4 bg-secondary rounded-lg lg:w-1/2">
+            <h2 class="text-lg font-semibold text-primary mb-4 flex items-center">
+              🚚 Skip using MC Number
+            </h2>
+            <div class="flex space-x-3">
+                <div class="flex-grow">
+                  {% render_field form.mc_numbers class="block w-full rounded-md px-2 bg-primary text-primary border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" %}
+                  <p class="text-secondary text-sm mt-1">e.g., MC 1234567</p>
+                </div>
+                <button type="submit" class="inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                  Add
+                </button>
+            </div>
+            {% if form.mc_numbers.errors %}
+                {% for error in form.mc_numbers.errors %}
+                    <p class="mt-2 text-sm text-red-600">{{ error }}</p>
+                {% endfor %}
+            {% endif %}
+          </div>
+        
+        </div>
+      </form>
+
+    </div>
+
+  </div>
+
+
+  <!-- Skip Lists -->
+  <div class="flex flex-row gap-6 w-full max-w-4xl mx-auto">
+
+    <div class="p-6 bg-primary rounded-lg shadow-md my-6 text-left w-full flex flex-col lg:flex-row gap-4">
+
+        <!-- Card 1: Email Addresses List -->
+        <div class="p-4 bg-secondary rounded-lg lg:w-1/2">
+          <h2 class="text-lg font-semibold text-primary mb-4 flex items-center">
+            <!-- Heroicon: envelope-open -->
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2 text-blue-700" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
+            </svg>
+            Skipped Email Addresses ({{ email_count }})
+          </h2>
+          <div class="space-y-3 max-h-96 overflow-y-auto">
+            {% for email in emails %}
+              <div class="bg-primary border border-gray-200 rounded-md p-3 text-sm text-primary">
+                {{ email }}
+              </div>
+            {% empty %}
+              <!-- Corrected text-gray-50 to text-gray-500 for visibility -->
+              <p class="text-gray-500 text-sm">No skipped emails yet.</p>
+            {% endfor %}
+          </div>
+        </div>
+
+        <!-- Card 2: MC Numbers List -->
+        <div class="p-4 bg-secondary rounded-lg lg:w-1/2">
+          <h2 class="text-lg font-semibold text-primary mb-4 flex items-center">
+            🚚 Skipped MC Numbers ({{ mc_count }})
+          </h2>
+          <div class="space-y-3 max-h-96 overflow-y-auto">
+            {% for mc in mcs %}
+              <div class="bg-primary border border-gray-200 rounded-md p-3 text-sm text-primary">
+                {{ mc }}
+              </div>
+            {% empty %}
+              <p class="text-gray-500 text-sm">No skipped MC numbers yet.</p>
+            {% endfor %}
+          </div>
+        </div>
+
+    </div>
+
+  </div>
+    
+</div>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    // Get the input for Email
+    const emailInput = document.getElementById('id_emails');
+    
+    // Check if the element exists before initializing
+    if (emailInput) {
+      new Tagify(emailInput, {
+          enforceWhitelist: false,
+          dropdown: {
+              enabled: 0
+          }
+      });
+    }
+
+    // Get the input for MC Numbers
+    const mcInput = document.getElementById('id_mc_numbers');
+    
+    // Check if the element exists before initializing
+    if (mcInput) {
+      new Tagify(mcInput, {
+          enforceWhitelist: false,
+          dropdown: {
+              enabled: 0
+          }
+      });
+    }
+  });
+</script>
+
+{% endblock %}

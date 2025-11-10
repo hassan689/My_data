@@ -53,6 +53,12 @@ class EmailAccountAndLeads(models.Model):
     recipient_count = models.IntegerField(default=0) # Number of leads associated with this email account for the latest step.
     sent_count = models.IntegerField(default=0) # Number of emails sent from this account in this campaign for the latest step.
 
+    last_reply_check_at = models.DateTimeField(
+        null=True, 
+        blank=True,
+        help_text="The last time we checked this account's IMAP for replies for this campaign."
+    )
+
     def __str__(self):
         return f"Email Account {self.email_account.id} for Drip Campaign {self.campaign.id}"
     
@@ -89,4 +95,43 @@ class DripTemplate(models.Model):
         verbose_name = "Drip Template"
         verbose_name_plural = "Drip Templates"
 
+
+class SentDripEmail(models.Model):
+    """
+    This is the 'paper trail'. It links a sent Message-ID
+    to a specific campaign and lead.
+    """
+    
+    drip_campaign = models.ForeignKey(
+        DripCampaign, 
+        on_delete=models.CASCADE, 
+        related_name="sent_emails"
+    )
+    # The unique ID we sent in the email header
+    message_id = models.CharField(
+        max_length=255, 
+        unique=True, 
+        db_index=True
+    )
+    # The lead's info, for easy removal later
+    lead_email = models.EmailField()
+    lead_mc_number = models.CharField(
+        max_length=50, 
+        blank=True, 
+        null=True, 
+        db_index=True
+    )
+    STATUS_CHOICES = [
+        ('Sent', 'Sent'),
+        ('Replied', 'Replied'),
+    ]
+    status = models.CharField(
+        max_length=20, 
+        choices=STATUS_CHOICES, 
+        default='Sent'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.lead_email} - {self.message_id}"
 

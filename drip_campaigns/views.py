@@ -16,7 +16,7 @@ from users.models import EmailAccount
 from .models import DripCampaign, EmailAccountAndLeads, DripTemplate
 
 from dashboard.forms import BulkCampaignForm
-from .forms import DripTemplateModelForm
+from .forms import DripTemplateModelForm, RemovedMCNumbersForm
 
 import uuid
 import os
@@ -435,7 +435,9 @@ def update_drip(request, campaign_id):
         campaign_form = BulkCampaignForm(request.POST, prefix='campaign')
         template_formset = DripTemplateFormSet(request.POST, queryset=template_queryset, prefix='templates')
 
-        if campaign_form.is_valid() and template_formset.is_valid():
+        mc_form = RemovedMCNumbersForm(request.POST, instance=campaign, prefix='mc_numbers')
+
+        if campaign_form.is_valid() and template_formset.is_valid() and mc_form.is_valid():
             # Save CampaignForm data
             cd = campaign_form.cleaned_data
             hours = cd.get('step_delay_hours') or 0
@@ -445,6 +447,7 @@ def update_drip(request, campaign_id):
             campaign.min_delay = cd.get('min_delay')
             campaign.max_delay = cd.get('max_delay')
             campaign.save()
+            mc_form.save()
 
             # Get all modified and new instances without saving to DB
             templates = template_formset.save(commit=False)
@@ -492,6 +495,7 @@ def update_drip(request, campaign_id):
             'min_delay': campaign.min_delay,
             'max_delay': campaign.max_delay
         })
+        mc_form = RemovedMCNumbersForm(instance=campaign, prefix='mc_numbers')
         
         # Pre-fill the DripTemplateFormSet
         template_formset = DripTemplateFormSet(queryset=template_queryset, prefix='templates')
@@ -501,7 +505,8 @@ def update_drip(request, campaign_id):
         'campaign': campaign,
         'campaign_form': campaign_form,
         'template_formset': template_formset,
-        'email_accounts_info': email_accounts_info
+        'email_accounts_info': email_accounts_info,
+        'mc_form': mc_form
     }
     
     return render(request, 'drip_campaigns/update_drip.html', context)

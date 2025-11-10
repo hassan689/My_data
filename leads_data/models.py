@@ -1,5 +1,6 @@
 from django.db import models
 import pandas as pd
+from users.models import CustomUser
 
 
 # Should also have a date set to auto, cause we need to have the record of on what date was this mc number's data was added
@@ -99,4 +100,19 @@ class DailySheet(models.Model):
                 print(f"Error processing Daily Sheet file {self.file.name}: {e}")
 
 
+# Each user's personalized Skip MC List
+class SkipList(models.Model):
+    
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name="skip_mcs_list")
+    
+    # both are null and blank true bcz the user might want to skip using either of email or MC
+    mc_numbers = models.JSONField(default=list, null=True, blank=True) # ['MC 1234567', 'MC 3698521', .......] 
+    emails = models.JSONField(default=list, null=True, blank=True) # ['abc@xyz.com', 'lkj@gmail.com', .......]
+
+    def __str__(self):
+        return f"{self.user.username} personalised Skip List"
+    
+    class Meta:
+        verbose_name = "Skip List"
+        verbose_name_plural = "Skip Lists"
 

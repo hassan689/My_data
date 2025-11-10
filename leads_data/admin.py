@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Lead, DailySheet
+from .models import Lead, DailySheet, SkipList
 
 # ✅ Customizing Lead Admin
 @admin.register(Lead)
@@ -14,4 +14,7 @@ class LeadAdmin(admin.ModelAdmin):
 class DailySheetAdmin(admin.ModelAdmin):
     list_display = ("id", "file", "row_count", "uploaded_at")
     ordering = ("-uploaded_at",)
+
+
+admin.site.register(SkipList)
 
