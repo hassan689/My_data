@@ -249,7 +249,7 @@ class CampaignForm(forms.Form):
 
         if max_delay < min_delay:
             self.add_error('max_delay', "Upper limit delay must be greater than lower limit.")
-
+        
         # MC number range validation — compare by numeric value, not raw string
         if lower_limit_mc_number is not None and upper_limit_mc_number is not None:
             def _digits_int(val):

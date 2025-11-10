@@ -75,6 +75,9 @@ class CampaignRecord(models.Model):
     track_campaign = models.BooleanField(default=False)
     open_rate = models.IntegerField(default=0)
 
+    # Gate lock to prevent multiple celery workers picking up the campaign
+    is_campaign_dispatched = models.BooleanField(default=False)
+
     CAMPAIGN_STATUS_CHOICES = [
         ('pending', 'Pending'), # schduled for later
         ('launched', 'Launched'), # campaign finnished

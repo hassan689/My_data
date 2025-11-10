@@ -345,8 +345,8 @@ def finalize_drip_step_task(campaign_id):
         
         if next_step_template:
             
-            # Calculate its run time
-            new_next_action_at = timezone.now() + campaign.step_delay
+            # Calculate its run time according to last_action, so it's relative to last_action not relative to "completion of last action"
+            new_next_action_at = campaign.last_action_at + campaign.step_delay
             
             # Update the campaign to point to the new step
             campaign.current_step = next_step_template.step_number

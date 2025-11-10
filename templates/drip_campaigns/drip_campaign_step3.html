@@ -263,7 +263,7 @@
           <div id="step-2-submit" class="container mx-auto px-4 mb-10 text-center">
             <div class="mt-6">
               <button type="submit" class="btn-bg-primary btn-bg-hover btn-text font-bold py-3 px-6 rounded-full shadow-lg text-lg">
-                Launch Bulk Campaign 🚀
+                Launch Drip Campaign 🚀
               </button>
             </div>
           </div>
@@ -297,11 +297,13 @@
           <div class="flex items-center gap-4">
             {{ formset.empty_form.subject|add_class:"w-2/3 p-3 border focus:ring-gray-500 focus:border-gray-500 rounded-lg outline-none text-primary bg-primary" }}
 
+            {% comment %}
             <div class="flex items-center space-x-2">
-              {{ formset.empty_form.track_template|add_class:"sr-only toggle-input" }}
-              <label for="{{ formset.empty_form.track_template.id_for_label }}" class="toggle-label"></label>
+              {{ template_formset.empty_form.track_template|add_class:"sr-only toggle-input" }}
+              <label for="{{ template_formset.empty_form.track_template.id_for_label }}" class="toggle-label"></label>
               <span class="text-base text-primary">Track Open Rate</span>
             </div>
+            {% endcomment %}
           </div>
         </div>
 

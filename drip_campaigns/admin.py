@@ -73,11 +73,73 @@ class EmailAccountAndLeadsAdmin(admin.ModelAdmin):
     """
     Admin for viewing the EmailAccountAndLeads model directly.
     """
-    list_display = ('campaign', 'email_account', 'recipient_count', 'sent_count')
-    search_fields = ('campaign__name', 'email_account__email_address')
-    # Make leads_data read-only as it can be very large
+    
+    # 1. --- All your requested fields in list_display ---
+    list_display = (
+        'get_campaign_name',
+        'get_launched_by',
+        'get_email_address',
+        'recipient_count',
+        'sent_count',
+        'get_campaign_status',
+        'get_step_delay',
+        'get_current_step',
+        'get_last_action',
+        'get_next_action',
+        'get_lead_source',
+    )
+
+    # 2. --- Your requested list_filter ---
+    list_filter = ('campaign__last_action_at', 'campaign__status')
+
+    # 3. --- Search fields for related models ---
+    search_fields = ('campaign__name', 'email_account__email_address', 'campaign__launched_by__email')
+    
+    # 4. --- Read-only field ---
     readonly_fields = ('leads_data',) 
 
+    # 5. --- Query Optimization ---
+    # This is critical for performance. It tells Django to
+    # fetch the related models in a single, efficient query.
+    list_select_related = ('campaign', 'email_account', 'campaign__launched_by')
+
+    # --- Custom methods to get related data ---
+
+    @admin.display(description='Campaign Name', ordering='campaign__name')
+    def get_campaign_name(self, obj):
+        return obj.campaign.name
+    
+    @admin.display(description='Email Account', ordering='email_account__email_address')
+    def get_email_address(self, obj):
+        return obj.email_account.email_address
+    
+    @admin.display(description='Campaign Status', ordering='campaign__status')
+    def get_campaign_status(self, obj):
+        return obj.campaign.get_status_display()
+
+    @admin.display(description='Launched By', ordering='campaign__launched_by')
+    def get_launched_by(self, obj):
+        return obj.campaign.launched_by
+
+    @admin.display(description='Step Delay', ordering='campaign__step_delay')
+    def get_step_delay(self, obj):
+        return obj.campaign.step_delay
+
+    @admin.display(description='Current Step', ordering='campaign__current_step')
+    def get_current_step(self, obj):
+        return obj.campaign.current_step
+
+    @admin.display(description='Last Action', ordering='campaign__last_action_at')
+    def get_last_action(self, obj):
+        return obj.campaign.last_action_at
+
+    @admin.display(description='Next Action', ordering='campaign__next_action_at')
+    def get_next_action(self, obj):
+        return obj.campaign.next_action_at
+
+    @admin.display(description='Lead Source', ordering='campaign__lead_source')
+    def get_lead_source(self, obj):
+        return obj.campaign.get_lead_source_display()
 
 @admin.register(DripTemplate)
 class DripTemplateAdmin(admin.ModelAdmin):

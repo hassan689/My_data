@@ -1,6 +1,5 @@
 from .models import DripCampaign
 from django.core.cache import cache
-from .tasks import finalize_drip_step_task, send_single_email
 
 
 # ===================================================================
@@ -11,6 +10,8 @@ def reschedule_or_finalize(campaign_id, account, template, next_lead_index, dela
     Helper function to decide whether to reschedule the next lead 
     or finalize the account's contribution to the step.
     """
+
+    from .tasks import finalize_drip_step_task, send_single_email
     
     # Check if this was the last lead
     if next_lead_index >= account.recipient_count:

@@ -47,7 +47,7 @@
 							<tr class="bg-secondary">
 									<th class="text-left p-3">Campaign Title</th>
 									<th class="text-left p-3">Status</th>
-									<th class="text-left p-3">Completed Days</th>
+									<th class="text-left p-3">Current Step</th>
                   <th class="text-left p-3">Next launch</th>
                   <th class="text-left p-3">Actions</th>
 							</tr>
@@ -68,10 +68,12 @@
                       class="bg-lime-500 text-white px-3 py-1 mx-3 rounded hover:bg-lime-600 text-center whitespace-nowrap">
                       View
                     </a>
+                    {% comment %}
                     <a href="{% url 'drip_campaigns:track_drip' campaign.id %}" 
                       class="bg-amber-600 text-white px-3 py-1 mx-3 rounded hover:bg-amber-700 text-center whitespace-nowrap">
                       Track Campaign
                     </a>
+                    {% endcomment %}
                     <a href="{% url 'drip_campaigns:delete_drip' campaign.id %}" 
                       class="bg-red-600 text-white px-3 py-1 mx-3 rounded hover:bg-red-700 text-center whitespace-nowrap">
                       Delete
