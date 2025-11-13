@@ -563,7 +563,33 @@
         })
         .then(response => response.json())
         .then(data => {
-          if (data.confirmed === false) {
+
+          // Case 1: Validation Error (FIX)
+          if (data.success === false && data.errors) {
+            let errorMessages = "Please fix the following errors:\n\n";
+            
+            // Loop through the error object from Django
+            Object.keys(data.errors).forEach(field => {
+              // Clean up the field name (e.g., 'upper_limit_mc_number' -> 'Upper limit mc number')
+              let prettyField = field.replace(/_/g, ' ');
+              prettyField = prettyField.charAt(0).toUpperCase() + prettyField.slice(1);
+              
+              // Handle non-field errors
+              if (field === '__all__') {
+                prettyField = 'General Error';
+              }
+
+              // Add each error message for that field
+              data.errors[field].forEach(error => {
+                errorMessages += `• ${prettyField}: ${error}\n`;
+              });
+            });
+            
+            // Show the alert with all errors
+            alert(errorMessages);
+          
+          // Case 2: Confirmation Needed (Existing Logic)
+          } else if (data.confirmed === false) {
             const filters = Object.entries(data.filters)
               .map(([k, v]) => `${k}: ${v}`)
               .join("\n");
@@ -579,7 +605,19 @@
               form.dataset.confirmed = "true";
               form.submit(); // Submit again with confirm=true
             }
+          
+          // Case 3: Final Success (Redirect)
+          } else if (data.success === true && data.redirect_url) {
+            // Campaign was successfully scheduled or launched, show message and redirect
+            alert(data.message); 
+            window.location.href = data.redirect_url;
           }
+
+        })
+        .catch(error => {
+          // Handle network errors or if response wasn't JSON
+          console.error('Submission error:', error);
+          alert('An unexpected error occurred. Please check the console and try again.');
         });
       });
     });

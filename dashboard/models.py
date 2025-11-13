@@ -68,6 +68,9 @@ class CampaignRecord(models.Model):
     sent_count = models.IntegerField(default=0)
 
     leads_data = models.JSONField(default=list, null=True, blank=True) # Stores the list of leads as JSON
+
+    sent_emails = models.JSONField(default=list, blank=True, null=True) # Stores the email addresses where email went to prevent dbl sending
+
     min_delay = models.IntegerField(default=0, null=True, blank=True)
     max_delay = models.IntegerField(default=0, null=True, blank=True)
     scheduled_launch_time = models.DateTimeField(null=True, blank=True) # When the campaign is set to launch

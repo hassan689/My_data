@@ -1,5 +1,5 @@
 from django.contrib import admin
-from django.db.models import Count
+from django.db.models import Count, IntegerField
 from .models import DripCampaign, EmailAccountAndLeads, DripTemplate
 
 # --- Inlines for the DripCampaign Admin ---
@@ -27,7 +27,9 @@ class DripCampaignAdmin(admin.ModelAdmin):
         'launched_by', 
         'status', 
         'current_step', 
-        'template_count', # Your requested field
+        'template_count',
+        'total_recipients',
+        'removed_mc_count',
         'next_action_at', 
         'created_at'
     )
@@ -66,6 +68,16 @@ class DripCampaignAdmin(admin.ModelAdmin):
         Returns the annotated count of templates for the list display.
         """
         return obj._template_count
+    
+    @admin.display(description='Removed MCs') # Removed 'ordering'
+    def removed_mc_count(self, obj):
+        """
+        Returns the count of removed MC numbers.
+        Calculated in Python, so this column is not sortable.
+        """
+        if obj.removed_mc_numbers: # Check if it's not None
+            return len(obj.removed_mc_numbers)
+        return 0
 
 
 @admin.register(EmailAccountAndLeads)

@@ -28,6 +28,7 @@ EMAIL_TASK_TIME_LIMIT = 600
 # (Using SSL ports by default)
 IMAP_SETTINGS_MAP = {
     'gmail':    {'host': 'imap.gmail.com', 'port': 993},
+    'google':    {'host': 'imap.gmail.com', 'port': 993},
     'yahoo':    {'host': 'imap.mail.yahoo.com', 'port': 993},
     'zoho':     {'host': 'imap.zoho.com', 'port': 993},
     'hostinger':{'host': 'imap.hostinger.com', 'port': 993},
@@ -61,7 +62,6 @@ def check_scheduled_drip_step():
                     update_fields=['status', 'last_action_at', 'next_action_at']
                 )
             print("Checking for replies!")
-            # chain_starter_task.delay(campaign.id)
             check_campaign_replies_task.delay(campaign.id)
             
         except Exception as e:
@@ -73,11 +73,166 @@ def check_scheduled_drip_step():
     return
 
 
+
 # ===================================================================
-# TASK 2: THE DISPATCHER (Updated with Cache Logic)
+# TASK 1.1: THE Coordinator
+
+# This is a new task. Its job is to coordinate the parallel IMAP checks. 
+# It uses a Celery chord to "fan out" the work to many worker tasks and "fan in" to a single callback.
+# ===================================================================
+@app.task(name="drip_campaigns.check_campaign_replies_task")
+def check_campaign_replies_task(campaign_id):
+    
+    try:
+        campaign = DripCampaign.objects.get(id=campaign_id)
+        all_accounts_info = campaign.email_accounts_and_leads.all()
+
+        if not all_accounts_info.exists():
+            # No accounts, just go straight to sending
+            chain_starter_task.delay(None, campaign.id)
+            return "No accounts to check."
+
+        # 1. Create a "group" of all the worker tasks to run in parallel
+        imap_check_group = []
+        for account_info in all_accounts_info:
+            # .s() creates a "signature" for the task
+            imap_check_group.append(
+                check_one_account_imap.s(account_info.id)
+            )
+
+        # 2. Define the "callback" task.
+        #    This is the task that will run *only when* all tasks
+        #    in the group are 100% complete.
+        callback = chain_starter_task.s(campaign.id)
+
+        # 3. Launch the Chord
+        #    This says: "Run all tasks in the group, and when they are
+        #    all done, run the callback."
+        chord(imap_check_group)(callback)
+
+        return f"Launched reply-check chord for {len(imap_check_group)} accounts."
+
+    except Exception as e:
+        print(f"Failed to start reply-check chord for campaign {campaign.id}: {e}")
+        # If the chord fails to launch, fail the campaign
+        DripCampaign.objects.filter(id=campaign_id).update(status='Failed')
+        raise e
+
+
+
+# ===================================================================
+# TASK 1.2: THE IMAP Worker
+
+# This is the new task that does the actual IMAP work, incorporating your "history point" logic.
+# ===================================================================
+@shared_task(name="drip_campaigns.check_one_account_imap", bind=True, acks_late=True, default_retry_delay=300, time_limit=EMAIL_TASK_TIME_LIMIT)
+def check_one_account_imap(self, account_info_id):
+    imap_conn = None
+    account_info = None
+    try:
+        # 1. Fetch models
+        account_info = EmailAccountAndLeads.objects.get(id=account_info_id)
+        email_account = account_info.email_account
+        campaign = account_info.campaign
+
+        # 2. --- Get IMAP Settings ---
+        normalized_provider = normalize_provider(email_account.email_provider)
+        imap_settings = IMAP_SETTINGS_MAP.get(normalized_provider)
+        
+        if not imap_settings:
+            print(f"Skipping reply check for {email_account.email_address}: Provider '{email_account.email_provider}' is not recognized.")
+            account_info.last_reply_check_at = timezone.now()
+            account_info.save(update_fields=['last_reply_check_at'])
+            return f"Skipped: Provider '{email_account.email_provider}' not recognized."
+
+        # 3. Implement "History Point" Logic
+        start_check_time = account_info.last_reply_check_at or campaign.created_at
+        imap_search_date = start_check_time.strftime("%d-%b-%Y")
+
+        # 4. Log in to IMAP (using the correct settings)
+        imap_conn = imaplib.IMAP4_SSL(imap_settings['host'], imap_settings['port'])
+        imap_conn.login(email_account.email_address, email_account.get_password())
+        imap_conn.select("INBOX")
+
+        # 5. ✅ Search for *all* messages (not just unread) since last check
+        search_query = f'(SINCE "{imap_search_date}")'
+        status, email_ids = imap_conn.search(None, search_query)
+
+        if status != 'OK':
+            raise Exception("IMAP search failed")
+
+        found_replies = 0
+        email_id_list = email_ids[0].split()
+
+        # 6. Loop through found emails
+        for e_id in email_id_list:
+            # ✅ Fetch full message (not just headers)
+            status, msg_data = imap_conn.fetch(e_id, '(RFC822)')
+            if status != 'OK' or not msg_data or not msg_data[0]:
+                continue
+
+            msg = email.message_from_bytes(msg_data[0][1])
+
+            # ✅ More reliable header extraction
+            in_reply_to_header = msg.get('In-Reply-To') or msg.get('References')
+            if not in_reply_to_header:
+                continue
+
+            # ✅ Normalize the header (remove newlines, <>, etc.)
+            reply_to_msg_id = in_reply_to_header.replace('\n', '').replace('\r', '').strip('<>')
+
+            # 7. Check our "Paper Trail"
+            sent_email = SentDripEmail.objects.filter(
+                drip_campaign=campaign,
+                message_id=reply_to_msg_id,
+            ).select_related('drip_campaign').first()
+
+            # 8. MATCH FOUND!
+            if sent_email:
+                print(f"✅ Reply found for {sent_email.lead_email} in campaign {campaign.id}!")
+                sent_email.status = 'Replied'
+                sent_email.save(update_fields=['status'])
+
+                lead_identifier = sent_email.lead_email or sent_email.lead_mc_number
+
+                # 9. Add to the campaign's "stop list"
+                with transaction.atomic():
+                    campaign_to_update = DripCampaign.objects.select_for_update().get(id=campaign.id)
+                    if lead_identifier not in campaign_to_update.removed_mc_numbers:
+                        campaign_to_update.removed_mc_numbers.append(lead_identifier)
+                        campaign_to_update.save(update_fields=['removed_mc_numbers'])
+
+                found_replies += 1
+                # ✅ Mark as seen
+                imap_conn.store(e_id, '+FLAGS', '\\Seen')
+
+        # 10. Update our "History Point"
+        account_info.last_reply_check_at = timezone.now()
+        account_info.save(update_fields=['last_reply_check_at'])
+
+        return f"Checked {email_account.email_address}. Found {found_replies} replies."
+
+    except Exception as e:
+        print(f"❌ Failed to check IMAP for {account_info_id}: {e}")
+        if account_info:
+            account_info.last_reply_check_at = timezone.now()
+            account_info.save(update_fields=['last_reply_check_at'])
+        raise self.retry(exc=e, max_retries=3)
+    
+    finally:
+        if imap_conn:
+            try:
+                imap_conn.close()
+                imap_conn.logout()
+            except Exception:
+                pass
+
+
+# ===================================================================
+# TASK 2: THE DISPATCHER
 # ===================================================================
 @app.task(name="drip_campaigns.chain_starter_task")
-def chain_starter_task(campaign_id):
+def chain_starter_task(results, campaign_id):
     
     try:
         campaign = DripCampaign.objects.get(id=campaign_id)
@@ -88,17 +243,23 @@ def chain_starter_task(campaign_id):
         )
         
         all_accounts = campaign.email_accounts_and_leads.all()
-        removed_leads_list = campaign.removed_mc_numbers
+        removed_leads_set = set(campaign.removed_mc_numbers)
 
 
         total_accounts_for_step = 0
         
         # 1. Loop 1: Set the 'goal' counts for each account
         for account_info in all_accounts:
-            valid_leads = [
-                lead for lead in account_info.leads_data
-                if lead.get('MC Number') not in removed_leads_list
-            ]
+            valid_leads = []
+            for lead in account_info.leads_data:
+                mc_num = lead.get('MC Number')
+                email_addr = lead.get('Email')
+                
+                # Check if either identifier is in the "stop list"
+                if (mc_num and mc_num in removed_leads_set) or (email_addr and email_addr in removed_leads_set):
+                    continue # This lead is removed, skip it
+                
+                valid_leads.append(lead)
             
             account_info.recipient_count = len(valid_leads)
             account_info.sent_count = 0
@@ -159,7 +320,7 @@ def chain_starter_task(campaign_id):
 
 
 # ===================================================================
-# TASK 3: THE WORKER (Updated)
+# TASK 3: THE WORKER
 # ===================================================================
 @shared_task(name="drip_campaigns.send_single_email", acks_late=True, bind=True, default_retry_delay=300, time_limit=EMAIL_TASK_TIME_LIMIT)
 def send_single_email(self, campaign_id, account_info_id, template_id, lead_index):
@@ -398,165 +559,4 @@ def finalize_drip_step_task(campaign_id):
         DripCampaign.objects.filter(id=campaign_id).update(status='Failed')
         raise e
 
-
-
-# ===================================================================
-# TASK 1.1: THE Coordinator
-
-# This is a new task. Its job is to coordinate the parallel IMAP checks. 
-# It uses a Celery chord to "fan out" the work to many worker tasks and "fan in" to a single callback.
-# ===================================================================
-@app.task(name="drip_campaigns.check_campaign_replies_task")
-def check_campaign_replies_task(campaign_id):
-    
-    try:
-        campaign = DripCampaign.objects.get(id=campaign_id)
-        all_accounts_info = campaign.email_accounts_and_leads.all()
-
-        if not all_accounts_info.exists():
-            # No accounts, just go straight to sending
-            chain_starter_task.delay(campaign.id)
-            return "No accounts to check."
-
-        # 1. Create a "group" of all the worker tasks to run in parallel
-        imap_check_group = []
-        for account_info in all_accounts_info:
-            # .s() creates a "signature" for the task
-            imap_check_group.append(
-                check_one_account_imap.s(account_info.id)
-            )
-
-        # 2. Define the "callback" task.
-        #    This is the task that will run *only when* all tasks
-        #    in the group are 100% complete.
-        callback = chain_starter_task.s(campaign.id)
-
-        # 3. Launch the Chord
-        #    This says: "Run all tasks in the group, and when they are
-        #    all done, run the callback."
-        chord(imap_check_group)(callback)
-
-        return f"Launched reply-check chord for {len(imap_check_group)} accounts."
-
-    except Exception as e:
-        print(f"Failed to start reply-check chord for campaign {campaign.id}: {e}")
-        # If the chord fails to launch, fail the campaign
-        DripCampaign.objects.filter(id=campaign_id).update(status='Failed')
-        raise e
-
-
-
-# ===================================================================
-# TASK 1.2: THE IMAP Worker
-
-# This is the new task that does the actual IMAP work, incorporating your "history point" logic.
-# ===================================================================
-@shared_task(name="drip_campaigns.check_one_account_imap", bind=True, acks_late=True, default_retry_delay=300, time_limit=EMAIL_TASK_TIME_LIMIT)
-def check_one_account_imap(self, account_info_id):
-    
-    imap_conn = None
-    account_info = None
-    try:
-        # 1. Fetch models
-        account_info = EmailAccountAndLeads.objects.get(id=account_info_id)
-        email_account = account_info.email_account
-        campaign = account_info.campaign
-
-        # 2. --- NEW: Get IMAP Settings ---
-        normalized_provider = normalize_provider(email_account.email_provider)
-        imap_settings = IMAP_SETTINGS_MAP.get(normalized_provider)
-        
-        if not imap_settings:
-            # We don't have settings for this provider, so we must skip.
-            print(f"Skipping reply check for {email_account.email_address}: Provider '{email_account.email_provider}' is not recognized.")
-            # Update history point so we don't keep retrying
-            account_info.last_reply_check_at = timezone.now()
-            account_info.save(update_fields=['last_reply_check_at'])
-            # Return successfully so the chord can continue
-            return f"Skipped: Provider '{email_account.email_provider}' not recognized."
-        # --------------------------------
-
-        # 3. Implement "History Point" Logic
-        start_check_time = account_info.last_reply_check_at
-        
-        if not start_check_time:
-            start_check_time = campaign.created_at
-        
-        imap_search_date = start_check_time.strftime("%d-%b-%Y")
-        
-        # 4. Log in to IMAP (using the correct settings)
-        imap_conn = imaplib.IMAP4_SSL(imap_settings['host'], imap_settings['port'])
-        imap_conn.login(email_account.email_address, email_account.get_password())
-        imap_conn.select("INBOX")
-        
-        # 5. Search for *all* unread emails *since* our last check
-        search_query = f'(UNSEEN SINCE "{imap_search_date}")'
-        status, email_ids = imap_conn.search(None, search_query)
-        
-        if status != 'OK':
-            raise Exception("IMAP search failed")
-
-        found_replies = 0
-        email_id_list = email_ids[0].split()
-
-        # 6. Loop through found emails
-        for e_id in email_id_list:
-            status, msg_data = imap_conn.fetch(e_id, '(RFC822.HEADER)')
-            if status != 'OK':
-                continue
-                
-            headers = email.message_from_bytes(msg_data[0][1])
-            
-            in_reply_to_header = headers.get('In-Reply-To') or headers.get('References')
-            
-            if not in_reply_to_header:
-                continue 
-            
-            reply_to_msg_id = in_reply_to_header.strip().split('\n')[0].strip().strip('<>') 
-            
-            # 7. Check our "Paper Trail"
-            sent_email = SentDripEmail.objects.filter(
-                message_id=reply_to_msg_id
-            ).select_related('drip_campaign').first()
-            
-            # 8. MATCH FOUND!
-            if sent_email and sent_email.drip_campaign.id == campaign.id:
-                print(f"Reply found for {sent_email.lead_email} in campaign {campaign.id}!")
-                sent_email.status = 'Replied'
-                sent_email.save(update_fields=['status'])
-                
-                lead_identifier = sent_email.lead_mc_number or sent_email.lead_email
-                
-                # 9. Add to the campaign's "stop list"
-                with transaction.atomic():
-                    campaign_to_update = DripCampaign.objects.select_for_update().get(id=campaign.id)
-                    
-                    if lead_identifier not in campaign_to_update.removed_mc_numbers:
-                        campaign_to_update.removed_mc_numbers.append(lead_identifier)
-                        campaign_to_update.save(update_fields=['removed_mc_numbers'])
-                
-                found_replies += 1
-                imap_conn.store(e_id, '+FLAGS', '\\Seen')
-
-        # 10. Update our "History Point"
-        account_info.last_reply_check_at = timezone.now()
-        account_info.save(update_fields=['last_reply_check_at'])
-        
-        return f"Checked {email_account.email_address}. Found {found_replies} replies."
-        
-    except Exception as e:
-        print(f"Failed to check IMAP for {account_info_id}: {e}")
-        # Mark as "checked" even on failure so we don't
-        # block the chord forever on a bad password.
-        if account_info:
-            account_info.last_reply_check_at = timezone.now()
-            account_info.save(update_fields=['last_reply_check_at'])
-            
-        # Re-raise to trigger Celery's retry policy,
-        # but it will eventually fail and let the chord proceed.
-        raise self.retry(exc=e, max_TRUretries=3) 
-    finally:
-        if imap_conn:
-            imap_conn.close()
-            imap_conn.logout()
 

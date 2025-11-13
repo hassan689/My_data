@@ -1,4 +1,4 @@
-from leads_data.models import Lead
+from leads_data.models import Lead, SkipList
 from django.db.models import Q, F, Value, IntegerField
 from django.db.models.functions import Cast, Replace
 
@@ -15,7 +15,12 @@ import smtplib
 from bs4 import BeautifulSoup
 
 
-def process_excel_file(file):
+def process_excel_file(file, user):
+    """
+    Processes an uploaded Excel file, cleans the data, and filters
+    out leads found in the user's personal SkipList (by email and
+    optionally by MC number, if that column exists).
+    """
     
     if not file.name.endswith('.xlsx'):
         return []
@@ -23,6 +28,17 @@ def process_excel_file(file):
     email_regex = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
 
     try:
+        # Fetch the user's skip list and convert to sets for fast lookups
+        skip_mcs = set()
+        skip_emails = set()
+        if user and user.is_authenticated:
+            try:
+                skip_list = SkipList.objects.get(user=user)
+                skip_mcs = set(skip_list.mc_numbers or [])
+                skip_emails = set(skip_list.emails or [])
+            except SkipList.DoesNotExist:
+                pass  # Sets will remain empty
+
         df = pd.read_excel(file)
 
         def clean_value(val):
@@ -35,14 +51,15 @@ def process_excel_file(file):
         # Normalize column names for internal lookup (finding 'email' column)
         normalized_columns_map = {col: col.strip().lower().replace(" ", "") for col in df.columns}
 
-        # Find the original column name for email using common variations
-        # This will find the first column whose normalized name contains 'email'
+        # Find the original column names for email and (optionally) MC
         email_col = None
+        mc_col = None # This will remain None if not found
         for col, norm_col in normalized_columns_map.items():
-            # Search for 'email' (lowercase) in the normalized column name
-            if 'email' in norm_col: 
+            if 'email' in norm_col:
                 email_col = col
-                break 
+            
+            if 'mcnumber' in norm_col or norm_col == 'mc' or 'mc#' in norm_col:
+                mc_col = col
 
         if not email_col:
             print("Required 'Email' column not found in the Excel file.")
@@ -56,11 +73,37 @@ def process_excel_file(file):
             email_val = clean_value(row[email_col])
             if not email_val or not re.match(email_regex, email_val):
                 continue
+            
+            # 2. Check against email skip list
+            if email_val in skip_emails:
+                continue  # Skip this row
+
+            # 3. Process and check MC number (ONLY if mc_col was found)
+            mc_val_formatted = None
+            if mc_col: # This logic is skipped if no MC column was found
+                mc_val_raw = clean_value(row[mc_col])
+                if mc_val_raw:
+                    # Standardize the MC number
+                    if not mc_val_raw.upper().startswith("MC"):
+                        mc_val_formatted = f"MC {mc_val_raw}"
+                    else:
+                        mc_val_formatted = mc_val_raw
+                    
+                    if mc_val_formatted in skip_mcs:
+                        continue  # Skip this row
+
+            # --- Lead is valid, add it ---
             lead['Email'] = email_val
 
             # Process all other columns without hardcoding their names
             for col in df.columns:
-                if col != email_col: 
+                if col == email_col:
+                    continue 
+                
+                # If this was the MC col, use the formatted value
+                if col == mc_col:
+                    lead[col] = mc_val_formatted
+                else:
                     lead[col] = clean_value(row[col])
 
             leads.append(lead)
@@ -100,14 +143,37 @@ def _normalize_mc_value(value):
     return f"MC {digits}"
 
 
-def get_leads_from_db(starting_mc_number=None, targets_count=None,
+def get_leads_from_db(user, starting_mc_number=None, targets_count=None,
                       lower_limit_mc_number=None, upper_limit_mc_number=None,  # <-- Added support for range
                       power_units_comparison=None, power_units_value=None,
                       drivers_comparison=None, drivers_value=None,
                       status=None, carrier_operation=None, skip_mc_numbers=None,
                       cargo_classification_search_term=None, cargo_info_search_term=None):
     try:
-        queryset = Lead.objects.all()
+        
+        # 1. Get the user's skip lists
+        skip_mcs = []
+        skip_emails = []
+        try:
+            skip_list = SkipList.objects.get(user=user)
+            skip_mcs = skip_list.mc_numbers or []
+            skip_emails = skip_list.emails or []
+        except SkipList.DoesNotExist:
+            pass  # No list found, just use the empty lists
+
+        # 2. Build the exclusion filter
+        # We will exclude any lead where EITHER the mc_number OR the email
+        # is in the user's skip lists.
+        exclusion_filters = Q()
+        if skip_mcs:
+            exclusion_filters |= Q(mc_number__in=skip_mcs)
+        
+        if skip_emails:
+            exclusion_filters |= (Q(email__in=skip_emails) & ~Q(email=''))
+
+        # 3. Apply the exclusions to the base queryset
+        queryset = Lead.objects.all().exclude(exclusion_filters)
+        # queryset = Lead.objects.all()
 
         if skip_mc_numbers:
             # Check if the input is a JSON string and parse it

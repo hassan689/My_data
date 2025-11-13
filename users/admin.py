@@ -1,24 +1,53 @@
 from django.contrib import admin, messages
 from django.contrib.auth.admin import UserAdmin
 from .models import CustomUser, EmailAccount, Affiliate
-from django.db.models import Count
+from django.db.models import Count, Case, When, BooleanField
 from django.forms import PasswordInput
 from django import forms
 from django.core.exceptions import ValidationError
+
+
+class HasSubscriptionFilter(admin.SimpleListFilter):
+    """
+    Custom filter to filter users by whether they have 
+    a subscription instance, based on the 'has_subscription_annotated'
+    annotation in get_queryset.
+    """
+    title = 'Has Subscription' # Title for the filter sidebar
+    parameter_name = 'has_subscription' # URL parameter
+
+    def lookups(self, request, model_admin):
+        """Returns the filter options."""
+        return (
+            ('yes', 'Yes'),
+            ('no', 'No'),
+        )
+
+    def queryset(self, request, queryset):
+        """Applies the filter to the queryset."""
+        if self.value() == 'yes':
+            return queryset.filter(has_subscription_annotated=True)
+        if self.value() == 'no':
+            return queryset.filter(has_subscription_annotated=False)
+        return queryset
+
 
 # ✅ Customizing CustomUser Admin
 @admin.register(CustomUser)
 class CustomUserAdmin(UserAdmin):
     list_display = (
         "username",
-        "company_name",
-        "date_joined", 
+        "email",
+        "phone_number",
+        "date_joined",
         "on_free_trial",
         "attached_accounts_count",
+        "has_subscription",
+        "subscription__status",
         "referred_by",
     )
     search_fields = ("username", "first_name", "last_name", "company_name")
-    list_filter = ("on_free_trial", "date_joined",)
+    list_filter = ("on_free_trial", "date_joined", HasSubscriptionFilter,)
     list_editable = ("on_free_trial",)
     ordering = ("-date_joined",)
 
@@ -41,6 +70,11 @@ class CustomUserAdmin(UserAdmin):
         }),
     )
 
+    @admin.display(boolean=True, description='Has Subscription', ordering='has_subscription_annotated')
+    def has_subscription(self, obj):
+        """Checks if the user has a subscription instance via annotation."""
+        return obj.has_subscription_annotated
+
     @admin.display(description='Accounts', ordering='attached_accounts_count_annotated')
     def attached_accounts_count(self, obj):
         """
@@ -53,7 +87,12 @@ class CustomUserAdmin(UserAdmin):
     def get_queryset(self, request):
         queryset = super().get_queryset(request)
         queryset = queryset.annotate(
-            attached_accounts_count_annotated=Count('email_accounts')
+            attached_accounts_count_annotated=Count('email_accounts'),
+            has_subscription_annotated=Case(
+                When(subscription__isnull=False, then=True),
+                default=False,
+                output_field=BooleanField()
+            )
         )
         return queryset
 
