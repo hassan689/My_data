@@ -1,6 +1,7 @@
 from django import forms
 from django.contrib.auth.forms import UserCreationForm
-from .models import CustomUser, Affiliate
+from .models import CustomUser, Affiliate, AccountGroup, EmailAccount
+from django.forms import modelformset_factory
 
 class CustomUserSignupForm(UserCreationForm):
     phone_number = forms.CharField()
@@ -42,6 +43,92 @@ class CustomUserSignupForm(UserCreationForm):
         if commit:
             user.save()
         return user
+
+
+class AccountGroupForm(forms.ModelForm):
+    
+    def __init__(self, *args, **kwargs):
+        """
+        Expects a 'user' kwarg to be passed from the view
+        (e.g., form = AccountGroupForm(request.POST, user=request.user))
+        """
+        self.user = kwargs.pop('user', None)
+        super().__init__(*args, **kwargs)
+
+    class Meta:
+        model = AccountGroup
+        fields = ['name']
+        widgets = {
+            'name': forms.TextInput(attrs={
+                'placeholder': 'e.g., "High-Volume Senders"',
+            })
+        }
+
+    def clean_name(self):
+        """
+        Ensure the group name is unique for *this* user.
+        """
+        name = self.cleaned_data.get('name')
+        if not self.user:
+            raise forms.ValidationError("User not provided.")
+
+        query = AccountGroup.objects.filter(user=self.user, name__iexact=name)
+        
+        # Exclude the current instance if we are editing
+        if self.instance and self.instance.id:
+            query = query.exclude(id=self.instance.id)
+
+        if query.exists():
+            raise forms.ValidationError(
+                "You already have a group with this name. Please choose a different one."
+            )
+            
+        return name
+
+    def save(self, commit=True):
+        """
+        Override save to automatically assign the user.
+        """
+        instance = super().save(commit=False)
+        instance.user = self.user
+
+        if commit:
+            instance.save()
+            
+        return instance
+
+
+class EmailAccountGroupAssignmentForm(forms.ModelForm):
+    """
+    A form for a single EmailAccount to update its 'group'.
+    """
+    class Meta:
+        model = EmailAccount
+        fields = ['account_group']
+        widgets = {
+            'account_group': forms.RadioSelect(attrs={
+                'class': 'hidden-radio peer' 
+            }),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        
+        # When the form is part of a formset, the user is on the instance
+        # (self.instance is one EmailAccount)
+        user = self.instance.user
+        
+        self.fields['account_group'].queryset = AccountGroup.objects.filter(user=user)
+        # Remove the blank "----" option
+        self.fields['account_group'].empty_label = None
+
+# Create the FormSet to edit ALL accounts at once
+EmailAccountAssignmentFormSet = modelformset_factory(
+    EmailAccount,
+    form=EmailAccountGroupAssignmentForm,
+    extra=0  # Don't show any new, empty forms
+)
+
 
 
 # Uncomment the following code to enable email + OTP login functionality for future use. Not required now as. Business decision.

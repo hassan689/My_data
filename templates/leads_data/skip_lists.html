@@ -27,7 +27,7 @@
 
         <div class="flex flex-col lg:flex-row gap-4 mt-4">
 
-          <div class="p-4 bg-secondary rounded-lg lg:w-1/2">
+          <div class="p-4 bg-secondary rounded-lg lg:w-1/2 border border-gray-700 shadow-md">
             <h2 class="text-lg font-semibold text-primary mb-4 flex items-center">
               <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2 text-blue-600" viewBox="0 0 20 20" fill="currentColor">
                 <path d="M2.003 5.884L10 10.884l7.997-5H2.003zM18 7.116l-8 4.884-8-4.884V14a2 2 0 002 2h12a2 2 0 002-2V7.116z" />
@@ -39,7 +39,7 @@
                   {% render_field form.emails class="block w-full rounded-md px-2 bg-primary text-primary border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" %}
                   <p class="text-secondary text-sm mt-1">e.g., john.doe@gmail.com</p>
                 </div>
-                <button type="submit" class="inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                <button type="submit" class="inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm btn-bg-primary btn-bg-hover btn-text focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
                   Add
                 </button>
             </div>
@@ -50,7 +50,7 @@
             {% endif %}
           </div>
 
-          <div class="p-4 bg-secondary rounded-lg lg:w-1/2">
+          <div class="p-4 bg-secondary rounded-lg lg:w-1/2 border border-gray-700 shadow-md">
             <h2 class="text-lg font-semibold text-primary mb-4 flex items-center">
               🚚 Skip using MC Number
             </h2>
@@ -59,7 +59,7 @@
                   {% render_field form.mc_numbers class="block w-full rounded-md px-2 bg-primary text-primary border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" %}
                   <p class="text-secondary text-sm mt-1">e.g., MC 1234567</p>
                 </div>
-                <button type="submit" class="inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                <button type="submit" class="inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm btn-bg-primary btn-bg-hover btn-text focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
                   Add
                 </button>
             </div>
@@ -84,7 +84,7 @@
     <div class="p-6 bg-primary rounded-lg shadow-md my-6 text-left w-full flex flex-col lg:flex-row gap-4">
 
         <!-- Card 1: Email Addresses List -->
-        <div class="p-4 bg-secondary rounded-lg lg:w-1/2">
+        <div class="p-4 bg-secondary rounded-lg lg:w-1/2 border border-gray-700 shadow-md">
           <h2 class="text-lg font-semibold text-primary mb-4 flex items-center">
             <!-- Heroicon: envelope-open -->
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2 text-blue-700" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
@@ -105,7 +105,7 @@
         </div>
 
         <!-- Card 2: MC Numbers List -->
-        <div class="p-4 bg-secondary rounded-lg lg:w-1/2">
+        <div class="p-4 bg-secondary rounded-lg lg:w-1/2 border border-gray-700 shadow-md">
           <h2 class="text-lg font-semibold text-primary mb-4 flex items-center">
             🚚 Skipped MC Numbers ({{ mc_count }})
           </h2>

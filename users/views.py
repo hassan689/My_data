@@ -1,9 +1,12 @@
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import login, authenticate, get_backends
 # from .forms import CustomUserSignupForm, EmailLoginForm, OTPForm
-from .forms import CustomUserSignupForm
+from .forms import CustomUserSignupForm, AccountGroupForm, EmailAccountAssignmentFormSet
 from django.contrib.auth import views as auth_views
 from django.urls import reverse_lazy
+from .models import AccountGroup, EmailAccount
+from django.views.decorators.http import require_http_methods, require_POST
+from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 # import random
 # from django.contrib.auth import get_user_model
@@ -151,5 +154,96 @@ class CustomPasswordResetConfirmView(auth_views.PasswordResetConfirmView):
         context = super().get_context_data(**kwargs)
         context["request"] = self.request  # ✅ Fix for missing request in email template
         return context
+
+
+
+# @login_required
+# @require_http_methods(["GET", "POST"])
+# def account_groups(request):
+    
+#     if request.method == 'POST':
+#         form = AccountGroupForm(request.POST, user=request.user)
+        
+#         if form.is_valid():
+#             form.save()
+#             messages.success(request, "New Group created successfully.")
+
+#             # Redirect back to this same view to show the message
+#             return redirect('dashboard:account_groups')
+#     else:
+#         # On a GET request, show an empty form
+#         form = AccountGroupForm(user=request.user)
+
+#     account_groups = AccountGroup.objects.filter(user=request.user)
+#     email_accounts = EmailAccount.objects.filter(user=request.user)
+
+#     # We use a new template name, as this page now does more than just show a form
+#     return render(request, 'dashboard/account_groups.html', {
+#         'form': form,
+#         'account_groups': account_groups,
+#         'count': len(account_groups),
+#         'email_accounts': email_accounts,
+#     })
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def account_groups(request):
+    
+    # Get the queryset for the formset
+    email_accounts_qs = EmailAccount.objects.filter(user=request.user)
+
+    # Initialize both forms
+    group_form = AccountGroupForm(user=request.user)
+    assignment_formset = EmailAccountAssignmentFormSet(
+        queryset=email_accounts_qs,
+        prefix='assignments' # Use a prefix to avoid field name collisions
+    )
+
+    if request.method == 'POST':
+        # Check which button was clicked
+        
+        if 'create_group' in request.POST:
+            # --- Handle the Create Group form ---
+            group_form = AccountGroupForm(request.POST, user=request.user)
+            if group_form.is_valid():
+                group_form.save()
+                messages.success(request, "New Group created successfully.")
+                return redirect('dashboard:account_groups')
+
+        elif 'save_assignments' in request.POST:
+            # --- Handle the Assignments FormSet ---
+            assignment_formset = EmailAccountAssignmentFormSet(
+                request.POST, 
+                queryset=email_accounts_qs, 
+                prefix='assignments'
+            )
+            if assignment_formset.is_valid():
+                assignment_formset.save()
+                messages.success(request, "Group assignments saved successfully.")
+                return redirect('dashboard:account_groups')
+            else:
+                messages.error(request, "Please correct the assignment errors below.")
+
+    # On GET request (or if a form was invalid), render the page
+    account_groups = AccountGroup.objects.filter(user=request.user)
+
+    return render(request, 'dashboard/account_groups.html', {
+        'form': group_form,  # This is the AccountGroupForm
+        'assignment_formset': assignment_formset, # This is the new FormSet
+        'account_groups': account_groups,
+        'count': account_groups.count(),
+    })
+
+
+@login_required
+@require_POST  # Ensures this view can only be accessed via POST
+def delete_group(request, group_id):
+    group = get_object_or_404(AccountGroup, id=group_id, user=request.user)
+    group_name = group.name
+    
+    # Delete the object
+    group.delete()
+    messages.success(request, f"Group '{group_name}' has been successfully deleted.")
+    return redirect('dashboard:account_groups')
 
 

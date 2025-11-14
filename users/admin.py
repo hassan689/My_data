@@ -1,6 +1,6 @@
 from django.contrib import admin, messages
 from django.contrib.auth.admin import UserAdmin
-from .models import CustomUser, EmailAccount, Affiliate
+from .models import CustomUser, EmailAccount, Affiliate, AccountGroup
 from django.db.models import Count, Case, When, BooleanField
 from django.forms import PasswordInput
 from django import forms
@@ -138,7 +138,7 @@ class EmailAccountForm(forms.ModelForm):
 
     class Meta:
         model = EmailAccount
-        fields = ("user", "email_address", "decrypted_password", 
+        fields = ("user", "email_address", "decrypted_password", "account_group",
                   "email_provider", "port_number", "server_type", "host", "is_warmup_target", "black_list")
 
     def __init__(self, *args, **kwargs):
@@ -187,4 +187,11 @@ class EmailAccountAdmin(admin.ModelAdmin):
             obj.save()
         except ValidationError as e:
             self.message_user(request, e.messages[0], level=messages.ERROR)
+
+
+@admin.register(AccountGroup)
+class AccountGrouAdmin(admin.ModelAdmin):
+    
+    list_display = ('user', 'name', 'created_at')
+    ordering = ('-created_at',)
 

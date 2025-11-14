@@ -1,0 +1,200 @@
+{% extends "dshbrd_base.html" %}
+
+{% load static %}
+{% load widget_tweaks %}
+
+{% block 'title' %}Dispatch Skool - Email Account Groups{% endblock %}
+
+{% block 'content' %}
+
+<div class="p-4 sm:ml-72">
+
+  <div class="text-center max-w-4xl mx-auto px-4 pt-16 pb-5">
+    <h2 class="text-3xl md:text-4xl font-bold text-primary">
+      Email Accounts Groups Manager
+    </h2>
+    <p class="text-lg text-gray-500 my-6">Assign your <span class="font-bold"> Email Accounts to Groups </span>and ease your life a bit!</p>
+    {% if messages %}
+          {% for message in messages %}
+              <div class="p-5 my-3 rounded-xl border-2 border-solid 
+                  {% if message.tags == 'success' %} bg-green-200 border-green-700 text-green-800 
+                  {% elif message.tags == 'error' %} bg-red-200 border-red-700 text-red-700
+                  {% elif message.tags == 'warning' %} bg-yellow-200 border-yellow-700 text-red-700
+                  {% endif %}">
+                  <p class="text-sm">{{ message }}</p>
+              </div>
+          {% endfor %}
+        {% endif %}
+  </div>
+
+  <!-- Add Group Form -->
+  <div class="flex flex-row gap-6 w-full max-w-4xl mx-auto">
+
+    <div class="p-6 bg-primary rounded-lg shadow-md my-6 text-left w-full">
+      <h2 class="text-xl font-semibold text-center text-secondary">Create New Group by simply allocating a unique name</h2>
+
+      <form method="POST">
+        {% csrf_token %}
+
+        <div class="flex flex-col lg:flex-row gap-4 mt-4">
+
+          <div class="p-6 bg-secondary rounded-lg shadow-md w-full mx-auto border border-gray-700">
+            <div class="flex space-x-3">
+                <div class="flex items-center gap-4 grow">
+                  {% render_field form.name class="w-full p-3 border focus:ring-gray-500 focus:border-gray-500 rounded-lg outline-none text-primary bg-primary" required="required" %}
+                </div>
+                <button name="create_group" type="submit" class="inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm btn-bg-primary btn-bg-hover btn-text focus:outline-none focus:ring-2 focus:ring-offset-2">
+                  Create Group
+                </button>
+            </div>
+            {% if form.name.errors %}
+                {% for error in form.name.errors %}
+                    <p class="mt-2 text-sm text-red-600">{{ error }}</p>
+                {% endfor %}
+            {% endif %}
+          </div>
+
+        </div>
+      </form>
+
+    </div>
+
+  </div>
+
+  <!-- Display available groups -->
+  <div class="flex flex-row gap-6 w-full max-w-4xl mx-auto">
+
+    <div class="p-6 bg-primary rounded-lg shadow-md my-6 text-left w-full">
+      <h2 class="text-xl font-semibold text-center text-secondary">Available Groups ({{ count }})</h2>
+
+      <div class="p-3 mt-5 bg-secondary rounded-lg shadow-md w-full mx-auto border border-gray-700">
+        <div class="flex flex-wrap gap-3">
+    
+          {% for group in account_groups %}
+            <div class="group inline-flex items-center bg-primary text-primary rounded-full pl-3 pr-1 py-2 text-sm font-medium">
+              
+              <span>{{ group.name }}</span>
+
+              <form 
+                action="{% url 'dashboard:delete_group' group.id %}" 
+                method="POST" 
+                class="ml-1"
+                onsubmit="return confirm('Are you sure you want to permanently delete the group \'{{ group.name }}\'? The accounts associated to this group will have to be assigned to a different group!');">
+                
+                {% csrf_token %}
+
+                <button 
+                  type="submit" 
+                  class="hidden group-hover:inline-flex items-center justify-center 
+                        w-5 h-5 rounded-full 
+                        text-red-700 bg-red-200 
+                        hover:bg-red-300 hover:text-red-800
+                        text-xs mx-2 font-bold transition-all">
+                  X
+                </button>
+              </form>
+            </div>
+
+          {% empty %}
+            <p class="text-primary">No groups have been created yet.</p>
+          {% endfor %}
+
+        </div>
+      </div>
+
+    </div>
+    
+  </div>
+
+  <!-- Display Email Accounts and group choices -->
+
+  <div class="flex flex-row gap-6 w-full max-w-4xl mx-auto">
+    <div class="p-6 bg-primary rounded-lg shadow-md my-6 text-left w-full">
+      
+      <form method="POST">
+        {% csrf_token %}
+        {{ assignment_formset.management_form }}
+
+        <h2 class="text-xl font-semibold text-center text-secondary my-2">
+          Assign Accounts to Groups
+        </h2>
+
+        {% for account_form in assignment_formset %}
+          {{ account_form.id }}
+        
+          <div class="p-4 bg-secondary rounded-lg shadow-md my-6 border border-gray-700">
+            <div class="flex flex-col md:flex-row items-center">
+              
+              <div class="flex-shrink-0 flex items-center gap-3 w-full md:w-auto md:min-w-[300px]">
+                <svg class="w-6 h-6 text-blue-500" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"></path>
+                  <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"></path>
+                </svg>
+                <span class="font-medium text-secondary">
+                  {{ account_form.instance.email_address }}
+                </span>
+              </div>
+
+              <div class="flex-grow flex flex-wrap gap-3 mt-4 md:mt-0 md:ml-6">
+                
+                {% for radio in account_form.account_group %}
+                <label class="inline-flex items-center cursor-pointer">
+                  
+                  {{ radio.tag }}
+                  
+                  <span class="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium
+                              bg-primary text-secondary  
+                              ring-2 ring-transparent transition-all
+                              peer-checked:bg-blue-600 peer-checked:text-white peer-checked:ring-blue-400">
+                    
+                    <span class="w-4 h-4 inline-block rounded-full border-2 border-gray-500
+                                bg-primary transition-all
+                                peer-checked:bg-white peer-checked:border-blue-600">
+                    </span>
+                    
+                    {{ radio.choice_label }}
+                  </span>
+                </label>
+                {% endfor %}
+              </div>
+            </div>
+            
+            {% if account_form.account_group.errors %}
+              <div class="mt-2 text-right">
+                {% for error in account_form.account_group.errors %}
+                  <p class="text-sm text-red-600">{{ error }}</p>
+                {% endfor %}
+              </div>
+            {% endif %}
+            
+          </div>
+        {% endfor %}
+
+        <div class="flex justify-end mt-6">
+          <button type="submit" name="save_assignments"
+                  class="inline-flex justify-center items-center px-6 py-2 border border-transparent 
+                        text-base font-medium rounded-md shadow-sm 
+                        btn-bg-primary btn-bg-hover btn-text 
+                        focus:outline-none focus:ring-2 focus:ring-offset-2">
+            Save Assignments
+          </button>
+        </div>
+
+      </form>
+      
+    </div>
+</div>
+
+<style>
+  .hidden-radio {
+    opacity: 0;
+    width: 0;
+    height: 0;
+    position: absolute;
+  }
+</style>
+
+
+</div>
+
+{% endblock %}

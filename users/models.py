@@ -89,8 +89,24 @@ class Affiliate(models.Model):
 
 
 
+class AccountGroup(models.Model):
+    
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name="account_groups")
+    name = models.CharField(max_length=255)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('user', 'name')
+
+    def __str__(self):
+        return self.name
+
+
 class EmailAccount(models.Model):
+
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name="email_accounts")
+    account_group = models.ForeignKey(AccountGroup, on_delete=models.SET_NULL, related_name="email_accounts", null=True, blank=True)
+
     email_address = models.EmailField(unique=True)  # Unique globally
     encrypted_password = models.TextField(verbose_name="Email Password")  # Store encrypted passwords securely
     last_used_at = models.DateTimeField(null=True, blank=True)  # Track last usage

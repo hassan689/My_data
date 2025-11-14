@@ -41,6 +41,13 @@
         </a>
       </li>
       <li>
+        <a href="{% url 'dashboard:account_groups' %}" class="flex items-center p-2 text-primary rounded-lg bg-hover-light group">
+          <i class="fa-solid fa-envelopes-bulk shrink-0 w-5 h-5 text-tertiary transition duration-75 group-hover:text-primary"></i>
+          <span class="flex-1 ms-3 whitespace-nowrap">Email Account Groups</span>
+          <span class="ml-2 text-xs font-semibold bg-green-100 text-green-800 px-2 py-0.5 rounded-full">New</span>
+        </a>
+      </li>
+      <li>
         <a href="{% url 'dashboard:daily_sheets' %}" class="flex items-center p-2 text-primary rounded-lg bg-hover-light group">
           <i class="fa-solid fa-file-excel shrink-0 w-5 h-5 text-tertiary transition duration-75 group-hover:text-primary"></i>
           <span class="flex-1 ms-3 whitespace-nowrap">Daily MC Sheets</span>
