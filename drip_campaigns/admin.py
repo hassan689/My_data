@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.db.models import Count, IntegerField
-from .models import DripCampaign, EmailAccountAndLeads, DripTemplate
+from .models import DripCampaign, EmailAccountAndLeads, DripTemplate, SentDripEmail
 
 # --- Inlines for the DripCampaign Admin ---
 
@@ -161,4 +161,8 @@ class DripTemplateAdmin(admin.ModelAdmin):
     list_display = ('campaign', 'step_number', 'subject', 'delivered_status', 'open_rate')
     list_filter = ('delivered_status',)
     search_fields = ('subject', 'campaign__name')
+    ordering = ('-campaign', 'step_number',)
+
+
+admin.site.register(SentDripEmail)
 

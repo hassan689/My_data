@@ -259,9 +259,30 @@ def send_single_email(self, campaign_record_id):
         # A) Daily Limit Exceeded (Fatal, stop chain)
         if "Daily user sending limit exceeded" in error_message:
             print(f"Daily limit exceeded for {email_account.email_address}. Halting campaign {campaign.id}.")
+
+            subject = f"⚠️ Campaign Halted: Daily Sending Limit Exceeded for {email_account.email_address}"
+            body = (
+                f"Dear user,\n\n"
+                f"Your email campaign using the account '{email_account.email_address}' has been halted "
+                f"because **Your Email Provider has indicated that the daily sending limit for this email account has been exceeded.**\n\n"
+                f"**This limit is imposed by Your Email Provider, not by DispatchSkool.**\n\n"
+                f"Please wait 24 hours before trying to send new campaigns from this account.\n\n"
+                f"Regards,\nThe DispatchSkool Team"
+            )
+            from_email = settings.EMAIL_HOST_USER
+            recipient_list = [email_account.user.email]
+            body_encoded = force_str(body, 'utf-8', errors='replace')
+
+            send_mail(
+                subject=subject,
+                message=body_encoded,
+                from_email=from_email,
+                recipient_list=recipient_list,
+                fail_silently=False,
+            )
+
             campaign.status = 'launched'
             campaign.save(update_fields=['status'])
-            # ... (your notification_email logic) ...
             return # Stop the chain
 
         # B) Network/Timeout Error (Recoverable, retry task)
@@ -531,6 +552,35 @@ def send_emails_batch(self, campaign_record_id, batch_size=10):
     except Exception as e:
         # This is a major error (e.g., DB down, or the atomic pop failed)
         print(f"CRITICAL: Batch processing error for {campaign_record_id}: {e}")
+
+        if "Daily user sending limit exceeded" in str(e):
+            print(f"Daily limit exceeded for {email_account.email_address}. Halting campaign {campaign.id}.")
+
+            subject = f"⚠️ Campaign Halted: Daily Sending Limit Exceeded for {email_account.email_address}"
+            body = (
+                f"Dear user,\n\n"
+                f"Your email campaign using the account '{email_account.email_address}' has been halted "
+                f"because **Your Email Provider has indicated that the daily sending limit for this email account has been exceeded.**\n\n"
+                f"**This limit is imposed by Your Email Provider, not by DispatchSkool.**\n\n"
+                f"Please wait 24 hours before trying to send new campaigns from this account.\n\n"
+                f"Regards,\nThe DispatchSkool Team"
+            )
+            from_email = settings.EMAIL_HOST_USER
+            recipient_list = [email_account.user.email]
+            body_encoded = force_str(body, 'utf-8', errors='replace')
+
+            send_mail(
+                subject=subject,
+                message=body_encoded,
+                from_email=from_email,
+                recipient_list=recipient_list,
+                fail_silently=False,
+            )
+
+            campaign.status = 'launched'
+            campaign.save(update_fields=['status'])
+            return # Stop the chain
+
         
         # Re-queue all leads from the batch that were not *started*
         # If error was at get_connection, iter_count=0, all leads are saved.

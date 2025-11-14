@@ -28,7 +28,6 @@ EMAIL_TASK_TIME_LIMIT = 600
 # (Using SSL ports by default)
 IMAP_SETTINGS_MAP = {
     'gmail':    {'host': 'imap.gmail.com', 'port': 993},
-    'google':    {'host': 'imap.gmail.com', 'port': 993},
     'yahoo':    {'host': 'imap.mail.yahoo.com', 'port': 993},
     'zoho':     {'host': 'imap.zoho.com', 'port': 993},
     'hostinger':{'host': 'imap.hostinger.com', 'port': 993},
@@ -178,14 +177,22 @@ def check_one_account_imap(self, account_info_id):
             if not in_reply_to_header:
                 continue
 
-            # ✅ Normalize the header (remove newlines, <>, etc.)
-            reply_to_msg_id = in_reply_to_header.replace('\n', '').replace('\r', '').strip('<>')
+            # 1. Clean and SPLIT the header into a list of potential IDs
+            # This turns "<id1> <id2>" into ["<id1>", "<id2>"]
+            potential_ids = [
+                pid.strip().replace('<', '').replace('>', '')
+                for pid in in_reply_to_header.replace('\n', '').replace('\r', '').split()
+            ]
 
-            # 7. Check our "Paper Trail"
+            if not potential_ids:
+                continue # Skip if the header was just whitespace
+
+            # 2. Check our "Paper Trail" using an '__in' lookup
+            # This checks if ANY of our saved message_ids are in the list
             sent_email = SentDripEmail.objects.filter(
                 drip_campaign=campaign,
-                message_id=reply_to_msg_id,
-            ).select_related('drip_campaign').first()
+                message_id__in=potential_ids,
+            ).first()
 
             # 8. MATCH FOUND!
             if sent_email:
@@ -280,7 +287,6 @@ def chain_starter_task(results, campaign_id):
         
         cache.set(total_key, total_accounts_for_step, timeout=cache_timeout)
         cache.set(finished_key, 0, timeout=cache_timeout)
-        # ----------------------------
         
         if total_accounts_for_step == 0:
             print(f"Campaign {campaign.id} step {campaign.current_step} has no leads to send. Finalizing.")
@@ -337,7 +343,7 @@ def send_single_email(self, campaign_id, account_info_id, template_id, lead_inde
         template = DripTemplate.objects.get(id=template_id)
         account = EmailAccountAndLeads.objects.get(id=account_info_id)
         campaign = DripCampaign.objects.get(id=campaign_id)
-        removed_leads_list = campaign.removed_mc_numbers
+        removed_leads_set = set(campaign.removed_mc_numbers)
 
         if template.delivered_status in ('Sent', 'Failed'):
             print(f"Template {template.id} is already finished. Stopping chain.")
@@ -345,7 +351,7 @@ def send_single_email(self, campaign_id, account_info_id, template_id, lead_inde
 
         # --- Lead Fetching & Filtering ---
         # Use recipient_count (the goal) not leads_data (the full list)
-        if lead_index >= account.recipient_count:
+        if lead_index >= len(account.leads_data):
             print(f"Lead index {lead_index} is out of bounds for recipient goal {account.recipient_count}. Stopping.")
             # This task is done, trigger the finalize check
             reschedule_or_finalize(campaign.id, account, template, next_lead_index, delay_seconds=1)
@@ -353,8 +359,11 @@ def send_single_email(self, campaign_id, account_info_id, template_id, lead_inde
 
         lead = account.leads_data[lead_index]
 
-        if lead.get('MC Number') in removed_leads_list:
-            print(f"Skipping lead {lead.get('MC Number')} (in removed list).")
+        mc_num = lead.get('MC Number')
+        email_addr = lead.get('Email')
+        
+        if (mc_num and mc_num in removed_leads_set) or (email_addr and email_addr in removed_leads_set):
+            print(f"Skipping lead {email_addr or mc_num} (in removed list).")
             reschedule_or_finalize(campaign.id, account, template, next_lead_index, delay_seconds=1)
             return
 
@@ -426,6 +435,7 @@ def send_single_email(self, campaign_id, account_info_id, template_id, lead_inde
         print(f"Drip Task: Sent to {lead['Email']} via {account.email_account.email_address}")
 
         try:
+            message_id = message_id.strip().replace('<', '').replace('>', '')
             SentDripEmail.objects.create(
                 drip_campaign=campaign,
                 message_id=message_id,

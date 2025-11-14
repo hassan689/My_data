@@ -14,7 +14,7 @@ def reschedule_or_finalize(campaign_id, account, template, next_lead_index, dela
     from .tasks import finalize_drip_step_task, send_single_email
     
     # Check if this was the last lead
-    if next_lead_index >= account.recipient_count:
+    if next_lead_index >= len(account.leads_data):
         print(f"Account {account.id} finished its list for template {template.id}.")
         
         # Define cache keys
@@ -82,8 +82,6 @@ def normalize_provider(provider_string):
         return 'hostinger'
     if 'namecheap' in provider_low or 'privateemail' in provider_low:
         return 'namecheap'
-    if 'outlook' in provider_low or 'hotmail' in provider_low:
-        return 'outlook'
         
     return None # We don't recognize it
 
