@@ -49,6 +49,21 @@
             class="btn-bg-hover btn-bg-primary btn-text px-4 py-2 rounded-lg flex items-center justify-center">
             ✏️ Update Campaign
           </a>
+          {% if campaign.status == 'Active' %}
+          <form action="{% url 'drip_campaigns:pause_campaign' campaign_id=campaign.id %}" method="POST" class="inline-block">
+              {% csrf_token %}
+              <button type="submit" class="btn-bg-hover btn-bg-primary btn-text px-4 py-2 rounded-lg flex items-center justify-center">
+                  ⏸️ Pause Campaign
+              </button>
+          </form>
+          {% elif campaign.status == 'Paused' %}
+          <form action="{% url 'drip_campaigns:resume_campaign' campaign_id=campaign.id %}" method="POST" class="inline-block">
+              {% csrf_token %}
+              <button type="submit" class="btn-bg-hover btn-bg-primary btn-text px-4 py-2 rounded-lg flex items-center justify-center">
+                  ▶️ Resume Campaign
+              </button>
+          </form>
+          {% endif %}
         </div>
       </div>
   
@@ -56,31 +71,52 @@
         <div class="grid grid-cols-2 gap-4 text-secondary">
           
           <div class="border rounded-md p-3 bg-primary">
-            <span class="font-semibold">Created At: </span>{{ campaign.created_at }}
+            <span class="font-semibold">Created At: </span>
+            <span id="gen-created-at">{{ campaign.created_at }}</span>
           </div>
           <div class="border rounded-md p-3 bg-primary">
-            <span class="font-semibold">Current Step Number: </span>{{ campaign.current_step }}
+            <span class="font-semibold">Current Step Number: </span>
+            <span id="gen-current-step">{{ campaign.current_step }}</span>
           </div>
           <div class="border rounded-md p-3 bg-primary">
-            <span class="font-semibold">Total Recipients: </span>{{ campaign.total_recipients }}
+            <span class="font-semibold">Total Recipients: </span>
+            <span id="gen-total-rec">{{ campaign.total_recipients }}</span>
           </div>
           <div class="border rounded-md p-3 bg-primary">
-            <span class="font-semibold">Previous Launch at: </span>{{ campaign.created_at }}
+            <span class="font-semibold">Previous Launch at: </span>
+            <span id="gen-prev-launch">{{ campaign.previous_launch_at }}</span>
           </div>
           <div class="border rounded-md p-3 bg-primary">
-            <span class="font-semibold">Next Launch Sheduled at: </span>{{ campaign.next_action_at }}
+            <span class="font-semibold">Next Launch Scheduled at: </span>
+            <span id="gen-next-launch">{{ campaign.next_action_at }}</span>
           </div>
           <div class="border rounded-md p-3 bg-primary">
-            <span class="font-semibold">Campaign Status: </span>{{ campaign.status }}
+            <span class="font-semibold">Campaign Status: </span>
+            <span id="gen-status">{{ campaign.status }}</span>
           </div>
-
         </div>
       </div>
     </div>
 
     <!-- Email Accounts and Assigned Leads -->
     <div class="p-6 bg-primary rounded-lg shadow-md my-6 max-w-4xl mx-auto">
-      <h2 class="text-2xl font-semibold text-secondary">Email Accounts and Sent Counts</h2>
+
+      <div class="flex flex-col md:flex-row md:justify-between md:items-center gap-3">
+        <h2 class="text-2xl font-semibold text-secondary">Email Accounts and Sent Counts</h2>
+        
+        <div id="skip-step-wrapper" 
+            class="flex flex-col md:flex-row justify-end gap-3 font-semibold text-lg md:text-base mb-5 mt-2"
+            style="display: {% if campaign.status == 'Processing' %}flex{% else %}none{% endif %};">
+          <form action="{% url 'drip_campaigns:skip_template_step' campaign_id=campaign.id %}" method="POST" class="inline-block">
+              {% csrf_token %}
+              <button type="submit" class="bg-red-700 text-white hover:bg-red-800 px-4 py-2 rounded-lg flex items-center justify-center">
+                  🚫 CANCEL THIS STEP FOR ALL ACCOUNTS
+              </button>
+          </form>
+        </div>
+
+      </div>
+
       <div class="mt-4 p-4 bg-secondary rounded-lg border border-gray-700 shadow-md">
         <div class="overflow-x-auto">
 
@@ -89,8 +125,10 @@
               <tr>
                 <th class="border-t border-b px-4 py-2 text-left text-lg">Email Accounts</th>
                 <th class="border-t border-b px-4 py-2 text-left text-lg">Assigned leads</th>
-                <th class="border-t border-b px-4 py-2 text-left text-lg">Current Processing Step</th>
+                <th class="border-t border-b px-4 py-2 text-left text-lg">Status</th>
+                <th class="border-t border-b px-4 py-2 text-left text-lg">Current Step</th>
                 <th class="border-t border-b px-4 py-2 text-left text-lg">Sent Count</th>
+                <th class="border-t border-b px-4 py-2 text-left text-lg">Action</th>
               </tr>
             </thead>
             <tbody class="text-sm text-primary">
@@ -103,7 +141,14 @@
                     <p>{{ account.recipient_count }}</p>
                   </td>
                   <td class="px-4 py-2">
-                    <p>{{ campaign.current_step }}</p>
+                      <p id="account-status-{{ account.id }}">
+                          {{ account.status }}
+                      </p>
+                  </td>
+                  <td class="px-4 py-2">
+                      <p id="processing-step-{{ account.email_account.id }}">
+                          {{ campaign.current_step }}
+                      </p>
                   </td>
                   <td class="px-4 py-2">
                     {% with account.sent_count as sent %}
@@ -124,10 +169,26 @@
                               {{ sent }}/0
                             </div>
                           {% endif %}
-
                         </div>
                       {% endwith %}
                     {% endwith %}
+                  </td>
+                  <td class="px-4 py-2">
+                    <form id="stop-btn-{{ account.id }}"
+                          action="{% url 'drip_campaigns:stop_account_chain' campaign_id=campaign.id account_info_id=account.id %}" 
+                          method="POST" 
+                          class="inline-block"
+                          style="display: {% if account.status == 'Processing' %}inline-block{% else %}none{% endif %};">
+                      {% csrf_token %}
+                      <button type="submit" class="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 text-center whitespace-nowrap">
+                        Stop
+                      </button>
+                    </form>
+                    <span id="na-span-{{ account.id }}" 
+                          class="text-secondary px-3 py-1 font-semibold"
+                          style="display: {% if account.status != 'Processing' %}inline-block{% else %}none{% endif %};">
+                      N/A
+                    </span>
                   </td>
                 </tr>
               {% endfor %}
@@ -143,13 +204,13 @@
       <h2 class="text-2xl font-semibold text-secondary">Removed Email Addresses (or MC Numbers) from the Targets List</h2>
   
       <div class="mt-4 p-4 bg-secondary rounded-lg border border-gray-700 shadow-md">
-        <ul class="list-disc pl-5 text-secondary">
-          {% for mc_number in campaign.removed_mc_numbers %}
-            <li>{{ mc_number }}</li>
-          {% empty %}
-            <p class="text-primary text-lg text-center">No MC numbers have been removed from this campaign's target list.</p>
-          {% endfor %}
-        </ul>                             
+        <ul id="removed-mc-list" class="list-disc pl-5 text-secondary">
+            {% for mc_number in campaign.removed_mc_numbers %}
+                <li>{{ mc_number }}</li>
+            {% empty %}
+                <p class="text-primary text-lg text-center">No MC numbers removed yet. Next check at {{ campaign.next_action_at }}</p>
+            {% endfor %}
+        </ul>                            
       </div>
     </div>
 
@@ -175,7 +236,7 @@
                 <th class="border-t border-b px-4 py-2 text-left text-lg">Email Opens</th>
               </tr>
             </thead>
-            <tbody class="text-sm text-primary">
+            <tbody id="templates-body" class="text-sm text-primary">
               {% for temp in templates_qs %}
                 <tr class="border-b bg-hover-light ">
                   <td class="px-4 py-2">
@@ -217,44 +278,142 @@
   {% endif %}
 
   <script>
-    function updateProgressBars() {
-      
-      // 1. Fetch data from your NEW JSON endpoint
-      fetch("{% url 'drip_campaigns:get_drip_progress_json' campaign_id=campaign.id %}")
-        .then(response => {
-          if (!response.ok) {
-            throw new Error('Network response was not ok');
-          }
-          return response.json(); // This will now work!
-        })
-        .then(data => {
-          // 2. Loop through all accounts in the JSON response
-          Object.keys(data).forEach(accountId => {
-            
-            const sent = data[accountId].sent_count;
-            const total = data[accountId].total;
+      function formatDateTime(dtString) {
+          if (!dtString) return "";
+          const d = new Date(dtString);
 
-            // 3. Find the progress bar for this account
-            const sentBox = document.querySelector(`#sent-count-box-${accountId}`);
-            
-            // 4. Update the bar's width and text
-            if (sentBox) {
-              const percent = total === 0 ? 0 : Math.round((sent / total) * 100);
-              sentBox.style.width = `${percent}%`;
-              sentBox.textContent = `${sent}/${total}`;
-            }
-          });
-        })
-        .catch(error => {
-          // You can check your browser console (F12) for this error
-          console.error('Error updating campaign progress:', error);
-        });
-    }
+          const options = {
+              year: "numeric",
+              month: "short",
+              day: "2-digit",
+              hour: "2-digit",
+              minute: "2-digit",
+          };
 
-    // 5. Run this function every 5 seconds and once on load
-    setInterval(updateProgressBars, 5000);
-    updateProgressBars(); 
+          return d.toLocaleString("en-US", options).replace(",", "");
+      }
+
+      function refreshCampaignStatus() {
+          fetch("{% url 'drip_campaigns:get_drip_progress_json' campaign_id=campaign.id %}")
+              .then(r => r.json())
+              .then(data => {
+
+                  /* ------------------------------
+                    UPDATE GENERAL INFO SECTION
+                  ------------------------------ */
+                  document.getElementById("gen-created-at").textContent =
+                      formatDateTime(data.campaign.created_at);
+
+                  document.getElementById("gen-current-step").textContent =
+                      data.campaign.current_step;
+
+                  document.getElementById("gen-total-rec").textContent =
+                      data.campaign.total_recipients;
+
+                  document.getElementById("gen-prev-launch").textContent =
+                      formatDateTime(data.campaign.previous_launch_at);
+
+                  document.getElementById("gen-next-launch").textContent =
+                      formatDateTime(data.campaign.next_action_at);
+
+                  document.getElementById("gen-status").textContent =
+                      data.campaign.status;
+
+                  /* ------------------------------
+                    UPDATE 'CANCEL STEP' BUTTON VISIBILITY
+                  ------------------------------ */
+                  const skipStepWrapper = document.getElementById("skip-step-wrapper");
+                  if (skipStepWrapper) {
+                      if (data.campaign.status === 'Processing') {
+                          skipStepWrapper.style.display = 'flex';
+                      } else {
+                          skipStepWrapper.style.display = 'none';
+                      }
+                  }
+
+                  /* ------------------------------
+                    UPDATE REMOVED MC NUMBERS
+                  ------------------------------ */
+                  const mcList = document.getElementById("removed-mc-list");
+                  mcList.innerHTML = "";
+
+                  if (data.campaign.removed_mc_numbers.length === 0) {
+                      mcList.innerHTML = "<p class='text-primary text-lg text-center'>No MC numbers removed.</p>";
+                  } else {
+                      data.campaign.removed_mc_numbers.forEach(mc => {
+                          mcList.innerHTML += `<li>${mc}</li>`;
+                      });
+                  }
+
+                  /* ------------------------------
+                    UPDATE EMAIL ACCOUNT TABLE
+                  ------------------------------ */
+                  Object.keys(data.email_accounts).forEach(emailAccountId => {
+                      const acc = data.email_accounts[emailAccountId];
+                      
+                      // Get the EmailAccountAndLeads ID from the data
+                      const accountId = acc.account_id; 
+
+                      // 1. Update Progress Bar (uses emailAccountId)
+                      const box = document.getElementById(`sent-count-box-${emailAccountId}`);
+                      if (box) {
+                          const percent = acc.total === 0 ? 0 : Math.round((acc.sent / acc.total) * 100);
+                          box.style.width = percent + "%";
+                          box.textContent = `${acc.sent}/${acc.total}`;
+                      }
+
+                      // 2. Update Current Step (uses emailAccountId)
+                      const stepBox = document.getElementById(`processing-step-${emailAccountId}`);
+                      if (stepBox) {
+                          stepBox.textContent = acc.current_step;
+                      }
+
+                      // 3. Update Account Status Text (uses accountId)
+                      const statusBox = document.getElementById(`account-status-${accountId}`);
+                      if (statusBox) {
+                          statusBox.textContent = acc.status;
+                      }
+                      
+                      // 4. Toggle "Stop" Button and "N/A" Span (uses accountId)
+                      const stopBtn = document.getElementById(`stop-btn-${accountId}`);
+                      const naSpan = document.getElementById(`na-span-${accountId}`);
+
+                      if (stopBtn && naSpan) {
+                          if (acc.status === 'Processing') {
+                              stopBtn.style.display = 'inline-block';
+                              naSpan.style.display = 'none';
+                          } else {
+                              stopBtn.style.display = 'none';
+                              naSpan.style.display = 'inline-block';
+                          }
+                      }
+                  });
+
+                  /* ------------------------------
+                    UPDATE TEMPLATE DELIVERY STATUSES
+                  ------------------------------ */
+                  const templateBody = document.getElementById("templates-body");
+                  templateBody.innerHTML = "";
+
+                  data.templates.forEach(t => {
+                      templateBody.innerHTML += `
+                          <tr class="border-b bg-hover-light">
+                              <td class="px-4 py-2 font-semibold">${t.subject}</td>
+                              <td class="px-4 py-2 font-semibold">${t.step}</td>
+                              <td class="px-4 py-2 font-semibold">${t.delivery_status}</td>
+                              <td class="px-4 py-2 font-semibold">${t.open_rate}</td>
+                          </tr>
+                      `;
+                  });
+
+              })
+              .catch(err => console.error("Auto-refresh error:", err));
+      }
+
+      setInterval(refreshCampaignStatus, 5000);
+      refreshCampaignStatus();
   </script>
+
 
 {% endblock %}
 

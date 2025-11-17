@@ -50,16 +50,17 @@
 									<th class="text-left p-3">Current Step</th>
                   <th class="text-left p-3">Next launch</th>
                   <th class="text-left p-3">Actions</th>
+                  <th class="text-left p-3">Controls</th>
 							</tr>
 					</thead>
 					<tbody>
-						{% for campaign in page_obj %}
-						<tr class="border-b bg-hover-light">
-								<td class="p-3">{{ campaign.name }}</td>
-								<td class="p-3">{{ campaign.status }}</td>
-								<td class="p-3">{{ campaign.current_step }}</td>
-								<td class="p-3">{{ campaign.next_action_at }}</td>
-								<td class="p-3">
+            {% for campaign in page_obj %}
+            <tr class="border-b bg-hover-light">
+                <td class="p-3">{{ campaign.name }}</td>
+                <td class="p-3">{{ campaign.status }}</td>
+                <td class="p-3">{{ campaign.current_step }}</td>
+                <td class="p-3">{{ campaign.next_action_at }}</td>
+                <td class="p-3">
                     <a href="{% url 'drip_campaigns:update_drip' campaign_id=campaign.id %}" 
                       class="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 text-center whitespace-nowrap">
                       Update
@@ -68,24 +69,45 @@
                       class="bg-lime-500 text-white px-3 py-1 mx-3 rounded hover:bg-lime-600 text-center whitespace-nowrap">
                       View
                     </a>
-                    {% comment %}
-                    <a href="{% url 'drip_campaigns:track_drip' campaign.id %}" 
-                      class="bg-amber-600 text-white px-3 py-1 mx-3 rounded hover:bg-amber-700 text-center whitespace-nowrap">
-                      Track Campaign
-                    </a>
-                    {% endcomment %}
                     <a href="{% url 'drip_campaigns:delete_drip' campaign.id %}" 
-                      class="bg-red-600 text-white px-3 py-1 mx-3 rounded hover:bg-red-700 text-center whitespace-nowrap">
+                      class="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 text-center whitespace-nowrap">
                       Delete
                     </a>
                 </td>
-						</tr>
-						{% endfor %}
-					</tbody>
+                <td>
+                  {% if campaign.status != 'Completed' and campaign.status != 'Cancelled' %}
+                      <form action="{% url 'drip_campaigns:cancel_campaign' campaign_id=campaign.id %}" method="POST" class="inline-block mx-3">
+                          {% csrf_token %}
+                          <button type="submit" class="bg-gray-700 text-white px-3 py-1 rounded hover:bg-gray-800 text-center whitespace-nowrap">
+                              Cancel
+                          </button>
+                      </form>
+                  {% endif %}
+                  {% if campaign.status == 'Paused' %}
+                      <form action="{% url 'drip_campaigns:resume_campaign' campaign_id=campaign.id %}" method="POST" class="inline-block">
+                          {% csrf_token %}
+                          <button type="submit" class="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600 text-center whitespace-nowrap">
+                              Resume
+                          </button>
+                      </form>
+                  {% elif campaign.status == 'Active' or campaign.status == 'Processing' %}
+                      <form action="{% url 'drip_campaigns:pause_campaign' campaign_id=campaign.id %}" method="POST" class="inline-block">
+                          {% csrf_token %}
+                          <button type="submit" class="bg-orange-500 text-white px-3 py-1 rounded hover:bg-orange-600 text-center whitespace-nowrap">
+                              Pause
+                          </button>
+                      </form>
+                  {% else %}
+                      <span class="text-secondary px-3 py-1 font-semibold">N/A</span>
+                  {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
 
 					<tfoot>
 						<tr class="border-t bg-secondary">
-								<td colspan="5" class="p-3 text-secondary font-bold">Total Campaign Records: {{ page_obj|length }}</td>
+								<td colspan="6" class="p-3 text-secondary font-bold">Total Campaign Records: {{ page_obj|length }}</td>
 						</tr>
 					</tfoot>
 				</table>

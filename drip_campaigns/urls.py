@@ -16,5 +16,16 @@ urlpatterns = [
     
     path('delete-campaign/<int:campaign_id>/', views.delete_drip, name='delete_drip'),
     path('track-campaign/<int:campaign_id>/', views.track_drip, name='track_drip'),
+
+    # Campaign-level controls
+    path('<int:campaign_id>/pause/', views.pause_campaign, name='pause_campaign'),
+    path('<int:campaign_id>/resume/', views.resume_campaign, name='resume_campaign'),
+    path('<int:campaign_id>/cancel/', views.cancel_campaign, name='cancel_campaign'),
+    
+    # Template-level control
+    path('<int:campaign_id>/skip_step/', views.skip_template_step, name='skip_template_step'),
+    
+    # Account-level control
+    path('<int:campaign_id>/stop_account/<int:account_info_id>/', views.stop_account_chain, name='stop_account_chain'),
 ]
 

@@ -5,17 +5,22 @@ from django.core.cache import cache
 # ===================================================================
 # HELPER FUNCTION FOR RESCHEDULING (Updated with Cache Logic)
 # ===================================================================
-def reschedule_or_finalize(campaign_id, account, template, next_lead_index, delay_seconds):
+def reschedule_or_finalize(campaign_id, account, template, next_lead_index, delay_seconds, use_batch=False, batch_size=10):
     """
-    Helper function to decide whether to reschedule the next lead 
+    Helper function to decide whether to reschedule the next lead/batch
     or finalize the account's contribution to the step.
     """
 
-    from .tasks import finalize_drip_step_task, send_single_email
+    from .tasks import finalize_drip_step_task, send_single_email, send_batch_emails
     
     # Check if this was the last lead
+    # This logic works for both single and batch tasks
     if next_lead_index >= len(account.leads_data):
         print(f"Account {account.id} finished its list for template {template.id}.")
+
+        if account.status != 'Stopped':
+            account.status = 'Ready'
+            account.save(update_fields=['status'])
         
         # Define cache keys
         total_key = f"drip_step_total_{template.id}"
@@ -52,14 +57,19 @@ def reschedule_or_finalize(campaign_id, account, template, next_lead_index, dela
         return # This account's chain ends
 
     else:
-        # More leads to send. Reschedule for the next lead.
-        print(f"Rescheduling {account.id} for lead {next_lead_index} in {delay_seconds} seconds.")
-        send_single_email.apply_async(
-            args=[campaign_id, account.id, template.id, next_lead_index],
-            countdown=delay_seconds
-        )
-
-
+        # More leads to send. Reschedule based on batch or single mode.
+        if use_batch:
+            print(f"Rescheduling BATCH for {account.id} at lead {next_lead_index} in {delay_seconds} seconds.")
+            send_batch_emails.apply_async(
+                args=[campaign_id, account.id, template.id, next_lead_index, batch_size],
+                countdown=delay_seconds
+            )
+        else:
+            print(f"Rescheduling SINGLE for {account.id} for lead {next_lead_index} in {delay_seconds} seconds.")
+            send_single_email.apply_async(
+                args=[campaign_id, account.id, template.id, next_lead_index],
+                countdown=delay_seconds
+            )
 
 def normalize_provider(provider_string):
     """

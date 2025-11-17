@@ -14,6 +14,7 @@ from django.http import JsonResponse
 from dashboard.utilities import process_excel_file, get_leads_from_db, save_temp_file, distribute_leads_among_accounts
 from users.models import EmailAccount
 from .models import DripCampaign, EmailAccountAndLeads, DripTemplate
+from .tasks import chain_starter_task, finalize_drip_step_task, check_scheduled_drip_step
 
 from dashboard.forms import BulkCampaignForm
 from .forms import DripTemplateModelForm, RemovedMCNumbersForm
@@ -531,24 +532,50 @@ def view_drip(request, campaign_id): # to display general info and show email ac
 @require_http_methods(["GET"])
 def get_drip_progress_json(request, campaign_id):
     """
-    Returns the latest sent/recipient counts for a campaign as JSON.
+    Returns ALL live-updating info for AJAX refresh.
     """
-    
-    # 1. Get the campaign, ensuring it belongs to the logged-in user
-    campaign = get_object_or_404(DripCampaign, id=campaign_id, launched_by=request.user)
-    
-    # 2. Get all the associated email account data
-    email_accounts_info = campaign.email_accounts_and_leads.all()
-    
-    # 3. Build the data dictionary in the format your JavaScript expects
-    data = {}
-    for account in email_accounts_info:
-        data[account.email_account.id] = {
-            'sent_count': account.sent_count,
-            'total': account.recipient_count  # Use 'total' to match your JS
-        }
-        
-    # 4. Return the data as a JSON response
+    campaign = get_object_or_404(
+        DripCampaign,
+        id=campaign_id,
+        launched_by=request.user
+    )
+
+    email_accounts = campaign.email_accounts_and_leads.all()
+    templates = campaign.templates.all()
+
+    data = {
+        "campaign": {
+            "created_at": campaign.created_at,
+            "current_step": campaign.current_step,
+            "total_recipients": campaign.total_recipients,
+            "previous_launch_at": campaign.last_action_at,
+            "next_action_at": campaign.next_action_at if campaign.next_action_at else "",
+            "status": campaign.status,
+            "removed_mc_numbers": campaign.removed_mc_numbers,
+        },
+
+        "email_accounts": {
+            account.email_account.id: {
+                "account_id": account.id,
+                "email": account.email_account.email_address,
+                "sent": account.sent_count,
+                "total": account.recipient_count,
+                "current_step": campaign.current_step,
+                "status": account.status,
+            }
+            for account in email_accounts
+        },
+
+        "templates": [
+            {
+                "step": temp.step_number,
+                "subject": temp.subject,
+                "delivery_status": temp.delivered_status,
+                "open_rate": temp.open_rate,
+            }
+            for temp in templates
+        ]
+    }
     return JsonResponse(data)
 
 
@@ -559,6 +586,165 @@ def delete_drip(request, campaign_id):
     campaign.delete()
 
     messages.success(request, f"Campaign '{campaign_name}' and all its related data have been successfully deleted.")
+    return redirect('drip_campaigns:index')
+
+
+@login_required
+@require_http_methods(["POST"])
+def pause_campaign(request, campaign_id):
+    """
+    Pauses the entire campaign timeline.
+    - Sets campaign status to 'Paused'.
+    - Sets all 'Processing' accounts to 'Stopped' to gracefully end chains.
+    - The main scheduler will see 'Paused' and not start future steps.
+    """
+    campaign = get_object_or_404(DripCampaign, id=campaign_id, launched_by=request.user)
+    
+    if campaign.status not in ['Active', 'Processing']:
+        messages.warning(request, f"Campaign is already {campaign.status} and cannot be paused.")
+        return redirect('drip_campaigns:index')
+
+    with transaction.atomic():
+        # 1. Pause the campaign
+        campaign.status = 'Paused'
+        campaign.save(update_fields=['status'])
+        
+        # 2. Stop all in-progress account chains gracefully
+        EmailAccountAndLeads.objects.filter(
+            campaign=campaign,
+            status='Processing'
+        ).update(status='Stopped')
+
+    messages.success(request, f"Campaign '{campaign.name}' has been paused. All running tasks will stop gracefully.")
+    return redirect('drip_campaigns:index')
+
+
+@login_required
+@require_http_methods(["POST"])
+def resume_campaign(request, campaign_id):
+    """
+    Resumes a 'Paused' campaign.
+    - Sets campaign status to 'Active'.
+    - Sets all 'Stopped' accounts back to 'Ready'.
+    - Manually calls the check_scheduled_drip_step to re-assess the current step.
+    """
+    campaign = get_object_or_404(DripCampaign, id=campaign_id, launched_by=request.user)
+    
+    if campaign.status != 'Paused':
+        messages.warning(request, f"Campaign is not paused and cannot be resumed.")
+        return redirect('drip_campaigns:index')
+
+    with transaction.atomic():
+        # 1. Set campaign back to Active
+        campaign.status = 'Active'
+        campaign.save(update_fields=['status'])
+        
+        # 2. Set all 'Stopped' accounts back to 'Ready'
+        EmailAccountAndLeads.objects.filter(
+            campaign=campaign,
+            status='Stopped'
+        ).update(status='Ready')
+
+    # 3. Manually re-trigger the chain starter
+    # This will check for unsent leads (using the SentDripEmail log)
+    # and restart the step exactly where it left off.
+    check_scheduled_drip_step.delay() # Passing None for 'results'
+
+    messages.success(request, f"Campaign '{campaign.name}' is resuming. This may take a moment.")
+    return redirect('drip_campaigns:index')
+
+
+@login_required
+@require_http_methods(["POST"])
+def cancel_campaign(request, campaign_id):
+    """
+    Terminally cancels a campaign.
+    - Sets campaign status to 'Cancelled'.
+    - Sets the current template status to 'Cancelled' to kill all workers.
+    """
+    campaign = get_object_or_404(DripCampaign, id=campaign_id, launched_by=request.user)
+    
+    with transaction.atomic():
+        # 1. Set terminal status on the campaign
+        campaign.status = 'Cancelled'
+        campaign.save(update_fields=['status'])
+        
+        # 2. Find and cancel the currently processing/pending template (if any)
+        DripTemplate.objects.filter(
+            campaign=campaign,
+            delivered_status__in=['Processing', 'Pending']
+        ).update(delivered_status='Cancelled')
+
+        # 3. Set all associated accounts to 'Stopped'
+        EmailAccountAndLeads.objects.filter(
+            campaign=campaign
+        ).exclude(
+            status__in=['Completed', 'Stopped'] # Optimization: Don't update already-stopped accounts
+        ).update(status='Stopped')
+
+    messages.success(request, f"Campaign '{campaign.name}' has been permanently cancelled.")
+    return redirect('drip_campaigns:index')
+
+
+@login_required
+@require_http_methods(["POST"])
+def skip_template_step(request, campaign_id):
+    """
+    Cancels (skips) the *current* step and immediately calls the finalizer
+    to schedule the *next* step.
+    """
+    campaign = get_object_or_404(DripCampaign, id=campaign_id, launched_by=request.user)
+    
+    try:
+        template = DripTemplate.objects.get(
+            campaign=campaign,
+            step_number=campaign.current_step
+        )
+    except DripTemplate.DoesNotExist:
+        messages.error(request, "Could not find the current step template.")
+        return redirect('drip_campaigns:view_drip', campaign.id)
+
+    if template.delivered_status not in ['Pending', 'Processing']:
+        messages.warning(request, f"Step is already {template.delivered_status} and cannot be skipped.")
+        return redirect('drip_campaigns:view_drip', campaign.id)
+
+    # 1. Set template to 'Cancelled'
+    template.delivered_status = 'Cancelled'
+    template.save(update_fields=['delivered_status'])
+    
+    # 2. Manually call the finalizer
+    # This will see the 'Cancelled' status, bypass 'Sent',
+    # and schedule the next step.
+    finalize_drip_step_task.delay(campaign.id)
+
+    messages.success(request, f"Current step stopping, this may take a moment! Next step scheduled for  {campaign.next_action_at}")
+    return redirect('drip_campaigns:view_drip', campaign.id)
+
+
+@login_required
+@require_http_methods(["POST"])
+def stop_account_chain(request, account_info_id, campaign_id):
+    """
+    Stops a *single* EmailAccountAndLeads chain.
+    - Sets the account status to 'Stopped'.
+    - The worker task will see this and gracefully "clock out".
+    """
+    campaign = get_object_or_404(DripCampaign, id=campaign_id, launched_by=request.user)
+    
+    account_info = get_object_or_404(
+        EmailAccountAndLeads,
+        id=account_info_id,
+        campaign=campaign # accuonts for this campaign, not for every other campaign (I think the prev version would ve et it globally)
+    )
+    
+    if account_info.status != 'Processing':
+        messages.warning(request, f"Account is not 'Processing' and cannot be stopped.")
+        return redirect('drip_campaigns:index')
+
+    account_info.status = 'Stopped'
+    account_info.save(update_fields=['status'])
+    
+    messages.success(request, f"Account {account_info.email_account.email_address} chain will be stopped.")
     return redirect('drip_campaigns:index')
 
 

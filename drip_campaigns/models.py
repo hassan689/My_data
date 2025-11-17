@@ -27,6 +27,7 @@ class DripCampaign(models.Model):
         ('Paused', 'Paused'),       
         ('Completed', 'Completed'),   
         ('Failed', 'Failed'),
+        ('Cancelled', 'Cancelled'),
     ]
     status = models.CharField(max_length=20, choices=CAMPAIGN_STATUS_CHOICES, null=True, blank=True)
     LEAD_SOURCE_CHOICES = [
@@ -57,6 +58,17 @@ class EmailAccountAndLeads(models.Model):
         null=True, 
         blank=True,
         help_text="The last time we checked this account's IMAP for replies for this campaign."
+    )
+    ACCOUNT_STATUS_CHOICES = [
+        ('Ready', 'Ready'),
+        ('Processing', 'Processing'),
+        ('Stopped', 'Stopped'),
+        ('Completed', 'Completed'),
+    ]
+    status = models.CharField(
+        max_length=20, 
+        choices=ACCOUNT_STATUS_CHOICES, 
+        default='Ready'
     )
 
     def __str__(self):
@@ -106,6 +118,13 @@ class SentDripEmail(models.Model):
         DripCampaign, 
         on_delete=models.CASCADE, 
         related_name="sent_emails"
+    )
+    template = models.ForeignKey(
+        DripTemplate, 
+        on_delete=models.CASCADE, 
+        related_name="sent_logs",
+        null=True,
+        blank=True
     )
     # The unique ID we sent in the email header
     message_id = models.CharField(

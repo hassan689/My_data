@@ -19,6 +19,7 @@ import random
 import uuid
 import imaplib
 import email
+import time
 
 
 email_regex = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
@@ -252,6 +253,10 @@ def chain_starter_task(results, campaign_id):
         all_accounts = campaign.email_accounts_and_leads.all()
         removed_leads_set = set(campaign.removed_mc_numbers)
 
+        sent_leads_set = set(SentDripEmail.objects.filter(
+            drip_campaign=campaign, 
+            template=template
+        ).values_list('lead_email', flat=True))
 
         total_accounts_for_step = 0
         
@@ -261,19 +266,24 @@ def chain_starter_task(results, campaign_id):
             for lead in account_info.leads_data:
                 mc_num = lead.get('MC Number')
                 email_addr = lead.get('Email')
-                
-                # Check if either identifier is in the "stop list"
-                if (mc_num and mc_num in removed_leads_set) or (email_addr and email_addr in removed_leads_set):
-                    continue # This lead is removed, skip it
+
+                # Check if either identifier is in the "stop list" or "already sent to for this template" (used for resuming campaigns)
+                if (mc_num and mc_num in removed_leads_set) or (email_addr and email_addr in removed_leads_set) or (email_addr and email_addr in sent_leads_set):
+                    continue
                 
                 valid_leads.append(lead)
             
             account_info.recipient_count = len(valid_leads)
             account_info.sent_count = 0
-            account_info.save(update_fields=['recipient_count', 'sent_count'])
 
+            # Set the new status
             if len(valid_leads) > 0:
+                account_info.status = 'Processing'
                 total_accounts_for_step += 1
+            else:
+                account_info.status = 'Ready'
+            
+            account_info.save(update_fields=['recipient_count', 'sent_count', 'status'])
         
         # 2. Update the template status
         template.delivered_status = 'Processing'
@@ -303,13 +313,14 @@ def chain_starter_task(results, campaign_id):
                     batch_size=10
                 )
 
-                # if use_batch:
-                #     # You need to create this batch task and
-                #     # implement the same cache logic in it
-                #     batch_sending_executor.apply_async(args=[campaign_id, account_info.id, template.id, 10], countdown=0)
-                # else:
-                send_single_email.apply_async(args=[campaign_id, account_info.id, template.id, 0], countdown=0)
-                print("Sending out single emails")
+                if use_batch:
+                    # You need to create this batch task and
+                    # implement the same cache logic in it
+                    send_batch_emails.apply_async(args=[campaign_id, account_info.id, template.id, 0, 10], countdown=0)
+                    print("Sending out Batch of emails")
+                else:
+                    send_single_email.apply_async(args=[campaign_id, account_info.id, template.id, 0], countdown=0)
+                    print("Sending out single emails")
         
         return f"Dispatched {total_accounts_for_step} senders for campaign {campaign.id}, step {campaign.current_step}."
 
@@ -326,7 +337,7 @@ def chain_starter_task(results, campaign_id):
 
 
 # ===================================================================
-# TASK 3: THE WORKER
+# TASK(S) 3: THE WORKERS
 # ===================================================================
 @shared_task(name="drip_campaigns.send_single_email", acks_late=True, bind=True, default_retry_delay=300, time_limit=EMAIL_TASK_TIME_LIMIT)
 def send_single_email(self, campaign_id, account_info_id, template_id, lead_index):
@@ -345,8 +356,22 @@ def send_single_email(self, campaign_id, account_info_id, template_id, lead_inde
         campaign = DripCampaign.objects.get(id=campaign_id)
         removed_leads_set = set(campaign.removed_mc_numbers)
 
-        if template.delivered_status in ('Sent', 'Failed'):
-            print(f"Template {template.id} is already finished. Stopping chain.")
+        if campaign.status == 'Cancelled':
+            print(f"Campaign {campaign.id} was cancelled. Stopping chain.")
+            return
+
+        # Check 2: Has this specific account chain been stopped?
+        if account.status == 'Stopped':
+            print(f"Account {account.id} was manually stopped. Stopping chain.")
+            # telling the system that this account is done for its leads
+            reschedule_or_finalize(campaign.id, account, template, account.recipient_count, delay_seconds=1)
+            return
+
+        # Check 3: Has the entire step been finished or skipped?
+        if template.delivered_status in ('Sent', 'Failed', 'Cancelled'):
+            print(f"Template {template.id} is finished or {template.delivered_status}. Stopping chain.")
+            # We call reschedule_or_finalize to "clock out"
+            reschedule_or_finalize(campaign.id, account, template, account.recipient_count, delay_seconds=1)
             return
 
         # --- Lead Fetching & Filtering ---
@@ -388,7 +413,6 @@ def send_single_email(self, campaign_id, account_info_id, template_id, lead_inde
         personalized_body = sanitize_email_html(personalized_body, DOMAIN)
 
         # --- Tracking ---
-        # (Assuming you add a 'drip_campaign' ForeignKey to EmailOpen)
         # if template.track_template:
         #     unique_id = uuid.uuid4()
         #     pixel_url = reverse('dashboard:track_open', kwargs={'unique_identifier': unique_id})
@@ -438,6 +462,7 @@ def send_single_email(self, campaign_id, account_info_id, template_id, lead_inde
             message_id = message_id.strip().replace('<', '').replace('>', '')
             SentDripEmail.objects.create(
                 drip_campaign=campaign,
+                template=template,
                 message_id=message_id,
                 lead_email=lead['Email'],
                 lead_mc_number=lead.get('MC Number')
@@ -511,6 +536,211 @@ def send_single_email(self, campaign_id, account_info_id, template_id, lead_inde
     reschedule_or_finalize(campaign.id, account, template, next_lead_index, delay_seconds=next_delay)
 
 
+@shared_task(name="drip_campaigns.send_batch_emails", acks_late=True, bind=True, default_retry_delay=300, time_limit=EMAIL_TASK_TIME_LIMIT)
+def send_batch_emails(self, campaign_id, account_info_id, template_id, start_index, batch_size):
+
+    connection = None
+    account = None
+    template = None
+    campaign = None
+    email_account = None
+    
+    # This will be the index for the *next* batch task
+    next_batch_start_index = start_index + batch_size
+    daily_limit_hit = False
+
+    try:
+        template = DripTemplate.objects.get(id=template_id)
+        account = EmailAccountAndLeads.objects.get(id=account_info_id)
+        campaign = DripCampaign.objects.get(id=campaign_id)
+        removed_leads_set = set(campaign.removed_mc_numbers)
+
+        if campaign.status == 'Cancelled':
+            print(f"Campaign {campaign.id} was cancelled. Stopping chain.")
+            return
+
+        # Check 2: Has this specific account chain been stopped?
+        if account.status == 'Stopped':
+            print(f"Account {account.id} was manually stopped. Stopping chain.")
+            # telling the system that this account is done for its leads
+            reschedule_or_finalize(campaign.id, account, template, account.recipient_count, delay_seconds=1)
+            return
+
+        # Check 3: Has the entire step been finished or skipped?
+        if template.delivered_status in ('Sent', 'Failed', 'Cancelled'):
+            print(f"Template {template.id} is finished or {template.delivered_status}. Stopping chain.")
+            # We call reschedule_or_finalize to "clock out"
+            reschedule_or_finalize(campaign.id, account, template, account.recipient_count, delay_seconds=1)
+            return
+
+        # --- Connection & Setup (Done ONCE) ---
+        email_account = account.email_account
+        decrypted_password = email_account.get_password()
+        connection = get_email_connection(email_account, decrypted_password)
+        mailbox_instance = GmailToken.objects.filter(email_account=email_account).first()
+
+        # --- Batch Processing Loop ---
+        for lead_index in range(start_index, start_index + batch_size):
+            
+            lead = None # Reset lead for each iteration
+
+            # --- Lead Fetching & Filtering (Inside Loop) ---
+            if lead_index >= len(account.leads_data):
+                print(f"Lead index {lead_index} is out of bounds. Ending batch early.")
+                break # Finished all leads for this account
+
+            lead = account.leads_data[lead_index]
+            
+            mc_num = lead.get('MC Number')
+            email_addr = lead.get('Email')
+            
+            if (mc_num and mc_num in removed_leads_set) or (email_addr and email_addr in removed_leads_set):
+                print(f"Skipping lead {email_addr or mc_num} (in removed list).")
+                continue # Skip to next lead in batch
+
+            if not isinstance(lead, dict) or 'Email' not in lead or not re.fullmatch(email_regex, lead['Email']):
+                print(f"Skipping invalid lead: {lead}.")
+                continue # Skip to next lead in batch
+
+            # --- Prepare & Send Email (Inside Loop) ---
+            try:
+                personalized_subject = personalize_template(template.subject, lead)
+                personalized_body = personalize_template(template.body, lead)
+                
+                message_id = make_msgid(idstring=uuid.uuid4().hex, domain='dispatchskool.com')
+                DOMAIN = "https://dispatchskool.com"
+                personalized_body = sanitize_email_html(personalized_body, DOMAIN)
+
+                # --- Tracking ---
+                # (Tracking pixel logic would go here, per-email)
+
+                # --- Send Email ---
+                msg = EmailMultiAlternatives(
+                    subject=personalized_subject,
+                    body=personalized_body,
+                    from_email=email_account.email_address,
+                    to=[lead['Email']],
+                    connection=connection
+                )
+                msg.extra_headers = {'Message-ID': message_id}
+                msg.attach_alternative(personalized_body, "text/html")
+                
+                try:
+                    msg.send()
+                except Exception as e:
+                    if "please run connect() first" in str(e).lower() or "connection expired" in str(e).lower():
+                        connection.close()
+                        connection = get_email_connection(email_account, decrypted_password)
+                        msg.connection = connection
+                        msg.send()
+                    else:
+                        raise e 
+                    
+                print(f"Drip Task (Batch): Sent to {lead['Email']} via {account.email_account.email_address}")
+
+                # --- Create Send Log ---
+                try:
+                    message_id = message_id.strip().replace('<', '').replace('>', '')
+                    SentDripEmail.objects.create(
+                        drip_campaign=campaign,
+                        template=template,
+                        message_id=message_id,
+                        lead_email=lead['Email'],
+                        lead_mc_number=lead.get('MC Number')
+                    )
+                except Exception as e:
+                    print(f"CRITICAL: Failed to create SentDripEmail log: {e}")
+
+                # --- Update Stats (Atomic) ---
+                with transaction.atomic():
+                    account_to_update = EmailAccountAndLeads.objects.select_for_update().get(id=account_info_id)
+                    account_to_update.sent_count += 1
+                    account_to_update.save(update_fields=['sent_count'])
+
+                # --- Create thread/message log ---
+                if mailbox_instance:
+                    thread, _ = EmailThread.objects.get_or_create(
+                        mailbox=mailbox_instance,
+                        email1=email_account.email_address,
+                        email2=lead['Email'],
+                        subject=personalized_subject,
+                        defaults={'is_read': True}
+                    )
+                    OutgoingEmailMessage.objects.create(
+                        thread=thread,
+                        subject=personalized_subject,
+                        body=personalized_body,
+                        recipient=lead['Email'],
+                        sender=email_account.email_address,
+                        message_id=message_id,
+                        in_reply_to=None,
+                    )
+            
+            # --- Per-Email Error Handling (Inside Loop) ---
+            except Exception as e:
+                print(f"Failed to send to {lead['Email']} (Account {account_info_id}): {e}")
+                error_message = str(e)
+                
+                if "Daily user sending limit exceeded" in error_message:
+                    print(f"Daily limit exceeded for {email_account.email_address}. Halting batch for this account.")
+                    daily_limit_hit = True
+                    break # Exit the for loop
+
+                elif "timeout" in error_message.lower() or "connection" in error_message.lower():
+                    print(f"Network error on lead {lead['Email']}. Skipping lead.")
+                    continue # Skip to next lead
+                
+                else:
+                    print(f"Unhandled error for {lead['Email']}: {e}. Skipping lead.")
+                    continue # Skip to next lead
+
+            # --- Add Delay Between Emails ---
+            email_delay = random.randint(campaign.min_delay, campaign.max_delay)
+            time.sleep(email_delay)
+
+    # --- Task-Level Error Handling (Outside Loop) ---
+    except TimeLimitExceeded as e:
+        print(f"Time limit exceeded for batch task (Account {account_info_id}): {e}. Rescheduling next batch.")
+        reschedule_or_finalize(campaign.id, account, template, next_batch_start_index, 
+                              delay_seconds=60, use_batch=True, batch_size=batch_size)
+        return
+
+    except (DripTemplate.DoesNotExist, EmailAccountAndLeads.DoesNotExist, DripCampaign.DoesNotExist) as e:
+        print(f"Critical error: {e}. Stopping chain for account {account_info_id}.")
+        return
+
+    except Exception as e:
+        print(f"Failed to send batch starting at {start_index} (Account {account_info_id}): {e}")
+        error_message = str(e)
+        
+        # This is for errors *outside* the loop (e.g., initial connection)
+        if "timeout" in error_message.lower() or "connection" in error_message.lower():
+            print(f"Network error for account {account_info_id}. Retrying task.")
+            raise self.retry(exc=e, max_retries=3) 
+        
+        else:
+            print(f"Unhandled error for batch: {e}. Skipping batch.")
+            reschedule_or_finalize(campaign.id, account, template, next_batch_start_index, 
+                                  delay_seconds=1, use_batch=True, batch_size=batch_size)
+            return
+
+    # --- CLEANUP (Outside Loop) ---
+    finally:
+        if connection:
+            connection.close()
+
+    # --- RESCHEDULE (Outside Loop) ---
+    if daily_limit_hit:
+        # Force finalization for this account
+        print(f"Halting account {account.id} due to daily limit.")
+        reschedule_or_finalize(campaign.id, account, template, account.recipient_count, 
+                              delay_seconds=1, use_batch=True, batch_size=batch_size)
+    else:
+        # Schedule the next batch.
+        reschedule_or_finalize(campaign.id, account, template, next_batch_start_index, 
+                              delay_seconds=random.randint(1, 5), use_batch=True, batch_size=batch_size)
+
+
 # ===================================================================
 # TASK 4: THE FINISHER
 # ===================================================================
@@ -528,8 +758,18 @@ def finalize_drip_step_task(campaign_id):
             print(f"Finalizer: Step {template.step_number} already marked 'Sent'. Exiting.")
             return
 
-        template.delivered_status = 'Sent'
-        template.save(update_fields=['delivered_status'])
+        if template.delivered_status == 'Cancelled':
+            print(f"Finalizer: Step {template.step_number} was 'Cancelled' (Skipped).")
+            # Do NOT set to 'Sent'. Just proceed.
+        else:
+            template.delivered_status = 'Sent'
+            template.save(update_fields=['delivered_status'])
+
+        # Set all 'Processing' accounts back to 'Ready'
+        EmailAccountAndLeads.objects.filter(
+            campaign=campaign,
+            status='Processing'
+        ).update(status='Ready')
         
         # Find the *next available step* with a number
         # greater than the one we just finished.
@@ -560,6 +800,12 @@ def finalize_drip_step_task(campaign_id):
             campaign.status = 'Completed'
             campaign.next_action_at = None
             campaign.save(update_fields=['status', 'next_action_at'])
+
+            # --- NEW: Set all 'Ready' accounts to 'Completed' ---
+            EmailAccountAndLeads.objects.filter(
+                campaign=campaign,
+                status='Ready'
+            ).update(status='Completed')
             
             print(f"Campaign {campaign.id} successfully completed.")
             return
