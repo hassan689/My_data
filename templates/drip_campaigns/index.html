@@ -47,7 +47,8 @@
 							<tr class="bg-secondary">
 									<th class="text-left p-3">Campaign Title</th>
 									<th class="text-left p-3">Status</th>
-									<th class="text-left p-3">Current Step</th>
+									<th class="text-left p-3">Current Day</th>
+									<th class="text-left p-3">Templates</th>
                   <th class="text-left p-3">Next launch</th>
                   <th class="text-left p-3">Actions</th>
                   <th class="text-left p-3">Controls</th>
@@ -59,6 +60,7 @@
                 <td class="p-3">{{ campaign.name }}</td>
                 <td class="p-3">{{ campaign.status }}</td>
                 <td class="p-3">{{ campaign.current_step }}</td>
+                <td class="p-3">{{ campaign.template_count }}</td>
                 <td class="p-3">{{ campaign.next_action_at }}</td>
                 <td class="p-3">
                     <a href="{% url 'drip_campaigns:update_drip' campaign_id=campaign.id %}" 
@@ -107,7 +109,7 @@
 
 					<tfoot>
 						<tr class="border-t bg-secondary">
-								<td colspan="6" class="p-3 text-secondary font-bold">Total Campaign Records: {{ page_obj|length }}</td>
+								<td colspan="7" class="p-3 text-secondary font-bold">Total Campaign Records: {{ page_obj|length }}</td>
 						</tr>
 					</tfoot>
 				</table>

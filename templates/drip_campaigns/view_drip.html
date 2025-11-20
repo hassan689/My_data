@@ -75,7 +75,7 @@
             <span id="gen-created-at">{{ campaign.created_at }}</span>
           </div>
           <div class="border rounded-md p-3 bg-primary">
-            <span class="font-semibold">Current Step Number: </span>
+            <span class="font-semibold">Current Day's Number: </span>
             <span id="gen-current-step">{{ campaign.current_step }}</span>
           </div>
           <div class="border rounded-md p-3 bg-primary">
@@ -110,7 +110,7 @@
           <form action="{% url 'drip_campaigns:skip_template_step' campaign_id=campaign.id %}" method="POST" class="inline-block">
               {% csrf_token %}
               <button type="submit" class="bg-red-700 text-white hover:bg-red-800 px-4 py-2 rounded-lg flex items-center justify-center">
-                  🚫 CANCEL THIS STEP FOR ALL ACCOUNTS
+                  🚫 CANCEL Today's Temolate FOR ALL ACCOUNTS
               </button>
           </form>
         </div>
@@ -126,7 +126,7 @@
                 <th class="border-t border-b px-4 py-2 text-left text-lg">Email Accounts</th>
                 <th class="border-t border-b px-4 py-2 text-left text-lg">Assigned leads</th>
                 <th class="border-t border-b px-4 py-2 text-left text-lg">Status</th>
-                <th class="border-t border-b px-4 py-2 text-left text-lg">Current Step</th>
+                <th class="border-t border-b px-4 py-2 text-left text-lg">Current Day</th>
                 <th class="border-t border-b px-4 py-2 text-left text-lg">Sent Count</th>
                 <th class="border-t border-b px-4 py-2 text-left text-lg">Action</th>
               </tr>
@@ -228,11 +228,8 @@
               <!-- Table Headers -->
               <tr>
                 <th class="border-t border-b px-4 py-2 text-left text-lg">Subjects</th>
-                <th class="border-t border-b px-4 py-2 text-left text-lg">Step Number</th>
+                <th class="border-t border-b px-4 py-2 text-left text-lg">Day Number</th>
                 <th class="border-t border-b px-4 py-2 text-left text-lg">Delivery Status</th>
-                {% comment %}
-                <th class="border-t border-b px-4 py-2 text-left text-lg">Trackable</th>
-                {% endcomment %}
                 <th class="border-t border-b px-4 py-2 text-left text-lg">Email Opens</th>
               </tr>
             </thead>
@@ -248,17 +245,6 @@
                   <td class="px-4 py-2">
                     <p class="font-semibold">{{ temp.delivered_status }}</p>
                   </td>
-                  {% comment %}
-                  <td class="px-4 py-2">
-                    {% if temp.track_template %}
-                      <p class="font-semibold">
-                        <a href="{% url 'drip_campaigns:track_drip' campaign.id %}" class="text-blue-600 underline">Track Campaign</a>
-                      </p>
-                    {% else %}
-                    <p class="font-semibold">Not set for Tracking</p>
-                    {% endif %}
-                  </td>
-                  {% endcomment %}
                   <td class="px-4 py-2">
                     <p class="font-semibold">{{ temp.open_rate }}</p>
                   </td>

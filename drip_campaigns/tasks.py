@@ -2,6 +2,7 @@ from growth_skool.celery import app
 from celery import shared_task, chord
 from email.utils import make_msgid
 from celery.exceptions import TimeLimitExceeded
+from urllib.parse import urljoin
 
 from .models import DripCampaign, EmailAccountAndLeads, DripTemplate, SentDripEmail
 from dashboard.models import GmailToken
@@ -13,6 +14,8 @@ from django.core.mail import EmailMultiAlternatives
 from django.db import transaction
 from django.utils import timezone
 from django.core.cache import cache
+from django.conf import settings
+from django.urls import reverse
 
 import re
 import random
@@ -408,31 +411,19 @@ def send_single_email(self, campaign_id, account_info_id, template_id, lead_inde
         personalized_subject = personalize_template(template.subject, lead)
         personalized_body = personalize_template(template.body, lead)
         
-        message_id = make_msgid(idstring=uuid.uuid4().hex, domain='dispatchskool.com')
+        # message_id = make_msgid(idstring=uuid.uuid4().hex, domain='dispatchskool.com')
+        raw_msg_id = make_msgid(idstring=uuid.uuid4().hex, domain='dispatchskool.com')
+        clean_message_id = raw_msg_id.strip('<>')
         DOMAIN = "https://dispatchskool.com"
         personalized_body = sanitize_email_html(personalized_body, DOMAIN)
 
         # --- Tracking ---
-        # if template.track_template:
-        #     unique_id = uuid.uuid4()
-        #     pixel_url = reverse('dashboard:track_open', kwargs={'unique_identifier': unique_id})
-        #     pixel_link = urljoin(settings.BASE_URL, pixel_url)
+        if template.track_template:
+            pixel_url = reverse('drip_campaigns:track_drip', kwargs={'message_id': clean_message_id})
+            pixel_link = urljoin(settings.BASE_URL, pixel_url)
             
-        #     try:
-        #         # You'll need to add a ForeignKey 'drip_campaign' to your EmailOpen model
-        #         EmailOpen.objects.create(
-        #             drip_campaign=campaign, 
-        #             recipient_email=lead['Email'],
-        #             unique_identifier=unique_id,
-        #             mc_number=lead.get('MC Number', ''),
-        #             legal_name=lead.get('Legal Name', '')
-        #         )
-        #     except Exception as e:
-        #         # Log error, but don't fail the send
-        #         print(f"Failed to create EmailOpen log: {e}") 
-            
-        #     tracking_pixel = f'<img src="{pixel_link}" width="1" height="1" style="display:none;" alt="">'
-        #     personalized_body += tracking_pixel
+            tracking_pixel = f'<img src="{pixel_link}" width="1" height="1" alt="" border="0">'
+            personalized_body += tracking_pixel
 
         # --- Send Email ---
         msg = EmailMultiAlternatives(
@@ -442,34 +433,44 @@ def send_single_email(self, campaign_id, account_info_id, template_id, lead_inde
             to=[lead['Email']],
             connection=connection
         )
-        msg.extra_headers = {'Message-ID': message_id}
+        msg.extra_headers = {'Message-ID': raw_msg_id}
         msg.attach_alternative(personalized_body, "text/html")
         
         try:
             msg.send()
+            
+            # Log to Database (Use the CLEAN ID)
+            try:
+                SentDripEmail.objects.create(
+                    drip_campaign=campaign,
+                    template=template,
+                    message_id=clean_message_id, # Matches the pixel link exactly
+                    lead_email=lead['Email'],
+                    lead_mc_number=lead.get('MC Number'),
+                    status='Sent'
+                )
+            except Exception as db_e:
+                print(f"CRITICAL: Email sent but DB log failed: {db_e}")
         except Exception as e:
             if "please run connect() first" in str(e).lower() or "connection expired" in str(e).lower():
                 connection.close()
                 connection = get_email_connection(email_account, decrypted_password)
                 msg.connection = connection
                 msg.send()
+
+                # Log success after retry
+                SentDripEmail.objects.create(
+                    drip_campaign=campaign,
+                    template=template,
+                    message_id=clean_message_id,
+                    lead_email=lead['Email'],
+                    lead_mc_number=lead.get('MC Number'),
+                    status='Sent'
+                )
             else:
                 raise e 
             
         print(f"Drip Task: Sent to {lead['Email']} via {account.email_account.email_address}")
-
-        try:
-            message_id = message_id.strip().replace('<', '').replace('>', '')
-            SentDripEmail.objects.create(
-                drip_campaign=campaign,
-                template=template,
-                message_id=message_id,
-                lead_email=lead['Email'],
-                lead_mc_number=lead.get('MC Number')
-            )
-        except Exception as e:
-            # Log this, but don't fail the send.
-            print(f"CRITICAL: Failed to create SentDripEmail log: {e}")
 
         # --- Update Stats ---
         # We just increment the count. We don't need to pop.
@@ -493,7 +494,7 @@ def send_single_email(self, campaign_id, account_info_id, template_id, lead_inde
                 body=personalized_body,
                 recipient=lead['Email'],
                 sender=email_account.email_address,
-                message_id=message_id,
+                message_id=raw_msg_id,
                 in_reply_to=None,
             )
 
@@ -607,12 +608,19 @@ def send_batch_emails(self, campaign_id, account_info_id, template_id, start_ind
                 personalized_subject = personalize_template(template.subject, lead)
                 personalized_body = personalize_template(template.body, lead)
                 
-                message_id = make_msgid(idstring=uuid.uuid4().hex, domain='dispatchskool.com')
+                # message_id = make_msgid(idstring=uuid.uuid4().hex, domain='dispatchskool.com')
+                raw_msg_id = make_msgid(idstring=uuid.uuid4().hex, domain='dispatchskool.com')
+                clean_message_id = raw_msg_id.strip('<>')
                 DOMAIN = "https://dispatchskool.com"
                 personalized_body = sanitize_email_html(personalized_body, DOMAIN)
 
                 # --- Tracking ---
-                # (Tracking pixel logic would go here, per-email)
+                if template.track_template:
+                    pixel_url = reverse('drip_campaigns:track_drip', kwargs={'message_id': clean_message_id})
+                    pixel_link = urljoin(settings.BASE_URL, pixel_url)
+                    
+                    tracking_pixel = f'<img src="{pixel_link}" width="1" height="1" alt="" border="0">'
+                    personalized_body += tracking_pixel
 
                 # --- Send Email ---
                 msg = EmailMultiAlternatives(
@@ -622,34 +630,44 @@ def send_batch_emails(self, campaign_id, account_info_id, template_id, start_ind
                     to=[lead['Email']],
                     connection=connection
                 )
-                msg.extra_headers = {'Message-ID': message_id}
+                msg.extra_headers = {'Message-ID': raw_msg_id}
                 msg.attach_alternative(personalized_body, "text/html")
                 
                 try:
                     msg.send()
+                    
+                    # Log to Database (Use the CLEAN ID)
+                    try:
+                        SentDripEmail.objects.create(
+                            drip_campaign=campaign,
+                            template=template,
+                            message_id=clean_message_id, # Matches the pixel link exactly
+                            lead_email=lead['Email'],
+                            lead_mc_number=lead.get('MC Number'),
+                            status='Sent'
+                        )
+                    except Exception as db_e:
+                        print(f"CRITICAL: Email sent but DB log failed: {db_e}")
                 except Exception as e:
                     if "please run connect() first" in str(e).lower() or "connection expired" in str(e).lower():
                         connection.close()
                         connection = get_email_connection(email_account, decrypted_password)
                         msg.connection = connection
                         msg.send()
+
+                        # Log success after retry
+                        SentDripEmail.objects.create(
+                            drip_campaign=campaign,
+                            template=template,
+                            message_id=clean_message_id,
+                            lead_email=lead['Email'],
+                            lead_mc_number=lead.get('MC Number'),
+                            status='Sent'
+                        )
                     else:
                         raise e 
                     
-                print(f"Drip Task (Batch): Sent to {lead['Email']} via {account.email_account.email_address}")
-
-                # --- Create Send Log ---
-                try:
-                    message_id = message_id.strip().replace('<', '').replace('>', '')
-                    SentDripEmail.objects.create(
-                        drip_campaign=campaign,
-                        template=template,
-                        message_id=message_id,
-                        lead_email=lead['Email'],
-                        lead_mc_number=lead.get('MC Number')
-                    )
-                except Exception as e:
-                    print(f"CRITICAL: Failed to create SentDripEmail log: {e}")
+                print(f"Drip Task: Sent to {lead['Email']} via {account.email_account.email_address}")
 
                 # --- Update Stats (Atomic) ---
                 with transaction.atomic():
@@ -672,7 +690,7 @@ def send_batch_emails(self, campaign_id, account_info_id, template_id, start_ind
                         body=personalized_body,
                         recipient=lead['Email'],
                         sender=email_account.email_address,
-                        message_id=message_id,
+                        message_id=raw_msg_id,
                         in_reply_to=None,
                     )
             

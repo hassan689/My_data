@@ -415,6 +415,33 @@ def distribute_leads_among_accounts(leads, accounts):
 
     return account_lead_map
 
+def distribute_leads_via_groups(all_leads, group_lead_counts_map):
+    """
+    Orchestrator: Takes the master list of leads and a map of {Group: count}.
+    1. Slices the master list for the group.
+    2. Distributes that slice to the accounts within that group.
+    3. Returns a flattened master map of {Account: leads}.
+    """
+    final_account_map = {}
+    current_lead_index = 0
+
+    for group, count in group_lead_counts_map.items():
+        # 1. Slice the leads for this specific group
+        end_index = current_lead_index + count
+        group_leads = all_leads[current_lead_index : end_index]
+        current_lead_index = end_index
+
+        # 2. Fetch accounts in this group
+        group_accounts = list(group.email_accounts.all())
+
+        # 3. Distribute this group's leads among its accounts
+        sub_map = distribute_leads_among_accounts(group_leads, group_accounts)
+        
+        # 4. Update the master map
+        final_account_map.update(sub_map)
+
+    return final_account_map
+
 
 def gif_response():
     response = HttpResponse(

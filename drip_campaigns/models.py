@@ -150,6 +150,7 @@ class SentDripEmail(models.Model):
         default='Sent'
     )
     created_at = models.DateTimeField(auto_now_add=True)
+    is_opened = models.BooleanField(default=False)
 
     def __str__(self):
         return f"{self.lead_email} - {self.message_id}"

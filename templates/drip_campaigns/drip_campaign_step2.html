@@ -99,6 +99,126 @@
         {% endif %}
 
         <!-- Email Accounts Select -->
+        
+        {% comment %}
+        <section class="flex flex-col items-center text-center px-4 md:px-4 lg:px-5 py-6 mt-20">
+          <span class="text-md font-medium text-secondary bg-secondary px-4 py-1 rounded-full border border-gray-700 shadow-md">
+            Step 2
+          </span>
+          <h2 class="text-2xl md:text-3xl font-semibold mt-3 text-primary">
+            Select Account Groups
+          </h2>
+          <p class="text-tertiary text-base mt-2">
+            Select the <strong>Groups</strong> you want to utilize. You can assign leads to the whole group, and the system will distribute them among the accounts inside automatically.
+          </p>
+        </section>
+        
+        <div class="container mx-auto px-4 max-w-4xl mb-20">
+          
+          <!-- Select All Checkbox - Using same styling as group checkboxes -->
+          <div class="bg-primary border btn-border-hover rounded-lg shadow-md mb-6 p-4">
+            <label class="inline-flex items-center gap-3 w-full cursor-pointer">
+              <input
+                type="checkbox"
+                name="select_all"
+                id="select_all_checkbox"
+                class="w-5 h-5 appearance-none checkbox-custom rounded-md cursor-pointer"
+                onclick="toggleAllGroups(this)"
+              >
+              <span class="font-bold text-lg text-blue-600">
+                Select All Groups and Auto-Distribute Leads 
+              </span>
+            </label>
+            <p class="text-sm text-tertiary ml-7 mt-1">
+              (The system will calculate the math and split leads evenly across all groups automatically)
+            </p>
+          </div>
+
+          {% for group in account_groups %}
+            <div class="bg-primary border btn-border-hover rounded-lg shadow-md mb-6 overflow-hidden transition-all duration-200">
+              
+              <div class="bg-hover-light p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-200">
+
+                <!-- Checkbox + Group Name -->
+                <label for="checkbox_group_{{ group.id }}" class="flex items-center flex-grow gap-3 cursor-pointer">
+                  
+                  <input
+                    type="checkbox"
+                    name="selected_groups"
+                    value="{{ group.id }}"
+                    id="checkbox_group_{{ group.id }}"
+                    class="group-checkbox w-5 h-5 appearance-none checkbox-custom rounded-md cursor-pointer"
+                    onclick="toggleGroupInput({{ group.id }})"
+                  >
+
+                  <div>
+                    <span class="font-semibold text-lg text-primary">{{ group.name }}</span>
+                    <div
+                      class="text-xs text-tertiary hover:text-blue-500 select-none cursor-pointer"
+                      onclick="toggleAccountList({{ group.id }})"
+                    >
+                      Contains {{ group.email_accounts.all|length }} accounts
+                      <i class="fa-solid fa-chevron-down ml-1"></i>
+                    </div>
+                  </div>
+
+                </label>
+
+                <!-- Lead Allocation Input -->
+                <div class="w-full md:w-1/3">
+                  <input
+                    type="number"
+                    name="leads_for_group_{{ group.id }}"
+                    class="w-full border bg-primary text-primary rounded-lg px-3 py-2 hidden transition-all duration-300"
+                    placeholder="Leads for {{ group.name }}"
+                    min="1"
+                    id="lead_input_group_{{ group.id }}"
+                  >
+                </div>
+              </div>
+
+              <!-- Accounts List -->
+              <div id="account_list_{{ group.id }}" class="hidden bg-primary p-4 border-t border-gray-100">
+                <p class="text-xs font-bold text-secondary mb-2 uppercase tracking-wide">
+                  Accounts in this group:
+                </p>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {% for account in group.email_accounts.all %}
+                    <div class="text-sm text-tertiary flex items-center">
+                      <i class="fa-regular fa-envelope mr-2 text-xs opacity-50"></i>
+                      {{ account.email_address }}
+                    </div>
+                  {% empty %}
+                    <p class="text-sm text-red-500">No accounts in this group.</p>
+                  {% endfor %}
+                </div>
+              </div>
+
+            </div>
+          {% empty %}
+            <div class="text-center p-10 bg-red-50 border border-red-200 rounded-lg">
+              <h3 class="text-xl font-bold text-red-700">No Groups Found</h3>
+              <p class="text-red-600 mt-2">
+                You need to create Account Groups before using this feature.
+                Please visit:
+                <span class="underline text-blue-600">
+                  <a href="{% url 'dashboard:account_groups' %}">Email Account Groups</a>
+                </span>
+              </p>
+            </div>
+          {% endfor %}
+          
+          <!-- Lead Sum Warning -->
+          <div class="text-center mt-2">
+            <span id="lead-summary" class="text-red-600 text-sm font-medium hidden">
+              Make sure the sum of group leads equals {{ leads_count }}!
+            </span>
+          </div>
+
+        </div>
+        {% endcomment %}
+
         <section class="flex flex-col items-center text-center px-4 md:px-4 lg:px-5 py-6 mt-20">
           <span class="text-md font-medium text-secondary bg-secondary px-4 py-1 rounded-full border border-gray-700 shadow-md">
             Step 2
@@ -266,10 +386,10 @@
 						Step 5
 					</span>
 					<h2 class="text-2xl md:text-3xl font-semibold mt-3 text-primary">
-						Set the Delay Between Each Step
+						Set the Delay Between Each Day's Send
 					</h2>
 					<p class="text-tertiary text-base my-5">
-            Select a <span class="font-bold">delay duration</span> for each step in the campaign.
+            Select a <span class="font-bold">delay duration</span> for each Day in the campaign.
           </p>
 				</section>
 
@@ -353,6 +473,67 @@
 </div>
 
   <!-- Assign accounts and leads checkboxes -->
+  {% comment %}
+  <script>
+    /**
+     * Toggles the visibility of the input field for a specific group.
+     * If 'forceState' is provided (boolean), it forces the checkbox to that state.
+     */
+    function toggleGroupInput(groupId, forceState = null) {
+      const checkbox = document.getElementById('checkbox_group_' + groupId);
+      const leadInput = document.getElementById('lead_input_group_' + groupId);
+      const selectAllBox = document.getElementById('select_all_checkbox');
+
+      // Apply forced state if provided (used by Select All function)
+      if (forceState !== null) {
+        checkbox.checked = forceState;
+      }
+
+      // Logic:
+      // 1. If "Select All" is ON, we hide individual inputs (because it's auto-distribute).
+      // 2. If "Select All" is OFF, we show the input only if the specific group checkbox is checked.
+      
+      if (selectAllBox.checked) {
+        // Auto-distribute mode: Hide manual inputs even if group is checked
+        leadInput.classList.add('hidden');
+        leadInput.value = ''; // Clear value to avoid backend confusion
+      } else {
+        // Manual mode: Show input if checked
+        if (checkbox.checked) {
+          leadInput.classList.remove('hidden');
+        } else {
+          leadInput.classList.add('hidden');
+          leadInput.value = '';
+        }
+      }
+    }
+
+    /**
+     * Toggles the "Select All" state.
+     * - Checks/Unchecks all group boxes.
+     * - Hides all manual inputs (implying auto-distribution).
+     */
+    function toggleAllGroups(selectAllCheckbox) {
+      const groupCheckboxes = document.querySelectorAll('.group-checkbox');
+      const isChecked = selectAllCheckbox.checked;
+
+      groupCheckboxes.forEach(checkbox => {
+        // Extract the ID number from the string value (or id attribute)
+        const groupId = checkbox.value;
+        toggleGroupInput(groupId, isChecked);
+      });
+    }
+
+    /**
+     * Accordion toggle for showing/hiding the list of emails inside a group card.
+     */
+    function toggleAccountList(groupId) {
+      const listContainer = document.getElementById('account_list_' + groupId);
+      listContainer.classList.toggle('hidden');
+    }
+  </script>
+  {% endcomment %}
+
   <script>
     function toggleLeadInput(accountId, forceChecked = null) {
       var checkbox = document.getElementById('checkbox_' + accountId);

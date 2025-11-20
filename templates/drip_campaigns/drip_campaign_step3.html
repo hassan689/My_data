@@ -172,14 +172,12 @@
                       <div class="flex items-center gap-4">
                         {{ form.subject|add_class:"w-2/3 p-3 border focus:ring-gray-500 focus:border-gray-500 rounded-lg outline-none text-primary bg-primary" }}
 
-                        {% comment %}
                         <div class="flex items-center space-x-2">
                           {{ form.track_template|add_class:"sr-only toggle-input" }}
                           
                           <label for="{{ form.track_template.id_for_label }}" class="toggle-label"></label>
                           <span class="text-base text-primary">Track Open Rate</span>
                         </div>
-                        {% endcomment %}
                       </div>
                       {% if form.subject.errors %}
                         <div class="text-red-500 text-sm mt-1">{{ form.subject.errors|first }}</div>
@@ -209,7 +207,7 @@
                         <!-- This form is saved in the DB, show "Delete" checkbox -->
                         <div class="flex items-center space-x-2">
                           {{ form.DELETE }} <!-- This renders the hidden checkbox -->
-                          <label for="{{ form.DELETE.id_for_label }}" class="text-red-500 cursor-pointer hover:underline">Delete this step</label>
+                          <label for="{{ form.DELETE.id_for_label }}" class="text-red-500 cursor-pointer hover:underline">Delete this Day's Template</label>
                         </div>
                       {% endif %}
                       
@@ -297,13 +295,11 @@
           <div class="flex items-center gap-4">
             {{ formset.empty_form.subject|add_class:"w-2/3 p-3 border focus:ring-gray-500 focus:border-gray-500 rounded-lg outline-none text-primary bg-primary" }}
 
-            {% comment %}
             <div class="flex items-center space-x-2">
-              {{ template_formset.empty_form.track_template|add_class:"sr-only toggle-input" }}
-              <label for="{{ template_formset.empty_form.track_template.id_for_label }}" class="toggle-label"></label>
+              {{ formset.empty_form.track_template|add_class:"sr-only toggle-input" }}
+              <label for="{{ formset.empty_form.track_template.id_for_label }}" class="toggle-label"></label>
               <span class="text-base text-primary">Track Open Rate</span>
             </div>
-            {% endcomment %}
           </div>
         </div>
 

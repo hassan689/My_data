@@ -293,7 +293,10 @@ class CampaignForm(forms.Form):
 
 class BulkCampaignForm(CampaignForm):
     
-    select_all = forms.BooleanField(required=False, label="Select all accounts")
+    # select_all = forms.BooleanField(required=False, label="Select all accounts")
+
+    # Updated label to reflect Group logic
+    select_all = forms.BooleanField(required=False, label="Select all groups")
 
     def __init__(self, *args, **kwargs):
         self.user = kwargs.pop('user', None)
@@ -306,6 +309,84 @@ class BulkCampaignForm(CampaignForm):
                           'status', 'carrier_operation', 'hm', 'hhg', 'new_entrant', 'cargo_classification_search', 'cargo_info_search']:
             if field_name in self.fields:
                 self.fields[field_name].required = False
+
+    # def clean(self):
+    #     cleaned_data = self.cleaned_data  # get initial cleaned_data without triggering parent clean
+
+    #     # Manual validation for delay field
+    #     min_delay = cleaned_data.get('min_delay')
+    #     max_delay = cleaned_data.get('max_delay')
+    #     schedule_launch_datetime = cleaned_data.get('schedule_launch_datetime')
+
+    #     # Set defaults if left blank
+    #     if min_delay is None:
+    #         min_delay = 30
+    #         cleaned_data['min_delay'] = min_delay
+    #     if max_delay is None:
+    #         max_delay = 60
+    #         cleaned_data['max_delay'] = max_delay
+
+    #     # Validation rules
+    #     if min_delay < 0:
+    #         self.add_error('min_delay', "Lower limit delay must be greater than 0.")
+    #     if max_delay < min_delay:
+    #         self.add_error('max_delay', "Upper limit delay must be greater than lower limit.")
+
+    #     # Schedule datetime validation
+    #     if schedule_launch_datetime:
+    #         now_utc = timezone.now()
+    #         if timezone.is_naive(schedule_launch_datetime):
+    #             try:
+    #                 user_timezone = pytz.timezone(cleaned_data.get('user_timezone', 'Asia/Karachi'))
+    #                 scheduled_time = timezone.make_aware(schedule_launch_datetime, user_timezone)
+    #             except pytz.exceptions.UnknownTimeZoneError:
+    #                 scheduled_time = timezone.make_aware(schedule_launch_datetime, timezone.get_current_timezone())
+    #         else:
+    #             scheduled_time = schedule_launch_datetime
+
+    #         scheduled_time_utc = scheduled_time.astimezone(dt_timezone.utc)
+    #         if scheduled_time_utc <= now_utc:
+    #             self.add_error('schedule_launch_datetime', "Scheduled time must be in the future.")
+    #         else:
+    #             # Store as Karachi time for scheduling
+    #             cleaned_data['schedule_launch_datetime'] = scheduled_time.astimezone(pytz.timezone('Asia/Karachi'))
+
+
+    #     # Bypass account allocation check if 'select_all' is true
+    #     is_select_all = self.data.get('select_all') in ['true', 'on', '1']
+
+    #     # Only validate account allocation if 'submit_allocation' is present and 'select_all' is NOT active
+    #     if 'submit_allocation' in self.data and not is_select_all:
+    #         # selected_ids = self.data.getlist('selected_accounts')
+
+    #         # Changed: Look for 'selected_groups' instead of 'selected_accounts'
+    #         selected_ids = self.data.getlist('selected_groups')
+    #         if not selected_ids:
+    #             raise forms.ValidationError("Please select at least one email account.")
+
+    #         assigned_leads = 0
+
+    #         # for account_id in selected_ids:
+    #         for group_id in selected_ids:
+                
+    #             # field_name = f'emails_for_account_{account_id}'
+    #             field_name = f'leads_for_group_{group_id}'
+
+    #             value = self.data.get(field_name)
+    #             if not value:
+    #                 self.add_error(None, f"Missing email count for account ID {group_id}.")
+    #             else:
+    #                 try:
+    #                     int_val = int(value)
+    #                     if int_val < 1:
+    #                         self.add_error(None, f"Email count must be at least 1 for account ID {group_id}.")
+    #                     assigned_leads += int_val
+    #                 except ValueError:
+    #                     self.add_error(None, f"Invalid number format for account ID {group_id}.")
+
+    #         # Validate that assigned leads match total leads
+    #         if assigned_leads != self.total_leads:
+    #             self.add_error(None, f"ERROR! You assigned {assigned_leads} leads to groups, but {self.total_leads} leads are available. Please adjust the group counts to match.")
 
     def clean(self):
         cleaned_data = self.cleaned_data  # get initial cleaned_data without triggering parent clean

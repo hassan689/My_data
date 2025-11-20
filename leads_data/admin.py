@@ -16,5 +16,15 @@ class DailySheetAdmin(admin.ModelAdmin):
     ordering = ("-uploaded_at",)
 
 
-admin.site.register(SkipList)
+@admin.register(SkipList)
+class SkipListAdmin(admin.ModelAdmin):
+    list_display = ("user", "get_mc_count", "get_emails_count")
+
+    @admin.display(description='Mc Skipped Count')
+    def get_mc_count(self, obj):
+        return len(obj.mc_numbers)
+    
+    @admin.display(description='Emails Skipped Count')
+    def get_emails_count(self, obj):
+        return len(obj.emails)
 

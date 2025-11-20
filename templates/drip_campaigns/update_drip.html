@@ -50,7 +50,7 @@
               <span class="font-semibold">Created At: </span>{{ campaign.created_at }}
             </div>
             <div class="border rounded-md p-3 bg-primary">
-              <span class="font-semibold">Current Step Number: </span>{{ campaign.current_step }}
+              <span class="font-semibold">Current Day's Number: </span>{{ campaign.current_step }}
             </div>
             <div class="border rounded-md p-3 bg-primary">
               <span class="font-semibold">Total Recipients: </span>{{ campaign.total_recipients }}
@@ -189,7 +189,7 @@
               </div>
 
               <p class="text-lg font-semibold mt-3 text-primary">
-                Time to wait before launching the next step
+                Time to wait before launching the Next Day's Template
               </p>
 
               <div class="grid grid-cols-2 gap-4">
@@ -224,7 +224,7 @@
                   
                   <div id="template-forms-container">
 
-                    <h2 class="text-2xl font-semibold text-secondary mt-3 mb-6">Templates for Each Day/Step</h2>
+                    <h2 class="text-2xl font-semibold text-secondary mt-3 mb-6">Templates for Each Day</h2>
                     
                     {% for form in template_formset %}
                       <div class="template-form p-6 bg-secondary rounded-lg shadow-md mb-6 border border-gray-700">
@@ -236,13 +236,11 @@
                           <div class="flex items-center gap-4">
                             {{ form.subject|add_class:"w-2/3 p-3 border focus:ring-gray-500 focus:border-gray-500 rounded-lg outline-none text-primary bg-primary" }}
 
-                            {% comment %}
                             <div class="flex items-center space-x-2">
                               {{ form.track_template|add_class:"sr-only toggle-input" }}
                               <label for="{{ form.track_template.id_for_label }}" class="toggle-label"></label>
                               <span class="text-base text-primary">Track Open Rate</span>
                             </div>
-                            {% endcomment %}
                           </div>
                           {% if form.subject.errors %}
                             <div class="text-red-500 text-sm mt-1">{{ form.subject.errors|first }}</div>
@@ -313,13 +311,11 @@
           <div class="flex items-center gap-4">
             {{ template_formset.empty_form.subject|add_class:"w-2/3 p-3 border focus:ring-gray-500 focus:border-gray-500 rounded-lg outline-none text-primary bg-primary" }}
 
-            {% comment %}
             <div class="flex items-center space-x-2">
               {{ template_formset.empty_form.track_template|add_class:"sr-only toggle-input" }}
               <label for="{{ template_formset.empty_form.track_template.id_for_label }}" class="toggle-label"></label>
               <span class="text-base text-primary">Track Open Rate</span>
             </div>
-            {% endcomment %}
           </div>
         </div>
 

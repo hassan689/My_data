@@ -30,12 +30,14 @@ class DripCampaignAdmin(admin.ModelAdmin):
         'template_count',
         'total_recipients',
         'removed_mc_count',
+        'step_delay',
         'next_action_at', 
         'created_at'
     )
     list_filter = ('status', 'lead_source')
     search_fields = ('name', 'launched_by__username')
     inlines = [DripTemplateInline]
+    ordering = ('status',)
     
     # Add a read-only field for the creation time
     readonly_fields = ('created_at',)
@@ -101,13 +103,8 @@ class EmailAccountAndLeadsAdmin(admin.ModelAdmin):
         'get_lead_source',
     )
 
-    # 2. --- Your requested list_filter ---
     list_filter = ('campaign__last_action_at', 'campaign__status')
-
-    # 3. --- Search fields for related models ---
     search_fields = ('campaign__name', 'email_account__email_address', 'campaign__launched_by__email')
-    
-    # 4. --- Read-only field ---
     readonly_fields = ('leads_data',) 
 
     # 5. --- Query Optimization ---
@@ -158,11 +155,25 @@ class DripTemplateAdmin(admin.ModelAdmin):
     """
     Admin for viewing the DripTemplate model directly.
     """
-    list_display = ('campaign', 'step_number', 'subject', 'delivered_status', 'open_rate')
+    list_display = ('campaign__name', 'get_launched_by', 'step_number', 'subject', 'delivered_status', 'open_rate')
     list_filter = ('delivered_status',)
     search_fields = ('subject', 'campaign__name')
     ordering = ('-campaign', 'step_number',)
 
+    @admin.display(description='Launched By')
+    def get_launched_by(self, obj):
+        return obj.campaign.launched_by
 
-admin.site.register(SentDripEmail)
 
+@admin.register(SentDripEmail)
+class SentDripAdmin(admin.ModelAdmin):
+    list_display = ('get_name', 'get_launched_by', 'lead_email', 'status', 'created_at')
+    list_filter = ('created_at', 'status',)
+
+    @admin.display(description='Launched By')
+    def get_launched_by(self, obj):
+        return obj.drip_campaign.launched_by
+    
+    @admin.display(description='Campaign Name')
+    def get_name(self, obj):
+        return obj.drip_campaign.name

@@ -8,13 +8,13 @@ from django.core.paginator import Paginator
 from django.core.cache import cache
 from django.contrib import messages
 from django.db import transaction
-from django.db.models import Sum, Max
+from django.db.models import Sum, Max, Count
 from django.http import JsonResponse
 
-from dashboard.utilities import process_excel_file, get_leads_from_db, save_temp_file, distribute_leads_among_accounts
-from users.models import EmailAccount
-from .models import DripCampaign, EmailAccountAndLeads, DripTemplate
-from .tasks import chain_starter_task, finalize_drip_step_task, check_scheduled_drip_step
+from dashboard.utilities import *
+from users.models import EmailAccount, AccountGroup
+from .models import DripCampaign, EmailAccountAndLeads, DripTemplate, SentDripEmail
+from .tasks import finalize_drip_step_task, check_scheduled_drip_step
 
 from dashboard.forms import BulkCampaignForm
 from .forms import DripTemplateModelForm, RemovedMCNumbersForm
@@ -27,7 +27,9 @@ import datetime
 @login_required
 def index(request):
     
-    campaign_list = DripCampaign.objects.filter(launched_by=request.user).order_by('-created_at')
+    campaign_list = DripCampaign.objects.filter(launched_by=request.user).annotate(
+        template_count=Count('templates')
+    ).order_by('-created_at')
 
     # Paginate the results, 20 cords per page
     paginator = Paginator(campaign_list, 20)
@@ -145,6 +147,268 @@ def drip_campaign_step1(request):
         'email_accounts_count': email_accounts_count,
     })
 
+
+
+# @login_required
+# @require_http_methods(["GET", "POST"])
+# def drip_campaign_step2(request, campaign_key):
+    
+#     cache_key = f"drip_leads_{request.user.id}_{campaign_key}"
+#     cached_data = cache.get(cache_key)
+#     leads_count = cached_data.get('leads_available', 0) if cached_data else 0
+#     email_accounts_count = EmailAccount.objects.filter(user=request.user).count()
+#     name_of_campaign = cached_data.get('name', '') if cached_data else ''
+
+#     # Check if leads are cached from Step 1
+#     if not cached_data:
+#         messages.error(request, "Lead data not found. Please start over.")
+#         return redirect('drip_campaigns:campaign_creator_step1')
+    
+#     # --- UPDATED: Fetch Groups ---
+#     account_groups = AccountGroup.objects.filter(
+#         user=request.user, 
+#         email_accounts__isnull=False
+#     ).distinct().prefetch_related('email_accounts')
+    
+#     email_accounts = EmailAccount.objects.filter(user=request.user)
+#     email_accounts_count = email_accounts.count()
+#     form = BulkCampaignForm(user=request.user, total_leads=leads_count) 
+
+#     if request.method == 'POST' and 'submit_allocation' in request.POST:
+        
+#         total_leads = cached_data['leads_available'] if cached_data and 'leads_available' in cached_data else 0
+#         form = BulkCampaignForm(request.POST, request.FILES, user=request.user, total_leads=total_leads)
+#         if not cached_data:
+#             messages.error(request, "Lead data not found. Please start over.")
+#             return redirect('drip_campaigns:campaign_creator_step1')
+        
+#         lead_source = cached_data['lead_source']
+#         refetched_leads = [] # cause they were fetched once before in the first step
+
+#         if lead_source == "Excel":
+#           file_path = cached_data['file_path']
+#           with open(file_path, 'rb') as f:
+#               refetched_leads = process_excel_file(f, request.user)
+
+#         elif lead_source == "DB":
+#             params = cached_data['params']
+#             refetched_leads = get_leads_from_db(**params)
+        
+#         if form.is_valid():
+
+#             leads = refetched_leads
+
+#             select_all = form.cleaned_data.get('select_all')
+#             min_delay = form.cleaned_data.get('min_delay')
+#             max_delay = form.cleaned_data.get('max_delay')
+            
+#             # this will go into the start_datetime field of the DripCampaign model to start the 1st step
+#             scheduled_launch_datetime = form.cleaned_data.get('schedule_launch_datetime')
+#             hours = form.cleaned_data.get('step_delay_hours') or 0
+#             minutes = form.cleaned_data.get('step_delay_minutes') or 0
+
+#             step_delay = timedelta(hours=hours, minutes=minutes)
+
+#             lead_source = cached_data.get('lead_source')
+
+#             # selected_account_ids = request.POST.getlist('selected_accounts')
+#             # account_lead_map = {}
+#             # total_requested_leads = 0
+
+#             # if select_all:
+#             #     # ✅ Only take the accounts that are CHECKED in the form
+#             #     selected_ids = request.POST.getlist('selected_accounts')
+#             #     accounts = EmailAccount.objects.filter(user=request.user, id__in=selected_ids)
+
+#             #     if not accounts.exists():
+#             #         form.add_error(None, "No email accounts found for your user.")
+#             #         return render(request, 'drip_campaigns/drip_campaign_step2.html', {
+#             #             'form': form,
+#             #             'email_accounts': email_accounts,
+#             #             'account_groups': account_groups,
+#             #             'email_accounts_count': email_accounts_count,
+#             #             'leads_ready': bool(cached_data),
+#             #             'total_leads': len(leads),
+#             #         })
+
+#             #     # ✅ Auto-distribute leads among the checked accounts only
+#             #     account_lead_map = distribute_leads_among_accounts(leads, list(accounts))
+
+#             # else:
+#             #     for account_id in selected_account_ids:
+#             #         try:
+#             #             num_leads = int(request.POST.get(f'emails_for_account_{account_id}', '0'))
+#             #             if num_leads < 1:
+#             #                 continue
+
+#             #             account = EmailAccount.objects.get(id=account_id, user=request.user)
+#             #             account_lead_map[account] = num_leads
+#             #             total_requested_leads += num_leads
+#             #         except (ValueError, EmailAccount.DoesNotExist):
+#             #             continue
+
+#             #     if total_requested_leads != len(leads):
+#             #         form.add_error(None, f"Total assigned leads ({total_requested_leads}) must match total available ({len(leads)}).")
+#             #         return render(request, 'drip_campaigns/drip_campaign_step2.html', {
+#             #             'form': form,
+#             #             'email_accounts': email_accounts,
+#             #             'account_groups': account_groups,
+#             #             'email_accounts_count': email_accounts_count,
+#             #             'leads_ready': bool(cached_data),
+#             #             'total_leads': len(leads),
+#             #         })
+
+#             # if not select_all:
+#             #     lead_index = 0
+#             #     updated_map = {}
+
+#             #     for account, count in account_lead_map.items():
+#             #         if not isinstance(count, int):
+#             #             try:
+#             #                 count = int(count[0]) if isinstance(count, list) else int(count)
+#             #             except (ValueError, TypeError):
+#             #                 form.add_error(None, f"Invalid lead count for account {account}")
+#             #                 return render(request, 'drip_campaigns/drip_campaign_step2.html', {
+#             #                     'form': form,
+#             #                     'email_accounts': email_accounts,
+#             #                     'account_groups': account_groups,
+#             #                     'email_accounts_count': email_accounts_count,
+#             #                     'leads_ready': bool(cached_data),
+#             #                     'total_leads': len(leads),
+#             #                 })
+
+#             #         updated_map[account] = leads[lead_index:lead_index + count]
+#             #         lead_index += count
+
+#             #     account_lead_map = updated_map
+
+#             # --- NEW GROUP ALLOCATION LOGIC ---
+#             group_lead_counts_map = {}
+
+#             if select_all:
+#                 # Filter groups that actually have accounts
+#                 valid_groups = [g for g in account_groups if g.email_accounts.exists()]
+                
+#                 if not valid_groups:
+#                     form.add_error(None, "No valid groups found (groups must contain at least one email account).")
+#                     return render(request, 'drip_campaigns/drip_campaign_step2.html', {
+#                         'form': form,
+#                         'email_accounts': email_accounts,
+#                         'account_groups': account_groups,
+#                         'email_accounts_count': email_accounts_count,
+#                         'leads_ready': bool(cached_data),
+#                         'total_leads': len(leads),
+#                     })
+
+#                 # Auto-Calculate leads per group
+#                 total_valid_groups = len(valid_groups)
+#                 base_count = len(leads) // total_valid_groups
+#                 remainder = len(leads) % total_valid_groups
+
+#                 for i, group in enumerate(valid_groups):
+#                     count = base_count + (1 if i < remainder else 0)
+#                     group_lead_counts_map[group] = count
+
+#             else:
+#                 # Manual Allocation: Read from POST data based on Group ID
+#                 selected_group_ids = request.POST.getlist('selected_groups')
+                
+#                 for group_id in selected_group_ids:
+#                     try:
+#                         group = AccountGroup.objects.get(id=group_id, user=request.user)
+#                         if not group.email_accounts.exists():
+#                             continue
+
+#                         count_str = request.POST.get(f'leads_for_group_{group_id}', '0')
+#                         count = int(count_str)
+                        
+#                         if count > 0:
+#                             group_lead_counts_map[group] = count
+                            
+#                     except (AccountGroup.DoesNotExist, ValueError):
+#                         continue
+
+#             # Flatten Group Distribution to Account Distribution
+#             # Note: Ensure distribute_leads_via_groups is imported from your utils/views
+#             final_account_lead_map = distribute_leads_via_groups(leads, group_lead_counts_map)
+
+#             # Save to Database
+#             try:
+#                 with transaction.atomic():
+#                     # 1. Create the parent DripCampaign
+#                     new_campaign = DripCampaign.objects.create(
+#                         name=name_of_campaign,
+#                         launched_by=request.user,
+#                         min_delay=min_delay,
+#                         max_delay=max_delay,
+#                         step_delay=step_delay,
+#                         next_action_at=scheduled_launch_datetime, 
+#                         status='Active',
+#                         lead_source=lead_source,
+#                         total_recipients=len(leads)
+#                     )
+
+#                     # 2. Create the EmailAccountAndLeads objects in bulk
+#                     accounts_to_create = []
+#                     for account, account_leads in final_account_lead_map.items():
+#                         accounts_to_create.append(
+#                             EmailAccountAndLeads(
+#                                 campaign=new_campaign,
+#                                 email_account=account,
+#                                 leads_data=account_leads,
+#                                 # Set initial recipient count for the first step
+#                                 recipient_count=len(account_leads), 
+#                                 sent_count=0 
+#                             )
+#                         )
+                    
+#                     EmailAccountAndLeads.objects.bulk_create(accounts_to_create)
+            
+#             except Exception as e:
+#                 # If anything fails, roll back the transaction
+#                 messages.error(request, f"Error saving campaign: {e}. Please try again.")
+#                 return render(request, 'drip_campaigns/drip_campaign_step2.html', {
+#                     'form': form,
+#                     'email_accounts': email_accounts,
+#                     'account_groups': account_groups,
+#                     'email_accounts_count': email_accounts_count,
+#                     'leads_ready': True,
+#                     'leads_count': leads_count,
+#                     'name_of_campaign': name_of_campaign,
+#                 })
+            
+            
+#             cache.delete(cache_key) # Clean up cache
+
+#             # ✅ cleanup temp file after processing
+#             if cached_data.get("lead_source") == "Excel":
+#                 file_path = cached_data.get("file_path")
+#                 if file_path and os.path.exists(file_path):
+#                     os.remove(file_path)
+
+#             messages.success(request, "Campaign and accounts saved. Now, create your templates.")
+#             # Redirect to step 3, passing the new campaign's ID
+#             return redirect('drip_campaigns:campaign_creator_step3', campaign_id=new_campaign.id)
+
+#         else:
+#             return render(request, 'drip_campaigns/drip_campaign_step2.html', {
+#                 'form': form,  # bound form with errors
+#                 'email_accounts': email_accounts,
+#                 'account_groups': account_groups,
+#                 'email_accounts_count': email_accounts_count,
+#                 'leads_ready': bool(cached_data),
+#                 'leads_count': leads_count,
+#             })
+        
+
+#     return render(request, 'drip_campaigns/drip_campaign_step2.html', {
+#         'form': form,
+#         'email_accounts': email_accounts,
+#         'account_groups': account_groups,
+#         'email_accounts_count': email_accounts_count,
+#         'leads_ready': bool(cached_data),
+#         'leads_count': leads_count,
+#     })
 
 
 @login_required
@@ -750,25 +1014,50 @@ def stop_account_chain(request, account_info_id, campaign_id):
 
 @login_required
 @require_http_methods(["GET"])
-def track_drip(request, campaign_id):
+def track_drip(request, message_id):
     
-    campaign = get_object_or_404(DripCampaign, id=campaign_id, launched_by=request.user)
-    templates_qs = campaign.templates.filter(track_template=True).order_by('step_number')
+    try:
+        with transaction.atomic():
+            email_log = (
+                SentDripEmail.objects
+                .select_for_update()  # Locks row until transaction ends
+                .get(message_id=message_id)
+            )
+            template = email_log.template
 
-    recipient_data = EmailAccountAndLeads.objects.filter(campaign=campaign).aggregate(
-        total_recipients=Sum('recipient_count')
-    )
-    campaign_total_recipients = recipient_data['total_recipients'] or 0
-    
-    campaign_total_opens = 0
-    for template in templates_qs:
-        campaign_total_opens += template.open_rate
+            # Detect suspicious proxy/preload hits
+            ua = request.META.get('HTTP_USER_AGENT', '').lower()
+            ip = request.META.get('REMOTE_ADDR', '')
 
-    context = {
-        'campaign': campaign,
-        'templates_qs': templates_qs,
-        'campaign_total_opens': campaign_total_opens,
-        'campaign_total_recipients': campaign_total_recipients,
-    }
-    return render(request, 'drip_campaigns/track_drip.html', context)
+            suspicious_patterns = [
+                'applemail',        # Apple Mail Privacy Protection
+                'googleimageproxy', # Gmail image proxy
+                'outlook',          # Outlook image cache proxy
+                'yahoo',            # Yahoo Mail proxy
+                'samsung',          # Samsung Email client
+            ]
+
+            if any(pattern in ua for pattern in suspicious_patterns):
+                print(f"⚠️ Suspicious open detected for {email_log.recipient_email} (UA: {ua}, IP: {ip})")
+                return gif_response()  # Exit without increment
+
+            # If real open (idempotent due to DB row lock)
+            if not email_log.is_opened:
+                template.open_rate = F('open_rate') + 1
+                template.save(update_fields=['open_rate'])
+
+                email_log.is_opened = True
+                email_log.save(update_fields=['is_opened'])
+
+
+    except SentDripEmail.DoesNotExist as e:
+        print(
+              f"The tracking pixel was hit with an unknown message_id:\n\n"
+              f"{message_id}\n\n"
+              f"IP: {request.META.get('REMOTE_ADDR', '')}\n"
+              f"User-Agent: {request.META.get('HTTP_USER_AGENT', '')}"
+          )
+
+    return gif_response()
+
 
