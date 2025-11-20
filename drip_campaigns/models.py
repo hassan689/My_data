@@ -6,7 +6,7 @@ from datetime import timedelta
 class DripCampaign(models.Model):
     
     name = models.CharField(max_length=255)
-    launched_by = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
+    launched_by = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name="drip_campaigns")
     
     min_delay = models.IntegerField(default=0, null=True, blank=True)
     max_delay = models.IntegerField(default=0, null=True, blank=True)

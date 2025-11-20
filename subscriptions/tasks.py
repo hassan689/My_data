@@ -11,6 +11,7 @@ from datetime import timedelta
 from django.utils.timezone import get_current_timezone, make_aware
 from django.db.models import Sum
 from django.db import transaction
+from drip_campaigns.models import DripCampaign, EmailAccountAndLeads
 
 
 @app.task(name="subscriptions.tasks.end_warmup")
@@ -19,14 +20,36 @@ def end_warmup():
     # set their warmup campaigns to complete where their email accounts are sender_accounts
     # Remove their accounts from those campaings as well where they are in target_accounts
 
+    # NEW: Pause All Drip Campaigns for users whose subescription are exxxpired
+
     expired_or_canceled_subscriptions = Subscription.objects.filter(
         status__in=["expired", "canceled"]
     )
     for subscription in expired_or_canceled_subscriptions:
         try:
             user = subscription.user
-            user_accounts = EmailAccount.objects.filter(user=user)
 
+            # Find campaigns that need to be stopped
+            active_drip_campaigns = DripCampaign.objects.filter(
+                launched_by=user,
+                status__in=['Active', 'Processing']
+            )
+
+            if active_drip_campaigns.exists():
+                campaign_ids = list(active_drip_campaigns.values_list('id', flat=True))
+
+                with transaction.atomic():
+                    
+                    # Stop in-progress account chains
+                    EmailAccountAndLeads.objects.filter(
+                        campaign_id__in=campaign_ids,
+                        status='Processing'
+                    ).update(status='Stopped')
+
+                    # Pause the Campaigns
+                    active_drip_campaigns.update(status='Paused')
+
+            user_accounts = EmailAccount.objects.filter(user=user)
             if not user_accounts.exists():
                 # No accounts for this user, skip
                 continue
@@ -41,6 +64,7 @@ def end_warmup():
                     account.target_of_warmup_campaigns.clear()
                     account.is_warmup_target = False
                     account.save(update_fields=["is_warmup_target"])
+            
                     
         except Exception as e:
             print(f"Error processing subscription {subscription.id} for user {user.id}: {e}")
