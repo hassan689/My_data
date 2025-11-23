@@ -12,6 +12,7 @@ from django.utils.timezone import get_current_timezone, make_aware
 from django.db.models import Sum
 from django.db import transaction
 from drip_campaigns.models import DripCampaign, EmailAccountAndLeads
+from dashboard.models import CampaignRecord
 
 
 @app.task(name="subscriptions.tasks.end_warmup")
@@ -20,7 +21,8 @@ def end_warmup():
     # set their warmup campaigns to complete where their email accounts are sender_accounts
     # Remove their accounts from those campaings as well where they are in target_accounts
 
-    # NEW: Pause All Drip Campaigns for users whose subescription are exxxpired
+    # NEW: Pause All Drip Campaigns for users whose subescription are expired
+    # NEW: Cancel all processing or pending campaigns other than Drip as well
 
     expired_or_canceled_subscriptions = Subscription.objects.filter(
         status__in=["expired", "canceled"]
@@ -48,6 +50,13 @@ def end_warmup():
 
                     # Pause the Campaigns
                     active_drip_campaigns.update(status='Paused')
+
+            active_campaigns = CampaignRecord.objects.filter(
+                launched_by=user,
+                status__in=['pending', 'processing']
+            )
+            if active_campaigns.exists():
+                active_campaigns.update(status='cancelled')
 
             user_accounts = EmailAccount.objects.filter(user=user)
             if not user_accounts.exists():

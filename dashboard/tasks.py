@@ -8,6 +8,7 @@ from django.utils.timezone import timedelta
 from django.urls import reverse
 from django.utils.encoding import force_str
 from django.db import transaction
+from django.db.models import Q
 from django_celery_results.models import TaskResult
 
 import re
@@ -704,12 +705,28 @@ def launch_scheduled_campaign_checker():
 @app.task(name="dashboard.tasks.revive_failed_launch")
 def revive_failed_launch():
     
-    CampaignRecord.objects.filter(status='processing', sent_count=0).update(
+    threshold_time = timezone.now() - timedelta(minutes=5)
+
+    # Condition A: scheduled_launch_time exists AND is older than 5 mins (for scheduled campaigns)
+    # OR
+    # Condition B: scheduled_launch_time is NULL AND launch_time is older than 5 mins (for intstant launches)
+    
+    time_safeguard = (
+        (Q(scheduled_launch_time__isnull=False) & Q(scheduled_launch_time__lte=threshold_time)) |
+        (Q(scheduled_launch_time__isnull=True) & Q(launch_time__lte=threshold_time))
+    )
+    rows_updated = CampaignRecord.objects.filter(
+        time_safeguard,          # Apply the time logic
+        status='processing',     # Must be stuck in processing
+        sent_count=0             # Must have sent nothing
+    ).update(
         status='pending',
         scheduled_launch_time=timezone.now(),
         is_campaign_dispatched=False
     )
-    launch_scheduled_campaign_checker() # Immediately launch the above campaigns that were set to pending
+    if rows_updated > 0:
+        print(f"Revived {rows_updated} stuck campaigns.")
+        launch_scheduled_campaign_checker() # Immediately "revive" the above campaigns that were set to pending
 
 
 

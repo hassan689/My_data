@@ -8,6 +8,17 @@
 {% block 'content' %}
 
 <div class="bg-primary pt-20 text-primary">
+
+  <div class="bg-gradient-to-r from-red-600 to-red-700 text-primary py-3 px-4 text-center shadow-lg relative z-50">
+    <div class="container mx-auto flex flex-col md:flex-row justify-center items-center gap-2">
+        <span class="font-bold text-lg animate-pulse">🔥 LIMITED TIME OFFER:</span>
+        <span class="text-md md:text-lg">Pay for 1 year & get <span class="font-extrabold underline decoration-yellow-400 decoration-4">50% OFF</span> instantly!</span>
+        <a href="#pricing" class="ml-0 md:ml-4 bg-primary btn-bg-primary btn-text btn-bg-hover font-bold px-4 py-1 rounded-full transition-colors text-sm">
+            Claim Discount
+        </a>
+    </div>
+  </div>
+
 	<section class="flex flex-col items-center text-center px-4 md:px-4 lg:px-5 py-6">
 		{% if messages %}
     {% for message in messages %}
@@ -162,8 +173,8 @@
           title="How to Find Carriers as a Dispatcher WITHOUT Cold Calls & Sales Agents"
           frameborder="0"
           allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-          allowfullscreen>
-        </iframe>
+          allowfullscreen
+          referrerpolicy="strict-origin-when-cross-origin"> </iframe>
       </div>
     </div>
     
@@ -181,7 +192,7 @@
 
 	<div class="flex flex-wrap justify-center gap-6 px-6 py-16 text-primary">
     <!-- Testimonial Card 1 -->
-    <div class="max-w-sm bg-primary shadow rounded-lg p-6 border">
+    <div class="max-w-sm bg-primary shadow rounded-lg p-6 border border-gray-700 ">
         <div class="flex items-center mb-2">
             <span class="text-yellow-500 text-xl">⭐</span>
             <span class="text-yellow-500 text-xl">⭐</span>
@@ -197,7 +208,7 @@
     </div>
 
     <!-- Testimonial Card 2 -->
-    <div class="max-w-sm bg-primary shadow rounded-lg p-6 border">
+    <div class="max-w-sm bg-primary shadow rounded-lg p-6 border border-gray-700 ">
         <div class="flex items-center mb-2">
             <span class="text-yellow-500 text-xl">⭐</span>
             <span class="text-yellow-500 text-xl">⭐</span>
@@ -213,7 +224,7 @@
     </div>
 
     <!-- Testimonial Card 3 -->
-    <div class="max-w-sm bg-primary shadow rounded-lg p-6 border">
+    <div class="max-w-sm bg-primary shadow rounded-lg p-6 border border-gray-700 ">
         <div class="flex items-center mb-2">
             <span class="text-yellow-500 text-xl">⭐</span>
             <span class="text-yellow-500 text-xl">⭐</span>
@@ -238,9 +249,44 @@
 			</h2>
 		</div>
 
+    <div class="flex flex-col items-center justify-center mb-10 mt-6 px-4">
+    
+      <div class="relative bg-secondary text-secondary border-2 border-green-500/50 rounded-2xl p-6 max-w-4xl w-full text-center overflow-hidden">
+          
+          <div class="absolute top-0 right-0 bg-red-600 text-white text-xs font-bold px-8 py-1 transform rotate-45 translate-x-8 translate-y-4 shadow-lg">
+              50% OFF
+          </div>
+
+          <h3 class="text-2xl md:text-3xl font-bold text-secondary mb-2">
+              Want to save big? 💰
+          </h3>
+          <p class="text-tertiary text-lg mb-4">
+              Pay for 12 months upfront and cut your bill in half.
+          </p>
+
+          <div class="flex items-center justify-center gap-4 text-lg md:text-xl font-mono bg-primary/50 p-3 rounded-lg inline-block border border-gray-700">
+              <span class="text-gray-400 line-through decoration-red-500 decoration-2">$672/yr</span>
+              <i class="fa-solid fa-arrow-right text-tertiary text-sm"></i>
+              <span class="text-green-400 font-bold text-2xl">$336/yr</span>
+              <span class="text-xs text-tertiary block mt-1">(Standard Plan Example)</span>
+          </div>
+
+          <div class="mt-6">
+              <a href="https://wa.me/923201410032?text=Hi,%20I%20am%20interested%20in%20the%20Yearly%20Subscription%20with%2050%25%20OFF" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                class="inline-flex items-center justify-center gap-2 text-lg font-bold py-3 px-8 rounded-xl bg-gradient-to-r from-green-600 to-green-500 hover:from-green-500 hover:to-green-400 bg-primary btn-bg-primary btn-text shadow-[0_0_20px_rgba(34,197,94,0.4)] transform hover:-translate-y-1 transition-all">
+                  <span><i class="fa-brands fa-whatsapp"></i></span> Get Yearly Deal
+              </a>
+          </div>
+          <p class="text-xs text-tertiary mt-3"> *Click to message support for invoice setup</p>
+      </div>
+
+    </div>
+
 		<div class="flex flex-col md:flex-row justify-center gap-8 p-8">
 
-			<div class="relative w-full md:w-1/2 lg:w-1/3 bg-primary shadow-lg rounded-2xl p-8 border text-center">
+			<div class="relative w-full md:w-1/2 bg-primary shadow-lg rounded-2xl p-8 border border-gray-700 text-center">
 
         <!-- Title -->
         <h2 class="text-2xl font-extrabold">Basic</h2>
@@ -287,7 +333,7 @@
 
       </div>
 
-      <div class="relative w-full md:w-1/2 lg:w-1/3 bg-primary shadow-lg rounded-2xl p-8 border text-center">
+      <div class="relative w-full md:w-1/2 bg-primary shadow-lg rounded-2xl p-8 border border-gray-700 text-center">
 
         <!-- Title -->
         <h2 class="text-2xl font-extrabold">Standard</h2>
@@ -330,7 +376,7 @@
 
       </div>
 
-      <div class="relative w-full md:w-1/2 lg:w-1/3 bg-primary shadow-lg rounded-2xl p-8 border text-center">
+      <div class="relative w-full md:w-1/2 bg-primary shadow-lg rounded-2xl p-8 border border-gray-700 text-center">
 
         <!-- Title -->
         <h2 class="text-2xl font-extrabold">Premium</h2>
@@ -369,9 +415,48 @@
 
       </div>
 
+      <div class="relative w-full md:w-1/2 bg-primary shadow-lg rounded-2xl p-8 border border-gray-700 text-center">
+
+        <!-- Title -->
+        <h2 class="text-2xl font-extrabold">Broker Package</h2>
+
+        <!-- Price with strike and discount -->
+        <div class="relative mt-3 flex flex-col items-center justify-center">
+          <span class="text-4xl md:text-5xl font-extrabold text-green-500 -mt-2 z-20">$250/Month</span>
+        </div>
+
+        <p class="text-tertiary text-lg mt-2">Specifically designed for freight brokers</p> 
+
+        <!-- Features -->
+        <ul class="text-left my-6 space-y-3 text-lg sm:px-4">
+          <li class="flex items-start">
+            <span class="text-green-600 mr-2 mt-1">✔</span>
+            <span>Filter carriers by state and trailer type (reefer, dry van, flatbed)</span>
+          </li>
+          <li class="flex items-start">
+            <span class="text-green-600 mr-2 mt-1">✔</span>
+            <span>Send load offers to thousands of carriers via email in one click</span>
+          </li>
+          <li class="flex items-start">
+            <span class="text-green-600 mr-2 mt-1">✔</span>
+            <span>300,000+ carrier database, updated monthly</span>
+          </li>
+          <li class="flex items-start">
+            <span class="text-green-600 mr-2 mt-1">✔</span>
+            <span>Real-time delivery and open tracking</span>
+          </li>
+          <li class="flex items-start">
+            <span class="text-green-600 mr-2 mt-1">✔</span>
+            <span>No scraping or manual work required</span>
+          </li>
+        </ul>
+        <a href="https://wa.me/923201410032" target="_blank" rel="noopener noreferrer" class="inline-block text-lg font-semibold py-3 px-14 rounded-xl bg-green-600 hover:bg-green-700 text-white">
+            <span><i class="fa-brands fa-whatsapp"></i></span> +92 320 1410032
+        </a>
+
+      </div>
+
 		</div>
-	
-	
 
 	</div>
 
