@@ -1,7 +1,7 @@
 from growth_skool.celery import app
 from celery import shared_task, chord
 from email.utils import make_msgid
-from celery.exceptions import TimeLimitExceeded
+from celery.exceptions import TimeLimitExceeded, MaxRetriesExceededError
 from urllib.parse import urljoin
 
 from .models import DripCampaign, EmailAccountAndLeads, DripTemplate, SentDripEmail
@@ -10,9 +10,10 @@ from unibox.models import EmailThread, OutgoingEmailMessage
 
 from dashboard.utilities import get_email_connection, personalize_template, sanitize_email_html, should_use_batch_processing
 from .utilities import reschedule_or_finalize, normalize_provider
-from django.core.mail import EmailMultiAlternatives
+from django.core.mail import EmailMultiAlternatives, send_mail
 from django.db import transaction
 from django.utils import timezone
+from django.utils.encoding import force_str
 from django.core.cache import cache
 from django.conf import settings
 from django.urls import reverse
@@ -32,6 +33,7 @@ EMAIL_TASK_TIME_LIMIT = 600
 # (Using SSL ports by default)
 IMAP_SETTINGS_MAP = {
     'gmail':    {'host': 'imap.gmail.com', 'port': 993},
+    'outlook':  {'host': 'outlook.office365.com', 'port': 993},
     'yahoo':    {'host': 'imap.mail.yahoo.com', 'port': 993},
     'zoho':     {'host': 'imap.zoho.com', 'port': 993},
     'hostinger':{'host': 'imap.hostinger.com', 'port': 993},
@@ -226,10 +228,17 @@ def check_one_account_imap(self, account_info_id):
     except Exception as e:
         print(f"❌ Failed to check IMAP for {account_info_id}: {e}")
         if account_info:
-            account_info.last_reply_check_at = timezone.now()
-            account_info.save(update_fields=['last_reply_check_at'])
-        raise self.retry(exc=e, max_retries=3)
-    
+            try:
+                account_info.last_reply_check_at = timezone.now()
+                account_info.save(update_fields=['last_reply_check_at'])
+            except Exception:
+                pass
+        try:
+            raise self.retry(exc=e, max_retries=3)
+        except MaxRetriesExceededError:
+            # DO NOT RAISE. Return a string so the Chord continues.
+            print(f"Max retries hit for IMAP check {account_info_id}. Skipping account.")
+            return f"Failed: Max Retries for {account_info_id}"    
     finally:
         if imap_conn:
             try:
@@ -502,6 +511,11 @@ def send_single_email(self, campaign_id, account_info_id, template_id, lead_inde
         print(f"Time limit exceeded for account {account_info_id}: {e}. Skipping lead {lead_index}.")
         reschedule_or_finalize(campaign.id, account, template, next_lead_index, delay_seconds=300)
         return
+    
+    except MaxRetriesExceededError:
+        print(f"Max retries hit for account {account_info_id}. Terminating this chain.")
+        reschedule_or_finalize(campaign.id, account, template, account.recipient_count, delay_seconds=1)
+        return
 
     except (DripTemplate.DoesNotExist, EmailAccountAndLeads.DoesNotExist, DripCampaign.DoesNotExist) as e:
         print(f"Critical error: {e}. Stopping chain for account {account_info_id}.")
@@ -513,14 +527,40 @@ def send_single_email(self, campaign_id, account_info_id, template_id, lead_inde
         
         if "Daily user sending limit exceeded" in error_message:
             print(f"Daily limit exceeded for {email_account.email_address}. Halting chain for this account.")
-            # This account is done. Trigger the finalize logic.
-            # We pass the *total* count to force it to finalize.
+            subject = f"⚠️ Campaign Halted: Daily Sending Limit Exceeded for {email_account.email_address}"
+            body = (
+                f"Dear user,\n\n"
+                f"Your email campaign using the account '{email_account.email_address}' has been halted "
+                f"because **Your Email Provider has indicated that the daily sending limit for this email account has been exceeded.**\n\n"
+                f"**This limit is imposed by Your Email Provider, not by DispatchSkool.**\n\n"
+                f"Please wait 24 hours before trying to send new campaigns from this account.\n\n"
+                f"Regards,\nThe DispatchSkool Team"
+            )
+            from_email = settings.EMAIL_HOST_USER
+            recipient_list = [email_account.user.email]
+            body_encoded = force_str(body, 'utf-8', errors='replace')
+
+            try:
+                send_mail(
+                    subject=subject,
+                    message=body_encoded,
+                    from_email=from_email,
+                    recipient_list=recipient_list,
+                    fail_silently=False,
+                )
+            except:
+                pass
             reschedule_or_finalize(campaign.id, account, template, account.recipient_count, delay_seconds=1)
             return
 
         elif "timeout" in error_message.lower() or "connection" in error_message.lower():
             print(f"Network error for account {account_info_id}. Retrying task.")
-            raise self.retry(exc=e, max_retries=3) 
+            try:
+                raise self.retry(exc=e, max_retries=3)
+            except MaxRetriesExceededError:
+                # If retry fails here, clock out
+                reschedule_or_finalize(campaign.id, account, template, account.recipient_count, delay_seconds=1)
+                return
         
         else:
             print(f"Unhandled error for {lead['Email']}: {e}. Skipping lead.")
@@ -701,6 +741,29 @@ def send_batch_emails(self, campaign_id, account_info_id, template_id, start_ind
                 
                 if "Daily user sending limit exceeded" in error_message:
                     print(f"Daily limit exceeded for {email_account.email_address}. Halting batch for this account.")
+                    subject = f"⚠️ Campaign Halted: Daily Sending Limit Exceeded for {email_account.email_address}"
+                    body = (
+                        f"Dear user,\n\n"
+                        f"Your email campaign using the account '{email_account.email_address}' has been halted "
+                        f"because **Your Email Provider has indicated that the daily sending limit for this email account has been exceeded.**\n\n"
+                        f"**This limit is imposed by Your Email Provider, not by DispatchSkool.**\n\n"
+                        f"Please wait 24 hours before trying to send new campaigns from this account.\n\n"
+                        f"Regards,\nThe DispatchSkool Team"
+                    )
+                    from_email = settings.EMAIL_HOST_USER
+                    recipient_list = [email_account.user.email]
+                    body_encoded = force_str(body, 'utf-8', errors='replace')
+
+                    try:
+                        send_mail(
+                            subject=subject,
+                            message=body_encoded,
+                            from_email=from_email,
+                            recipient_list=recipient_list,
+                            fail_silently=False,
+                        )
+                    except:
+                        pass
                     daily_limit_hit = True
                     break # Exit the for loop
 
@@ -722,6 +785,13 @@ def send_batch_emails(self, campaign_id, account_info_id, template_id, start_ind
         reschedule_or_finalize(campaign.id, account, template, next_batch_start_index, 
                               delay_seconds=60, use_batch=True, batch_size=batch_size)
         return
+    
+    except MaxRetriesExceededError:
+        print(f"Max retries hit for batch (Acc {account_info_id}). Clocking Out.")
+        # Force finish this account so others aren't held up
+        reschedule_or_finalize(campaign.id, account, template, account.recipient_count, 
+                              delay_seconds=1, use_batch=True, batch_size=batch_size)
+        return
 
     except (DripTemplate.DoesNotExist, EmailAccountAndLeads.DoesNotExist, DripCampaign.DoesNotExist) as e:
         print(f"Critical error: {e}. Stopping chain for account {account_info_id}.")
@@ -734,7 +804,13 @@ def send_batch_emails(self, campaign_id, account_info_id, template_id, start_ind
         # This is for errors *outside* the loop (e.g., initial connection)
         if "timeout" in error_message.lower() or "connection" in error_message.lower():
             print(f"Network error for account {account_info_id}. Retrying task.")
-            raise self.retry(exc=e, max_retries=3) 
+            try:
+                raise self.retry(exc=e, max_retries=3)
+            except MaxRetriesExceededError:
+                # Retry failed? Clock out.
+                reschedule_or_finalize(campaign.id, account, template, account.recipient_count, 
+                                      delay_seconds=1, use_batch=True, batch_size=batch_size)
+                return
         
         else:
             print(f"Unhandled error for batch: {e}. Skipping batch.")

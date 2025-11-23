@@ -84,6 +84,8 @@ def normalize_provider(provider_string):
     # Check for keywords
     if 'gmail' in provider_low or 'google' in provider_low:
         return 'gmail'
+    if 'outlook' in provider_low or 'microsoft' in provider_low:
+        return 'outlook'
     if 'yahoo' in provider_low:
         return 'yahoo'
     if 'zoho' in provider_low:

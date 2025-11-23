@@ -69,15 +69,16 @@ def generate_gibberish_body(recipient_first_name, sender_company_name):
     return " ".join(sentences)
 
 def refresh_targets(campaign):
+    
     # Step 1: Get sender and its user
     sender_account = campaign.sender_account
     sender_user = sender_account.user
 
-    # Step 2: Get all other email account instances for that user, excluding sender
-    user_email_accounts = EmailAccount.objects.filter(user=sender_user, black_list=False, is_warmup_target=True).exclude(id=sender_account.id)
+    # Step 2: Get all email account instances that are eligible for warmup, excluding sender
+    eligible_email_accounts = EmailAccount.objects.filter(black_list=False, is_warmup_target=True).exclude(user=sender_user)
 
     # Step 3: Randomly pick up to 5
-    selected_accounts = random.sample(list(user_email_accounts), min(5, user_email_accounts.count()))
+    selected_accounts = random.sample(list(eligible_email_accounts), min(5, eligible_email_accounts.count()))
 
     if selected_accounts:
         campaign.target_accounts.set(selected_accounts)

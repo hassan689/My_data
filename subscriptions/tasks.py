@@ -86,9 +86,34 @@ def expire_subscriptions():
     today = now().date()
     expired_subscriptions = Subscription.objects.filter(end_date__lt=today, status="active")
 
+    message = """
+Hi there,
+
+We wanted to let you know that your subscription to Dispatch Skool Automation Tools has now expired. As a result, access to Dispatch Skool's features has been temporarily paused.
+
+If you would like to continue using the platform without interruption, you can renew your subscription anytime by visiting our pricing page:
+
+https://dispatchskool.com/#pricing
+
+If you have any questions or need help renewing, just drop us a text on our WhatsApp support numbers.
+
+Best regards,
+The Dispatch Skool Team
+"""
     for subscription in expired_subscriptions:
         subscription.status = "expired"
         subscription.save(update_fields=["status"])
+
+        try:
+            send_mail(
+                subject="Your Subscription Has Expired",
+                message=message,
+                from_email=settings.EMAIL_HOST_USER,
+                recipient_list=[subscription.user.email],
+                fail_silently=False,
+            )
+        except:
+            continue
 
 
 @app.task(name="subscriptions.tasks.send_subscription_reminders.send_subscription_reminders")
