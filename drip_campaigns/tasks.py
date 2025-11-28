@@ -9,7 +9,7 @@ from dashboard.models import GmailToken
 from unibox.models import EmailThread, OutgoingEmailMessage
 
 from dashboard.utilities import get_email_connection, personalize_template, sanitize_email_html, should_use_batch_processing
-from .utilities import reschedule_or_finalize, normalize_provider
+from .utilities import reschedule_or_finalize, normalize_provider, send_campaign_failure_alert
 from django.core.mail import EmailMultiAlternatives, send_mail
 from django.db import transaction
 from django.utils import timezone
@@ -73,6 +73,13 @@ def check_scheduled_drip_step():
             print(f"Error triggering campaign {campaign.id}: {e}")
             campaign.status = 'Failed'
             campaign.save(update_fields=['status'])
+            
+            # --- ALERT CALL ---
+            send_campaign_failure_alert(
+                error_message=str(e),
+                location="check_scheduled_drip_step (Cron)",
+                campaign_id=campaign.id
+            )
 
     print(f"Triggered {len(campaigns_to_run)} campaign steps.")
     return
@@ -121,6 +128,13 @@ def check_campaign_replies_task(campaign_id):
         print(f"Failed to start reply-check chord for campaign {campaign.id}: {e}")
         # If the chord fails to launch, fail the campaign
         DripCampaign.objects.filter(id=campaign_id).update(status='Failed')
+        
+        # --- ALERT CALL ---
+        send_campaign_failure_alert(
+            error_message=str(e),
+            location="check_campaign_replies_task (IMAP Coordinator)",
+            campaign_id=campaign_id
+        )
         raise e
 
 
@@ -345,6 +359,13 @@ def chain_starter_task(results, campaign_id):
         if 'template' in locals() and template:
             template.delivered_status = 'Failed'
             template.save(update_fields=['delivered_status'])
+        
+        # --- ALERT CALL ---
+        send_campaign_failure_alert(
+            error_message=str(e),
+            location="chain_starter_task (Dispatcher)",
+            campaign_id=campaign_id
+        )
         raise e
 
 
@@ -907,6 +928,13 @@ def finalize_drip_step_task(campaign_id):
     except Exception as e:
         print(f"Failed to finalize step for campaign {campaign_id}: {e}")
         DripCampaign.objects.filter(id=campaign_id).update(status='Failed')
+        
+        # --- ALERT CALL ---
+        send_campaign_failure_alert(
+            error_message=str(e),
+            location="finalize_drip_step_task (Finalizer)",
+            campaign_id=campaign_id
+        )
         raise e
 
 
