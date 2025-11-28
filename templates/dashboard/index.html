@@ -135,7 +135,7 @@
                   </div>
                 </td>
 
-                {% if request.user.subscription and request.user.subscription.status == "active"%}
+                {% if request.user.subscription and request.user.subscription.status == "active" %}
                 <td class="py-3 px-1">
                   <div class="flex flex-col md:flex-row md:space-x-5 space-y-2 md:space-y-0 md:items-center">
                       {% if account.last_campaign_status == 'launched' %}

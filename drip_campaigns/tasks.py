@@ -448,11 +448,16 @@ def send_single_email(self, campaign_id, account_info_id, template_id, lead_inde
         personalized_body = sanitize_email_html(personalized_body, DOMAIN)
 
         # --- Tracking ---
+        unique_id = None
         if template.track_template:
-            pixel_url = reverse('drip_campaigns:track_drip', kwargs={'message_id': clean_message_id})
+            # pixel_url = reverse('drip_campaigns:track_drip', kwargs={'message_id': clean_message_id})
+            # pixel_link = urljoin(settings.BASE_URL, pixel_url)
+
+            unique_id = uuid.uuid4()
+            pixel_url = reverse('drip_campaigns:track_drip', kwargs={'unique_identifier': unique_id})
             pixel_link = urljoin(settings.BASE_URL, pixel_url)
             
-            tracking_pixel = f'<img src="{pixel_link}" width="1" height="1" alt="" border="0">'
+            tracking_pixel = f'<img src="{pixel_link}" width="1" height="1" style="display:none;" alt="">'
             personalized_body += tracking_pixel
 
         # --- Send Email ---
@@ -476,6 +481,7 @@ def send_single_email(self, campaign_id, account_info_id, template_id, lead_inde
                     template=template,
                     message_id=clean_message_id, # Matches the pixel link exactly
                     lead_email=lead['Email'],
+                    unique_identifier=unique_id,
                     lead_mc_number=lead.get('MC Number'),
                     status='Sent'
                 )
@@ -494,6 +500,7 @@ def send_single_email(self, campaign_id, account_info_id, template_id, lead_inde
                     template=template,
                     message_id=clean_message_id,
                     lead_email=lead['Email'],
+                    unique_identifier=unique_id,
                     lead_mc_number=lead.get('MC Number'),
                     status='Sent'
                 )
@@ -676,11 +683,16 @@ def send_batch_emails(self, campaign_id, account_info_id, template_id, start_ind
                 personalized_body = sanitize_email_html(personalized_body, DOMAIN)
 
                 # --- Tracking ---
+                unique_id = None
                 if template.track_template:
-                    pixel_url = reverse('drip_campaigns:track_drip', kwargs={'message_id': clean_message_id})
+                    # pixel_url = reverse('drip_campaigns:track_drip', kwargs={'message_id': clean_message_id})
+                    # pixel_link = urljoin(settings.BASE_URL, pixel_url)
+
+                    unique_id = uuid.uuid4()
+                    pixel_url = reverse('drip_campaigns:track_drip', kwargs={'unique_identifier': unique_id})
                     pixel_link = urljoin(settings.BASE_URL, pixel_url)
                     
-                    tracking_pixel = f'<img src="{pixel_link}" width="1" height="1" alt="" border="0">'
+                    tracking_pixel = f'<img src="{pixel_link}" width="1" height="1" style="display:none;" alt="">'
                     personalized_body += tracking_pixel
 
                 # --- Send Email ---
@@ -704,6 +716,7 @@ def send_batch_emails(self, campaign_id, account_info_id, template_id, start_ind
                             template=template,
                             message_id=clean_message_id, # Matches the pixel link exactly
                             lead_email=lead['Email'],
+                            unique_identifier=unique_id,
                             lead_mc_number=lead.get('MC Number'),
                             status='Sent'
                         )
@@ -722,6 +735,7 @@ def send_batch_emails(self, campaign_id, account_info_id, template_id, start_ind
                             template=template,
                             message_id=clean_message_id,
                             lead_email=lead['Email'],
+                            unique_identifier=unique_id,
                             lead_mc_number=lead.get('MC Number'),
                             status='Sent'
                         )

@@ -152,6 +152,9 @@ class SentDripEmail(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     is_opened = models.BooleanField(default=False)
 
+    # To send as tracking pixel
+    unique_identifier = models.UUIDField(unique=True, null=True, blank=True)
+
     def __str__(self):
         return f"{self.lead_email} - {self.message_id}"
 

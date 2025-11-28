@@ -62,6 +62,7 @@
                 <td class="p-3">{{ campaign.current_step }}</td>
                 <td class="p-3">{{ campaign.template_count }}</td>
                 <td class="p-3">{{ campaign.next_action_at }}</td>
+                {% if request.user.subscription and request.user.subscription.status == "active" %}
                 <td class="p-3">
                     <a href="{% url 'drip_campaigns:update_drip' campaign_id=campaign.id %}" 
                       class="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 text-center whitespace-nowrap">
@@ -103,6 +104,7 @@
                       <span class="text-secondary px-3 py-1 font-semibold">N/A</span>
                   {% endif %}
                 </td>
+                {% endif %}
             </tr>
             {% endfor %}
         </tbody>

@@ -15,7 +15,7 @@ urlpatterns = [
     path('campaign-progress/<int:campaign_id>/', views.get_drip_progress_json, name='get_drip_progress_json'),
     
     path('delete-campaign/<int:campaign_id>/', views.delete_drip, name='delete_drip'),
-    path('track-campaign/<str:message_id>/', views.track_drip, name='track_drip'),
+    path('track-campaign/<uuid:unique_identifier>/', views.track_drip, name='track_drip'),
 
     # Campaign-level controls
     path('<int:campaign_id>/pause/', views.pause_campaign, name='pause_campaign'),

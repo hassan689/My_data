@@ -1,7 +1,7 @@
 from datetime import timedelta
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
-from django.views.decorators.http import require_http_methods
+from django.views.decorators.http import require_http_methods, require_safe
 from django.shortcuts import get_object_or_404
 from django.forms import modelformset_factory
 from django.core.paginator import Paginator
@@ -1012,16 +1012,17 @@ def stop_account_chain(request, account_info_id, campaign_id):
     return redirect('drip_campaigns:index')
 
 
-@login_required
-@require_http_methods(["GET"])
-def track_drip(request, message_id):
+@require_safe
+def track_drip(request, unique_identifier):
+    
+    print("View is called")
     
     try:
         with transaction.atomic():
             email_log = (
                 SentDripEmail.objects
                 .select_for_update()  # Locks row until transaction ends
-                .get(message_id=message_id)
+                .get(unique_identifier=unique_identifier)
             )
             template = email_log.template
 
@@ -1031,8 +1032,8 @@ def track_drip(request, message_id):
 
             suspicious_patterns = [
                 'applemail',        # Apple Mail Privacy Protection
-                'googleimageproxy', # Gmail image proxy
-                'outlook',          # Outlook image cache proxy
+                # 'googleimageproxy', # Gmail image proxy
+                # 'outlook',          # Outlook image cache proxy
                 'yahoo',            # Yahoo Mail proxy
                 'samsung',          # Samsung Email client
             ]
@@ -1052,8 +1053,8 @@ def track_drip(request, message_id):
 
     except SentDripEmail.DoesNotExist as e:
         print(
-              f"The tracking pixel was hit with an unknown message_id:\n\n"
-              f"{message_id}\n\n"
+              f"The tracking pixel was hit with an unknown unique_identifier:\n\n"
+              f"{unique_identifier}\n\n"
               f"IP: {request.META.get('REMOTE_ADDR', '')}\n"
               f"User-Agent: {request.META.get('HTTP_USER_AGENT', '')}"
           )
