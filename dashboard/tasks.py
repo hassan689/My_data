@@ -143,7 +143,8 @@ def send_single_email(self, campaign_record_id):
                     recipient_email=lead['Email'],
                     unique_identifier=unique_id,
                     mc_number=lead.get('MC Number', ''),
-                    legal_name=lead.get('Legal Name', '')
+                    legal_name=lead.get('Legal Name', ''),
+                    launched_by=campaign.launched_by
                 )
             except Exception as e:
                 print(f"Failed to create EmailOpen log: {e}")
@@ -429,7 +430,8 @@ def send_emails_batch(self, campaign_record_id, batch_size=10):
                             recipient_email=lead['Email'],
                             unique_identifier=unique_id,
                             mc_number=lead.get('MC Number', ''),
-                            legal_name=lead.get('Legal Name', '')
+                            legal_name=lead.get('Legal Name', ''),
+                            launched_by=campaign_for_loop.launched_by
                         )
                         tracking_pixel = f'<img src="{pixel_link}" width="1" height="1" style="display:none;" alt="">'
                         personalized_body += tracking_pixel
@@ -853,7 +855,7 @@ def cleanup_email_opens():
     """
     cutoff_date = timezone.now() - timedelta(days=30)
     deleted_count, _ = EmailOpen.objects.filter(
-        timestamp__lt=cutoff_date
+        timestamp__lt=cutoff_date, is_opened=False
     ).delete()
 
 
@@ -864,7 +866,7 @@ def clear_launched_campaigns():
     - status is 'launched', 'failed' or 'cancelled' AND
     - launch_time is older than 7 days
     """
-    cutoff_date = timezone.now() - timedelta(days=7)
+    cutoff_date = timezone.now() - timedelta(days=30)
     status = ['launched', 'failed', 'cancelled']
     deleted_count, _ = CampaignRecord.objects.filter(
         status__in=status,

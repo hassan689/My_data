@@ -12,14 +12,16 @@ urlpatterns = [
 		path('campaign/<int:email_account_id>/', views.campaign, name='campaign'),
     path('bulk-campaign/', views.bulk_campaign_step1, name='bulk_campaign'),
     path('bulk-campaign/<str:campaign_key>/', views.bulk_campaign_step2, name='bulk_campaign_step2'),
+    path('delete-campaign-records/<int:cmpn_id>/', views.delete_campaign, name='delete_campaign'),
 
     path('emergency-stop/<int:email_account_id>/', views.emergency_stop, name='emergency_stop'),
     path('resume-stopped/<int:email_account_id>/', views.resume_stopped, name='resume_stopped'),
-    path('campaign-statuses/', views.campaign_statuses, name='campaign_statuses'),
-    path('track/<uuid:unique_identifier>/', views.track_open, name='track_open'),
-    path('campaign-records/', views.campaign_records, name='campaign_records'),
-    path('delete-campaign-records/<int:cmpn_id>/', views.delete_campaign, name='delete_campaign'),
     path('stop-all-campaigns/', views.stop_all_campaigns, name='stop_all_campaigns'),
+    path('campaign-statuses/', views.campaign_statuses, name='campaign_statuses'),
+
+    path('track/<uuid:unique_identifier>/', views.track_open, name='track_open'),
+    path('campaign-open-records/export-opens/', views.export_email_opens, name='export_email_opens'),
+    path('campaign-open-records/', views.campaign_records, name='campaign_records'),
     
     path('email-account-groups/', account_groups, name="account_groups"),
     path('email-account-groups/delete/<int:group_id>/', delete_group, name="delete_group"),

@@ -106,7 +106,7 @@ class CampaignRecord(models.Model):
 
 
 class EmailOpen(models.Model):
-    campaign = models.ForeignKey(CampaignRecord, on_delete=models.CASCADE)
+    campaign = models.ForeignKey(CampaignRecord, on_delete=models.SET_NULL, null=True, blank=True) # Need to change this to set null so even if campaign is deleted, the open records remain
     recipient_email = models.CharField(max_length=255)
     unique_identifier = models.UUIDField(unique=True)
     is_opened = models.BooleanField(default=False)
@@ -114,6 +114,8 @@ class EmailOpen(models.Model):
 
     mc_number = models.CharField(max_length=50, verbose_name="MC Number", blank=True, null=True)
     legal_name = models.CharField(max_length=255, blank=True, null=True)
+
+    launched_by = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True) # so each user can get their own open tracking data
 
     def __str__(self):
         return f"Open for {self.recipient_email} in Campaign {self.campaign.id}"
