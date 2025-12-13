@@ -329,6 +329,237 @@ def bulk_campaign_step1(request):
     })
 
 
+
+# @login_required
+# @require_http_methods(["GET", "POST"])
+# def bulk_campaign_step2(request, campaign_key):
+    
+#     cache_key = f"bulk_leads_{request.user.id}_{campaign_key}"
+#     cached_data = cache.get(cache_key)
+#     leads_count = cached_data.get('leads_available', 0) if cached_data else 0
+#     email_accounts_count = EmailAccount.objects.filter(user=request.user).count()
+    
+#     # Check if leads are cached from Step 1
+#     if not cached_data:
+#         messages.error(request, "Lead data not found. Please start over.")
+#         return redirect('dashboard:bulk_campaign')
+    
+#     # --- UPDATED: Fetch Groups ---
+#     account_groups = AccountGroup.objects.filter(
+#         user=request.user, 
+#         email_accounts__isnull=False
+#     ).distinct().prefetch_related('email_accounts')
+    
+#     form = BulkCampaignForm(user=request.user)
+
+#     if request.method == 'POST' and 'submit_allocation' in request.POST:
+        
+#         total_leads = cached_data['leads_available'] if cached_data and 'leads_available' in cached_data else 0
+#         form = BulkCampaignForm(request.POST, request.FILES, user=request.user, total_leads=total_leads)
+#         if not cached_data:
+#             messages.error(request, "Lead data not found. Please start over.")
+#             return redirect('dashboard:bulk_campaign')
+        
+#         lead_source = cached_data['lead_source']
+#         refetched_leads = [] # cause they were fetched once before in the first step
+
+#         if lead_source == "Excel":
+#             file_path = cached_data['file_path']
+#             with open(file_path, 'rb') as f:
+#                 refetched_leads = process_excel_file(f, request.user)
+
+#         elif lead_source == "DB":
+#             params = cached_data['params']
+#             refetched_leads = get_leads_from_db(**params)
+        
+#         # If refetch failed or returned no leads, surface a form error and re-render Step 2
+#         if not refetched_leads:
+#             form.add_error(None, "No leads could be reloaded. Please restart the bulk campaign flow and try again.")
+#             return render(request, 'dashboard/bulk_campaign_step2.html', {
+#                 'form': form,
+#                 'account_groups': account_groups,
+#                 'email_accounts_count': email_accounts_count,
+#                 'leads_ready': bool(cached_data),
+#                 'leads_count': 0,
+#             })
+
+#         if form.is_valid():
+
+#             leads = refetched_leads
+#             email_subject = form.cleaned_data.get('email_subject')
+#             email_body = form.cleaned_data.get('email_body')
+#             select_all = form.cleaned_data.get('select_all')
+#             min_delay = form.cleaned_data.get('min_delay')
+#             max_delay = form.cleaned_data.get('max_delay')
+                
+#             scheduled_launch_datetime = form.cleaned_data.get('schedule_launch_datetime')
+#             lead_source = cached_data.get('lead_source')
+#             track_campaign = form.cleaned_data.get('track_campaign')
+
+#             # --- NEW GROUP ALLOCATION LOGIC ---
+#             group_lead_counts_map = {}
+
+#             if select_all:
+#                 # Filter groups that actually have accounts
+#                 valid_groups = [g for g in account_groups if g.email_accounts.exists()]
+                
+#                 if not valid_groups:
+#                     form.add_error(None, "No valid groups found (groups must contain at least one email account).")
+#                     return render(request, 'dashboard/bulk_campaign_step2.html', {
+#                         'form': form,
+#                         'account_groups': account_groups,
+#                         'email_accounts_count': email_accounts_count,
+#                         'leads_ready': bool(cached_data),
+#                         'leads_count': len(leads),
+#                     })
+
+#                 # Auto-Calculate leads per group
+#                 total_valid_groups = len(valid_groups)
+#                 base_count = len(leads) // total_valid_groups
+#                 remainder = len(leads) % total_valid_groups
+
+#                 for i, group in enumerate(valid_groups):
+#                     count = base_count + (1 if i < remainder else 0)
+#                     group_lead_counts_map[group] = count
+
+#             else:
+#                 # Manual Allocation: Read from POST data based on Group ID
+#                 selected_group_ids = request.POST.getlist('selected_groups')
+                
+#                 for group_id in selected_group_ids:
+#                     try:
+#                         group = AccountGroup.objects.get(id=group_id, user=request.user)
+#                         if not group.email_accounts.exists():
+#                             continue
+
+#                         count_str = request.POST.get(f'leads_for_group_{group_id}', '0')
+#                         count = int(count_str)
+                        
+#                         if count > 0:
+#                             group_lead_counts_map[group] = count
+                            
+#                     except (AccountGroup.DoesNotExist, ValueError):
+#                         continue
+
+#             # Flatten Group Distribution to Account Distribution
+#             final_account_lead_map = distribute_leads_via_groups(leads, group_lead_counts_map)
+
+#             # --- CAMPAIGN PROCESSING (Logic Preserved) ---
+
+#             def start_campaign_processing():
+#                 scheduled_campaigns = []
+#                 immediate_campaigns = []
+#                 accounts_to_update = []
+
+#                 with transaction.atomic():
+#                     # Iterate over the flattened account map
+#                     for account, assigned_leads in final_account_lead_map.items():
+#                         if assigned_leads:
+#                             if scheduled_launch_datetime:
+#                                 # Prepare scheduled campaign record
+#                                 scheduled_campaigns.append(CampaignRecord(
+#                                     subject=email_subject,
+#                                     body=email_body,
+#                                     leads_data=assigned_leads,
+#                                     min_delay=min_delay,
+#                                     max_delay=max_delay,
+#                                     scheduled_launch_time=scheduled_launch_datetime, # Already UTC from form.clean()
+#                                     launched_by=request.user,
+#                                     sender_account=account,
+#                                     total_recipients=len(assigned_leads),
+#                                     sent_count=0,
+#                                     status='pending',
+#                                     lead_source=lead_source,
+#                                     track_campaign=track_campaign
+#                                 ))
+#                                 print(f"Scheduled bulk campaign for {account.email_address} with {len(assigned_leads)} leads.")
+#                             else:
+#                                 # Prepare immediate campaign record
+#                                 immediate_campaigns.append(CampaignRecord(
+#                                     subject=email_subject,
+#                                     body=email_body,
+#                                     leads_data=assigned_leads,
+#                                     min_delay=min_delay,
+#                                     max_delay=max_delay,
+#                                     launched_by=request.user,
+#                                     sender_account=account,
+#                                     total_recipients=len(assigned_leads),
+#                                     sent_count=0,
+#                                     status='processing',
+#                                     lead_source=lead_source,
+#                                     track_campaign=track_campaign
+#                                 ))
+#                                 print(f"Queuing immediate bulk email campaign to {len(assigned_leads)} leads for {account.email_address}")
+                                
+#                                 # Mark account for updating last_used_at
+#                                 account.last_used_at = now()
+#                                 accounts_to_update.append(account)
+
+#                     # Bulk create scheduled campaigns
+#                     if scheduled_campaigns:
+#                         CampaignRecord.objects.bulk_create(scheduled_campaigns)
+                    
+#                     # Bulk create immediate campaigns and get their IDs
+#                     created_immediate_campaigns = []
+#                     if immediate_campaigns:
+#                         created_immediate_campaigns = CampaignRecord.objects.bulk_create(immediate_campaigns)
+                    
+#                     # Update email accounts' last_used_at in bulk
+#                     if accounts_to_update:
+#                         EmailAccount.objects.bulk_update(accounts_to_update, ['last_used_at'])
+                    
+#                     # Queue immediate campaigns for processing
+#                     immediate_campaign_count = 0
+#                     # We iterate through immediate_campaigns list to match created objects order
+#                     for campaign in created_immediate_campaigns:
+#                         send_emails_chunk_celery_task.delay(campaign.id)
+#                         immediate_campaign_count += 1
+
+#                 return len(scheduled_campaigns), len(created_immediate_campaigns)
+
+#             scheduled_count, immediate_count = start_campaign_processing()
+#             cache.delete(cache_key) # Clean up cache
+
+#             # Display messages using PST (Pakistan Standard Time)
+#             pst_tz = pytz.timezone('Asia/Karachi')
+#             scheduled_time_pst = scheduled_launch_datetime.astimezone(pst_tz) if scheduled_launch_datetime else None
+
+#             if scheduled_count > 0 and immediate_count > 0:
+#                 messages.success(request, f"🎉 {scheduled_count} campaigns scheduled for {scheduled_time_pst.strftime('%Y-%m-%d %H:%M %p %Z')} and {immediate_count} campaigns launched immediately!")
+#             elif scheduled_count > 0:
+#                 messages.success(request, f"🎉 {scheduled_count} bulk campaigns scheduled for {scheduled_time_pst.strftime('%Y-%m-%d %H:%M %p %Z')}!")
+#             elif immediate_count > 0:
+#                 messages.success(request, f"🎉 Bulk Campaigns launched successfully! Emails are being sent!")
+#             else:
+#                 messages.info(request, "No campaigns were launched or scheduled.")
+
+#             # ✅ cleanup temp file after processing
+#             if cached_data.get("lead_source") == "Excel":
+#                 file_path = cached_data.get("file_path")
+#                 if file_path and os.path.exists(file_path):
+#                     os.remove(file_path)
+
+#             return redirect('dashboard:index')
+
+#         else:
+#             return render(request, 'dashboard/bulk_campaign_step2.html', {
+#                 'form': form,  # bound form with errors
+#                 'account_groups': account_groups,
+#                 'email_accounts_count': email_accounts_count,
+#                 'leads_ready': bool(cached_data),
+#                 'leads_count': leads_count,
+#             })
+        
+
+#     return render(request, 'dashboard/bulk_campaign_step2.html', {
+#         'form': form,
+#         'account_groups': account_groups,
+#         'email_accounts_count': email_accounts_count,
+#         'leads_ready': bool(cached_data),
+#         'leads_count': leads_count,
+#     })
+
+
 @login_required
 @require_http_methods(["GET", "POST"])
 def bulk_campaign_step2(request, campaign_key):
