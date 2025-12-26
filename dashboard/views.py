@@ -8,6 +8,7 @@ from users.models import EmailAccount, AccountGroup
 from leads_data.models import DailySheet
 from .models import GmailToken, CampaignRecord, EmailOpen
 from warmup.models import WarmupCampaign
+from drip_campaigns.models import SentDripEmail
 from .forms import EmailAccountForm, CampaignForm, BulkCampaignForm
 from .tasks import send_emails_chunk_celery_task, send_account_attach_notif_email
 from .utilities import *
@@ -18,8 +19,10 @@ from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.core.cache import cache
 from django.utils.timezone import now, make_naive
+from django.utils import timezone
 from datetime import datetime
 from django.db import transaction
+from django.db.models import Sum
 
 from google_secrets import *
 from urllib.parse import quote_plus
@@ -1105,9 +1108,13 @@ def resume_stopped(request, email_account_id):
 
 @login_required
 def campaign_statuses(request):
-    accounts = EmailAccount.objects.filter(user=request.user)
+    user = request.user
+    accounts = EmailAccount.objects.filter(user=user)
     data = {}
 
+    # ==========================================
+    # 1. PER-ACCOUNT STATS (For the Table Rows)
+    # ==========================================
     for account in accounts:
         latest_campaign = (
             CampaignRecord.objects
@@ -1129,6 +1136,64 @@ def campaign_statuses(request):
                 'sent_count': 0,
                 'total': 0,
             }
+
+    # ==========================================
+    # 2. GLOBAL STATS (For the Top Metrics Cards)
+    # ==========================================
+    
+    # --- A. Standard Campaign Totals ---
+    std_campaigns = CampaignRecord.objects.filter(sender_account__user=user)
+    std_sent = std_campaigns.aggregate(Sum('sent_count'))['sent_count__sum'] or 0
+    std_opens = std_campaigns.filter(track_campaign=True).aggregate(Sum('open_rate'))['open_rate__sum'] or 0
+
+    # --- B. Drip Campaign Totals (The "Better Solution") ---
+    # We query the 'SentDripEmail' log directly. This is the source of truth and does not reset between steps.
+    drip_logs = SentDripEmail.objects.filter(drip_campaign__launched_by=user)
+    drip_sent = drip_logs.count()
+    drip_opens = drip_logs.filter(is_opened=True).count()
+
+    # --- C. Combined Totals ---
+    total_sent_global = std_sent + drip_sent
+    total_opens_global = std_opens + drip_opens
+
+    # Calculate Open Rate
+    if total_sent_global > 0:
+        global_open_rate = (total_opens_global / total_sent_global) * 100
+    else:
+        global_open_rate = 0.0
+
+    # --- D. Subscription Expiry Logic ---
+    expiry_date_str = "N/A"
+    days_left_str = ""
+    
+    if hasattr(user, 'subscription'):
+        sub = user.subscription
+        if sub.end_date:
+            now = timezone.now()
+            # Compare timestamps directly
+            delta = sub.end_date - now
+            
+            expiry_date_str = sub.end_date.strftime("%b %d")
+            
+            if delta.total_seconds() < 0:
+                days_left_str = "Expired"
+            elif delta.days == 0:
+                days_left_str = "Expires today"
+            else:
+                days_left_str = f"{delta.days} days left"
+        else:
+            expiry_date_str = "Lifetime"
+
+    # ==========================================
+    # 3. FINAL JSON RESPONSE
+    # ==========================================
+    data['global_stats'] = {
+        'total_sent': total_sent_global,
+        'total_opens': total_opens_global,
+        'open_rate': round(global_open_rate, 1),
+        'expiry_date': expiry_date_str,
+        'days_left': days_left_str
+    }
 
     return JsonResponse(data)
 

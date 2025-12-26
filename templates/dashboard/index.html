@@ -7,13 +7,70 @@
 
 <div class="p-4 sm:ml-72">
 
-  <div class="text-left px-4 md:px-2 pt-16 pb-5">
-    <h2 class="text-3xl md:text-4xl font-bold text-primary">
-      Dashboard
-    </h2>
-    <p class="text-tertiary text-lg md:text-xl my-5">
-        Welcome {{ request.user.first_name }} {{ request.user.last_name }}
-    </p>
+  <div class="grid grid-cols-1 lg:grid-cols-5 gap-4 items-center px-4 md:px-2 py-10">
+  
+    <div class="text-left">
+        <h2 class="text-3xl md:text-4xl font-bold text-primary">Dashboard</h2>
+        <p class="text-tertiary text-lg md:text-xl mt-2">
+            Welcome {{ request.user.first_name }} {{ request.user.last_name }}
+        </p>
+    </div>
+
+    <div class="bg-primary p-5 rounded-xl border border-gray-800 text-primary shadow-sm">
+        <p class="text-xs font-semibold uppercase mb-1">Total Sent</p>
+        <div class="flex items-center justify-between">
+            <h3 id="global-total-sent" class="text-2xl font-bold">...</h3> 
+            <div class="p-2 bg-blue-50 rounded-lg text-blue-600">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L22 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-primary p-5 rounded-xl border border-gray-800 text-primary shadow-sm">
+        <p class="text-xs font-semibold uppercase mb-1">Total Opens</p>
+        <div class="flex items-center justify-between">
+            <h3 id="global-total-opens" class="text-2xl font-bold">...</h3>
+            <div class="p-2 bg-green-50 rounded-lg text-green-600">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-primary p-5 rounded-xl border border-gray-800 text-primary shadow-sm">
+        <p class="text-xs font-semibold uppercase mb-1">Open Rate</p>
+        <div class="flex items-center justify-between">
+            <h3 id="global-open-rate" class="text-2xl font-bold">...</h3>
+            <div class="p-2 bg-yellow-50 rounded-lg text-yellow-600">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-primary p-5 rounded-xl border border-gray-800 text-primary shadow-sm">
+        <p class="text-xs font-semibold uppercase mb-1">Plan Expiry</p>
+        <div class="flex items-center justify-between">
+            <div>
+                <h3 id="global-expiry-date" class="text-lg font-bold">...</h3>
+                <p id="global-days-left" class="text-xs text-red-500 font-medium">...</p>
+            </div>
+            <div class="p-2 bg-red-50 rounded-lg text-red-600">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+            </div>
+        </div>
+    </div>
+
+  </div>
+
+  <div class="text-left px-4 md:px-2 pb-5">
     {% if request.user.subscription.status != "active" %}
       <div class="p-5 my-3 rounded-xl border-2 border-solid bg-blue-200 border-blue-700 text-blue-800 w-fit mx-auto">
         <p class="text-base">
@@ -40,7 +97,6 @@
           </div>
       {% endfor %}
     {% endif %}
-
   </div>
 
 
@@ -233,10 +289,37 @@
     fetch("{% url 'dashboard:campaign_statuses' %}")
       .then(response => response.json())
       .then(data => {
+        
+        // ----------------------------------------
+        // 1. UPDATE GLOBAL METRICS (Top Cards)
+        // ----------------------------------------
+        if (data.global_stats) {
+            const stats = data.global_stats;
+            
+            // Helper to safe update text
+            const setSafeText = (id, val) => {
+                const el = document.getElementById(id);
+                if (el) el.innerText = val;
+            };
+
+            setSafeText('global-total-sent', stats.total_sent);
+            setSafeText('global-total-opens', stats.total_opens);
+            setSafeText('global-open-rate', stats.open_rate + "%");
+            setSafeText('global-expiry-date', stats.expiry_date);
+            setSafeText('global-days-left', stats.days_left);
+        }
+
+        // ----------------------------------------
+        // 2. UPDATE CAMPAIGN ROWS (Table)
+        // ----------------------------------------
         Object.keys(data).forEach(accountId => {
-          const status = data[accountId].status;
-          const sent = data[accountId].sent_count;
-          const total = data[accountId].total;
+          // Skip the global_stats key since it's not an account ID
+          if (accountId === 'global_stats') return;
+
+          const accountData = data[accountId];
+          const status = accountData.status;
+          const sent = accountData.sent_count;
+          const total = accountData.total;
 
           // === Update Status Box ===
           const statusBox = document.querySelector(`#status-box-${accountId}`);
@@ -263,7 +346,6 @@
               statusBox.classList.add("bg-tertiary", "text-secondary");
               label = "N/A";
             }
-
             statusBox.textContent = label;
           }
 
@@ -277,20 +359,22 @@
 
           // === Show/Hide Emergency Stop and Resume Buttons ===
           const stopForm = document.querySelector(`#emergency-stop-form-${accountId}`);
-          const resumeForm = document.querySelector(`#resume-form-${accountId}`);
+          const resumeForm = document.querySelector(`#resume-form-${accountId}`); // Ensure this ID exists in HTML loop
 
           if (stopForm) {
             stopForm.style.display = (status === "processing" || status === "pending") ? "inline-block" : "none";
           }
-          if (resumeForm) {
-            resumeForm.style.display = (status === "cancelled") ? "inline-block" : "none";
-          }
+          // Note: Based on your previous HTML, you might need to ensure the resume form has a unique ID like resume-form-{{account.id}}
         });
-      });
+      })
+      .catch(error => console.error('Error fetching statuses:', error));
   }
 
+  // Poll every 5 seconds
   setInterval(updateCampaignStatuses, 5000);
-  updateCampaignStatuses(); // Initial run
+  
+  // Run immediately on page load
+  updateCampaignStatuses(); 
 </script>
 
 

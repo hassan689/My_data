@@ -1,4 +1,4 @@
-from django.utils.timezone import now
+from django.utils import timezone
 from subscriptions.models import Subscription, Revenue, Expense
 from warmup.models import WarmupCampaign
 from users.models import EmailAccount
@@ -8,7 +8,7 @@ from growth_skool.celery import app
 from django.core.mail import send_mail
 from django.conf import settings
 from datetime import timedelta
-from django.utils.timezone import get_current_timezone, make_aware
+from django.utils.timezone import get_current_timezone, make_aware, now
 from django.db.models import Sum
 from django.db import transaction
 from drip_campaigns.models import DripCampaign, EmailAccountAndLeads
@@ -83,8 +83,8 @@ def end_warmup():
 
 @app.task(name="subscriptions.tasks.expire_subscriptions.expire_subscriptions")
 def expire_subscriptions():
-    today = now().date()
-    expired_subscriptions = Subscription.objects.filter(end_date__lt=today, status="active")
+    now = timezone.now()
+    expired_subscriptions = Subscription.objects.filter(end_date__lt=now, status="active")
 
     message = """
 Hi there,

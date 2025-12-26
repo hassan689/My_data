@@ -17,6 +17,7 @@ from django.utils.encoding import force_str
 from django.core.cache import cache
 from django.conf import settings
 from django.urls import reverse
+from datetime import timedelta
 
 import re
 import random
@@ -951,4 +952,31 @@ def finalize_drip_step_task(campaign_id):
         )
         raise e
 
+
+# ===================================================================
+# TASK 5: CLEANUP OLD CAMPAIGNS AND DATA
+# ===================================================================
+
+@app.task(name="dashboard.tasks.clear_drip_campaigns")
+def clear_drip_campaigns():
+    """
+    Deletes DripCampaign entries where:
+    - status is 'Completed', 'Failed' or 'Cancelled' AND
+    - created_at is older than 60 days.
+    
+    Because of on_delete=models.CASCADE in your models, this will automatically
+    wipe the associated:
+    - EmailAccountAndLeads
+    - DripTemplates
+    - SentDripEmail (the logs)
+    """
+    cutoff_date = timezone.now() - timedelta(days=60)
+    safe_to_delete_statuses = ['Completed', 'Failed', 'Cancelled']
+    
+    deleted_count, _ = DripCampaign.objects.filter(
+        status__in=safe_to_delete_statuses,
+        created_at__lt=cutoff_date
+    ).delete()
+
+    return f"Deleted {deleted_count} old drip campaigns and related data."
 
