@@ -4,6 +4,18 @@ from django.core.mail import send_mail
 from django.utils import timezone
 from django.conf import settings
 from django.utils.encoding import force_str
+import imaplib
+import re
+
+
+IMAP_SETTINGS_MAP = {
+    'gmail':     {'host': 'imap.gmail.com', 'port': 993},
+    'outlook':   {'host': 'outlook.office365.com', 'port': 993},
+    'yahoo':     {'host': 'imap.mail.yahoo.com', 'port': 993},
+    'zoho':      {'host': 'imap.zoho.com', 'port': 993},
+    'hostinger': {'host': 'imap.hostinger.com', 'port': 993},
+    'namecheap': {'host': 'imap.privateemail.com', 'port': 993},
+}
 
 
 # ===================================================================
@@ -149,4 +161,107 @@ def send_campaign_failure_alert(error_message, location, campaign_id=None):
         )
     except Exception as e:
         print(f"CRITICAL: Failed to send failure alert email! Original error: {error_message}. Email error: {e}")
+
+
+
+def get_best_sent_folder(imap_conn):
+    """
+    Iterates through available folders to find the most likely 'Sent' folder.
+    """
+    try:
+        # Get list of folders
+        status, folders = imap_conn.list()
+        if status != 'OK':
+            return "Sent" # Fallback
+
+        folders_list = []
+        for f in folders:
+            # Decode folder info (it comes as bytes)
+            decoded = f.decode('utf-8', 'ignore')
+            # Extract name (last part of the string usually in quotes)
+            name_match = re.search(r'"([^"]+)"$', decoded) or re.search(r' (\S+)$', decoded)
+            if name_match:
+                folders_list.append(name_match.group(1))
+
+        # Priority list for folder names
+        candidates = ['Sent', 'Sent Items', 'Sent Mail', 'INBOX.Sent', 'INBOX.Sent Items']
+        
+        # 1. Exact match check
+        for candidate in candidates:
+            if candidate in folders_list:
+                return candidate
+
+        # 2. Case-insensitive check
+        lower_folders = {f.lower(): f for f in folders_list}
+        for candidate in candidates:
+            if candidate.lower() in lower_folders:
+                return lower_folders[candidate.lower()]
+
+        return "Sent" # Default fallback
+    except Exception as e:
+        print(f"Error guessing sent folder: {e}")
+        return "Sent"
+
+
+def get_imap_connection(email_account):
+    """
+    Establishes and logs into an IMAP connection. Returns the connection object.
+    """
+    normalized_name = normalize_provider(email_account.email_provider)
+    if normalized_name == 'gmail':
+        return None  # Gmail doesn't need this
+
+    # Determine Host
+    imap_host = None
+    imap_port = 993
+    if normalized_name and normalized_name in IMAP_SETTINGS_MAP:
+        imap_host = IMAP_SETTINGS_MAP[normalized_name]['host']
+        imap_port = IMAP_SETTINGS_MAP[normalized_name]['port']
+    elif email_account.host:
+        if email_account.host.startswith('smtp.'):
+            imap_host = email_account.host.replace('smtp.', 'imap.', 1)
+    else:
+        return None
+
+    try:
+        imap_conn = imaplib.IMAP4_SSL(imap_host, imap_port)
+        decrypted_password = email_account.get_password()
+        imap_conn.login(email_account.email_address, decrypted_password)
+        return imap_conn
+    except Exception as e:
+        print(f"IMAP Connection Failed for {email_account.email_address}: {e}")
+        return None
+
+
+def save_email_with_existing_connection(imap_conn, raw_email_message, message_id, cached_folder_name=None):
+    """
+    Uses an EXISTING open IMAP connection to append a message.
+    """
+    if not imap_conn:
+        return
+
+    try:
+        # 1. Select Folder
+        if cached_folder_name:
+            sent_folder = cached_folder_name
+        else:
+            sent_folder = get_best_sent_folder(imap_conn)
+
+        imap_conn.select(sent_folder)
+
+        # 2. Check for existence
+        if message_id:
+            escaped_id = message_id.replace('\\', '\\\\').replace('"', '\\"')
+            search_criteria = f'(HEADER Message-ID "{escaped_id}")'
+            typ, data = imap_conn.search(None, search_criteria)
+            if data and data[0]:
+                return  # Already exists
+
+        # 3. Append
+        imap_conn.append(sent_folder, '\\Seen', None, raw_email_message)
+
+    except Exception as e:
+        print(f"Failed to append email {message_id}: {e}")
+        # Note: If the connection actually broke, the caller needs to handle re-connecting
+        raise e
 

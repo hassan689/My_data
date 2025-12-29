@@ -22,6 +22,7 @@ from growth_skool.celery import app
 from celery import shared_task, states
 from celery.exceptions import TimeLimitExceeded
 
+from drip_campaigns.utilities import get_imap_connection, save_email_with_existing_connection, get_best_sent_folder
 from .utilities import get_email_connection, personalize_template, sanitize_email_html, should_use_batch_processing
 from django.core.mail import EmailMultiAlternatives, get_connection, send_mail, EmailMessage
 
@@ -42,6 +43,7 @@ def send_single_email(self, campaign_record_id):
     - bind=True: Allows us to call self.retry() for network errors.
     """
     connection = None
+    imap_connection = None
     lead = None
     email_account = None
     campaign = None
@@ -123,6 +125,7 @@ def send_single_email(self, campaign_record_id):
         email_account = campaign.sender_account
         decrypted_password = email_account.get_password()
         connection = get_email_connection(email_account, decrypted_password)
+        imap_connection = get_imap_connection(email_account)
         mailbox_instance = GmailToken.objects.filter(email_account=email_account).first()
 
         # 6. --- Prepare Email ---
@@ -165,6 +168,20 @@ def send_single_email(self, campaign_record_id):
         
         try:
             msg.send()
+            # --- Save to Sent Folder (IMAP) IF NOT ALREADY THERE ---
+            if imap_connection:
+                raw_message = msg.message().as_bytes()
+                try:
+                    save_email_with_existing_connection(imap_connection, raw_message, message_id)
+                except Exception as e:
+                    print(f"IMAP Append failed, trying to reconnect... {e}")
+                    # Simple Reconnect Logic
+                    try:
+                        imap_connection = get_imap_connection(email_account)
+                        save_email_with_existing_connection(imap_connection, raw_message, message_id)
+                    except:
+                        print("IMAP Reconnect failed. Skipping save.")
+
         except Exception as e:
             # Handle connection-lost error
             if "please run connect() first" in str(e).lower() or "connection expired" in str(e).lower():
@@ -173,6 +190,20 @@ def send_single_email(self, campaign_record_id):
                 connection = get_email_connection(email_account, decrypted_password)
                 msg.connection = connection
                 msg.send() # Retry send
+
+                # RECONNECT IMAP (Safely)
+                if imap_connection: # Only if it was supposed to exist
+                    try: imap_connection.logout()
+                    except: pass
+                    
+                    imap_connection = get_imap_connection(email_account)
+
+                    if imap_connection:
+                        try:
+                            raw_message = msg.message().as_bytes()
+                            save_email_with_existing_connection(imap_connection, raw_message, message_id)
+                        except Exception as inner_e:
+                            print(f"IMAP retry failed: {inner_e}")
             else:
                 raise e # Re-raise other errors to be caught by outer try/except
         
@@ -304,6 +335,11 @@ def send_single_email(self, campaign_record_id):
     finally:
         if connection:
             connection.close()
+        if imap_connection:
+            try:
+                imap_connection.logout()
+            except:
+                pass
             
     # 10. --- RESCHEDULE (if not stopped by an error) ---
     try:
@@ -340,6 +376,7 @@ def send_emails_batch(self, campaign_record_id, batch_size=10):
     and then processes them.
     """
     connection = None
+    imap_connection = None
     email_account = None
     iter_count = 0
     current_batch = [] # Will be populated by the atomic pop
@@ -391,7 +428,16 @@ def send_emails_batch(self, campaign_record_id, batch_size=10):
         email_account = campaign_for_loop.sender_account
         decrypted_password = email_account.get_password()
         connection = get_email_connection(email_account, decrypted_password)
+        imap_connection = get_imap_connection(email_account)
         mailbox_instance = GmailToken.objects.filter(email_account=email_account).first()
+
+        # OPTIMIZATION: Resolve 'Sent' Folder Name ONCE for the whole batch
+        batch_folder_name = None
+        if imap_connection:
+            try:
+                batch_folder_name = get_best_sent_folder(imap_connection)
+            except:
+                batch_folder_name = "Sent" # Fallback
         
         for lead in current_batch:
             
@@ -451,6 +497,21 @@ def send_emails_batch(self, campaign_record_id, batch_size=10):
                 
                 try:
                     msg.send()
+
+                    # --- Save to Sent Folder (IMAP) IF NOT ALREADY THERE ---
+                    if imap_connection:
+                        raw_message = msg.message().as_bytes()
+                        try:
+                            save_email_with_existing_connection(imap_connection, raw_message, message_id, cached_folder_name=batch_folder_name)
+                        except Exception as e:
+                            print(f"IMAP Append failed, trying to reconnect... {e}")
+                            # Simple Reconnect Logic
+                            try:
+                                imap_connection = get_imap_connection(email_account)
+                                save_email_with_existing_connection(imap_connection, raw_message, message_id, cached_folder_name=batch_folder_name)
+                            except:
+                                print("IMAP Reconnect failed. Skipping save.")
+
                 except Exception as e:
                     if "please run connect() first" in str(e).lower() or "connection expired" in str(e).lower():
                         print("SMTP connection lost, reconnecting...")
@@ -458,6 +519,20 @@ def send_emails_batch(self, campaign_record_id, batch_size=10):
                         connection = get_email_connection(email_account, decrypted_password)
                         msg.connection = connection
                         msg.send() # Retry send
+
+                        # RECONNECT IMAP (Safely)
+                        if imap_connection: # Only if it was supposed to exist
+                            try: imap_connection.logout()
+                            except: pass
+                            
+                            imap_connection = get_imap_connection(email_account)
+
+                            if imap_connection:
+                                try:
+                                    raw_message = msg.message().as_bytes()
+                                    save_email_with_existing_connection(imap_connection, raw_message, message_id, cached_folder_name=batch_folder_name)
+                                except Exception as inner_e:
+                                    print(f"IMAP retry failed: {inner_e}")
                     else:
                         raise e # Re-raise to be caught by outer loop
                 
@@ -613,6 +688,11 @@ def send_emails_batch(self, campaign_record_id, batch_size=10):
     finally:
         if connection:
             connection.close()
+        if imap_connection:
+            try:
+                imap_connection.logout()
+            except:
+                pass
 
 
 @shared_task(name="dashboard.send_emails_chunk_celery_task")

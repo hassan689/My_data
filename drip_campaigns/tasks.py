@@ -9,7 +9,7 @@ from dashboard.models import GmailToken
 from unibox.models import EmailThread, OutgoingEmailMessage
 
 from dashboard.utilities import get_email_connection, personalize_template, sanitize_email_html, should_use_batch_processing
-from .utilities import reschedule_or_finalize, normalize_provider, send_campaign_failure_alert
+from .utilities import reschedule_or_finalize, normalize_provider, send_campaign_failure_alert, IMAP_SETTINGS_MAP, get_imap_connection, save_email_with_existing_connection, get_best_sent_folder
 from django.core.mail import EmailMultiAlternatives, send_mail
 from django.db import transaction
 from django.utils import timezone
@@ -29,18 +29,6 @@ import time
 
 email_regex = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
 EMAIL_TASK_TIME_LIMIT = 600
-
-# The IMAP settings map. We will look up settings here.
-# (Using SSL ports by default)
-IMAP_SETTINGS_MAP = {
-    'gmail':    {'host': 'imap.gmail.com', 'port': 993},
-    'outlook':  {'host': 'outlook.office365.com', 'port': 993},
-    'yahoo':    {'host': 'imap.mail.yahoo.com', 'port': 993},
-    'zoho':     {'host': 'imap.zoho.com', 'port': 993},
-    'hostinger':{'host': 'imap.hostinger.com', 'port': 993},
-    'namecheap':{'host': 'imap.privateemail.com', 'port': 993},
-}
-
 
 # ===================================================================
 # TASK 1: THE ALARM CLOCK
@@ -377,6 +365,7 @@ def chain_starter_task(results, campaign_id):
 def send_single_email(self, campaign_id, account_info_id, template_id, lead_index):
 
     connection = None
+    imap_connection = None
     lead = None
     account = None
     template = None
@@ -435,6 +424,7 @@ def send_single_email(self, campaign_id, account_info_id, template_id, lead_inde
         email_account = account.email_account
         decrypted_password = email_account.get_password()
         connection = get_email_connection(email_account, decrypted_password)
+        imap_connection = get_imap_connection(email_account)
         mailbox_instance = GmailToken.objects.filter(email_account=email_account).first()
 
         # --- Prepare Email ---
@@ -474,6 +464,20 @@ def send_single_email(self, campaign_id, account_info_id, template_id, lead_inde
         
         try:
             msg.send()
+
+            # --- Save to Sent Folder (IMAP) IF NOT ALREADY THERE ---
+            if imap_connection:
+                try:
+                    raw_message = msg.message().as_bytes()
+                    save_email_with_existing_connection(imap_connection, raw_message, raw_msg_id)
+                except Exception as e:
+                    print(f"IMAP Append failed, trying to reconnect... {e}")
+                    # Simple Reconnect Logic
+                    try:
+                        imap_connection = get_imap_connection(email_account)
+                        save_email_with_existing_connection(imap_connection, raw_message, raw_msg_id)
+                    except:
+                        print("IMAP Reconnect failed. Skipping save.")
             
             # Log to Database (Use the CLEAN ID)
             try:
@@ -494,6 +498,20 @@ def send_single_email(self, campaign_id, account_info_id, template_id, lead_inde
                 connection = get_email_connection(email_account, decrypted_password)
                 msg.connection = connection
                 msg.send()
+
+                # RECONNECT IMAP (Safely)
+                if imap_connection: # Only if it was supposed to exist
+                    try: imap_connection.logout()
+                    except: pass
+                    
+                    imap_connection = get_imap_connection(email_account)
+
+                    if imap_connection:
+                        try:
+                            raw_message = msg.message().as_bytes()
+                            save_email_with_existing_connection(imap_connection, raw_message, raw_msg_id)
+                        except Exception as inner_e:
+                            print(f"IMAP retry failed: {inner_e}")
 
                 # Log success after retry
                 SentDripEmail.objects.create(
@@ -600,6 +618,11 @@ def send_single_email(self, campaign_id, account_info_id, template_id, lead_inde
     finally:
         if connection:
             connection.close()
+        if imap_connection:
+            try:
+                imap_connection.logout()
+            except:
+                pass
 
     # --- RESCHEDULE ---
     next_delay = random.randint(campaign.min_delay, campaign.max_delay)
@@ -610,6 +633,7 @@ def send_single_email(self, campaign_id, account_info_id, template_id, lead_inde
 def send_batch_emails(self, campaign_id, account_info_id, template_id, start_index, batch_size):
 
     connection = None
+    imap_connection = None
     account = None
     template = None
     campaign = None
@@ -647,7 +671,16 @@ def send_batch_emails(self, campaign_id, account_info_id, template_id, start_ind
         email_account = account.email_account
         decrypted_password = email_account.get_password()
         connection = get_email_connection(email_account, decrypted_password)
+        imap_connection = get_imap_connection(email_account)
         mailbox_instance = GmailToken.objects.filter(email_account=email_account).first()
+
+        # OPTIMIZATION: Resolve 'Sent' Folder Name ONCE for the whole batch
+        batch_folder_name = None
+        if imap_connection:
+            try:
+                batch_folder_name = get_best_sent_folder(imap_connection)
+            except:
+                batch_folder_name = "Sent" # Fallback
 
         # --- Batch Processing Loop ---
         for lead_index in range(start_index, start_index + batch_size):
@@ -709,6 +742,20 @@ def send_batch_emails(self, campaign_id, account_info_id, template_id, start_ind
                 
                 try:
                     msg.send()
+
+                    # --- Save to Sent Folder (IMAP) IF NOT ALREADY THERE ---
+                    if imap_connection:
+                        try:
+                            raw_message = msg.message().as_bytes()
+                            save_email_with_existing_connection(imap_connection, raw_message, raw_msg_id, cached_folder_name=batch_folder_name)
+                        except Exception as e:
+                            print(f"IMAP Append failed, trying to reconnect... {e}")
+                            # Simple Reconnect Logic
+                            try:
+                                imap_connection = get_imap_connection(email_account)
+                                save_email_with_existing_connection(imap_connection, raw_message, raw_msg_id, cached_folder_name=batch_folder_name)
+                            except:
+                                print("IMAP Reconnect failed. Skipping save.")
                     
                     # Log to Database (Use the CLEAN ID)
                     try:
@@ -729,6 +776,20 @@ def send_batch_emails(self, campaign_id, account_info_id, template_id, start_ind
                         connection = get_email_connection(email_account, decrypted_password)
                         msg.connection = connection
                         msg.send()
+
+                        # RECONNECT IMAP (Safely)
+                        if imap_connection: # Only if it was supposed to exist
+                            try: imap_connection.logout()
+                            except: pass
+                            
+                            imap_connection = get_imap_connection(email_account)
+
+                            if imap_connection:
+                                try:
+                                    raw_message = msg.message().as_bytes()
+                                    save_email_with_existing_connection(imap_connection, raw_message, raw_msg_id, cached_folder_name=batch_folder_name)
+                                except Exception as inner_e:
+                                    print(f"IMAP retry failed: {inner_e}")
 
                         # Log success after retry
                         SentDripEmail.objects.create(
@@ -858,6 +919,11 @@ def send_batch_emails(self, campaign_id, account_info_id, template_id, start_ind
     finally:
         if connection:
             connection.close()
+        if imap_connection:
+            try:
+                imap_connection.logout()
+            except:
+                pass
 
     # --- RESCHEDULE (Outside Loop) ---
     if daily_limit_hit:
@@ -957,7 +1023,7 @@ def finalize_drip_step_task(campaign_id):
 # TASK 5: CLEANUP OLD CAMPAIGNS AND DATA
 # ===================================================================
 
-@app.task(name="dashboard.tasks.clear_drip_campaigns")
+@app.task(name="drip_campaigns.tasks.clear_drip_campaigns")
 def clear_drip_campaigns():
     """
     Deletes DripCampaign entries where:
