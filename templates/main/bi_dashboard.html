@@ -1,0 +1,428 @@
+{% extends "base.html" %}
+
+{% load static %}
+{% load widget_tweaks %}
+
+{% block 'title' %}{{ page_title }}{% endblock %}
+
+{% block 'content' %}
+
+
+<div class="w-full min-h-screen bg-primary text-primary p-20 mt-14">
+
+    <div class="flex flex-col md:flex-row justify-between items-center mb-8">
+        <h1 class="text-3xl font-bold text-primary">Executive Business Analytics Dashboard</h1>
+        <div class="mt-4 md:mt-0 px-4 py-2 bg-secondary rounded-full border border-color text-sm text-secondary font-medium">
+            Data Updated: {% now "jS F Y H:i" %}
+        </div>
+    </div>
+
+    <!-- Growth & Infrastructure Section -->
+    <div class="bg-secondary rounded-xl shadow-sm border border-color mb-8 overflow-hidden">
+        <div class="bg-tertiary px-6 py-4 border-b border-color">
+            <h5 class="font-semibold text-lg text-primary">Growth & Infrastructure</h5>
+        </div>
+
+        <div class="p-6">
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8 text-center">
+    
+                <div class="p-4 rounded-lg bg-primary border border-color">
+                    <h2 class="text-3xl font-bold text-primary">{{ users.total_users }}</h2>
+                    <p class="text-xs uppercase tracking-wider text-tertiary mt-1">Total Users</p>
+                </div>
+
+                <div class="p-4 rounded-lg bg-primary border border-color">
+                    <h2 class="text-3xl font-bold text-primary">{{ users.total_subscribers }}</h2>
+                    <p class="text-xs uppercase tracking-wider text-tertiary mt-1">Total Subscribers</p>
+                </div>
+
+                <div class="p-4 rounded-lg bg-primary border border-color">
+                    <h2 class="text-3xl font-bold text-primary">{{ users.infra_stats.total_accounts }}</h2>
+                    <p class="text-xs uppercase tracking-wider text-tertiary mt-1">Total Email Accounts</p>
+                </div>
+
+                <div class="p-4 rounded-lg bg-yellow-100 border border-yellow-300 text-yellow-900">
+                    <div class="text-3xl font-bold">{{ users.infra_stats.warmup_targets }}</div>
+                    <div class="text-xs uppercase tracking-wider font-semibold mt-1">Active Warmup Targets</div>
+                </div>
+
+                <div class="p-4 rounded-lg bg-red-100 border border-red-300 text-red-900">
+                    <div class="text-3xl font-bold">{{ users.infra_stats.blacklisted }}</div>
+                    <div class="text-xs uppercase tracking-wider font-semibold mt-1">Blacklisted Accounts</div>
+                </div>
+                
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+                <div class="relative h-72 w-full border border-color rounded-lg p-2 bg-primary">
+                    <canvas id="signupTrendChart"></canvas>
+                </div>
+                <div class="relative h-72 w-full border border-color rounded-lg p-2 bg-primary flex flex-col items-center justify-center">
+                    <h6 class="text-xs uppercase tracking-wide text-tertiary mb-2 font-semibold absolute top-4 left-4">Acquisition Source</h6>
+                    <div class="h-60 w-full">
+                        <canvas id="referralDonutChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="border-t border-color pt-6">
+                <h6 class="text-xs uppercase tracking-wide text-tertiary mb-4 font-semibold">Email Provider Distribution</h6>
+                <div class="relative h-72 w-full">
+                    <canvas id="providerChart"></canvas>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Financial Health Section -->
+    <div class="bg-secondary rounded-xl shadow-sm border border-color mb-8 overflow-hidden">
+        <div class="bg-tertiary px-6 py-4 border-b border-color flex justify-between items-center">
+            <h5 class="font-semibold text-lg text-primary">Financial Health</h5>
+            <span class="text-xs text-tertiary font-normal">Revenue vs Expenses (Global History)</span>
+        </div>
+        
+        <div class="p-6">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 text-center">
+                {% if finance.current_month %}
+                <div class="p-4 rounded-lg bg-primary border border-color relative overflow-hidden">
+                    <div class="absolute top-0 right-0 p-2 opacity-10 text-6xl text-green-500 font-black">Rs.</div>
+                    <h3 class="text-2xl font-bold text-green-600">Rs. {{ finance.current_month.total_revenue }}</h3>
+                    <p class="text-xs text-tertiary mt-1">Revenue ({% now "F" %})</p>
+                </div>
+                <div class="p-4 rounded-lg bg-primary border border-color">
+                    <h3 class="text-2xl font-bold text-blue-600">Rs. {{ finance.current_month.net_profit }}</h3>
+                    <p class="text-xs text-tertiary mt-1">Net Profit ({% now "F" %})</p>
+                </div>
+                <div class="p-4 rounded-lg bg-primary border border-color">
+                    <h3 class="text-2xl font-bold text-purple-600">{{ finance.referral_subs_count }}</h3>
+                    <p class="text-xs text-tertiary mt-1">Active Subs via Referrals</p>
+                </div>
+                {% else %}
+                <div class="col-span-3 p-4 bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-lg">
+                    No financial data generated for {% now "F Y" %} yet.
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+                
+                <div class="lg:col-span-2 relative h-96 w-full border border-color rounded-lg p-2 bg-primary">
+                    <canvas id="revenueTrendChart"></canvas>
+                </div>
+
+                <div class="relative h-96 w-full border border-color rounded-lg p-2 bg-primary flex flex-col items-center justify-center">
+                    <h6 class="text-xs uppercase tracking-wide text-tertiary mb-1 font-semibold absolute top-2 left-2">Sub Status</h6>
+                    <div class="h-full w-full">
+                        <canvas id="subStatusChart"></canvas>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="border-t border-color my-6"></div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                
+                <div class="lg:col-span-2">
+                    <h6 class="text-xs uppercase tracking-wide text-tertiary mb-4 font-semibold">Top 5 Loyal Customers</h6>
+                    <div class="overflow-x-auto rounded-lg border border-color">
+                        <table class="w-full text-left border-collapse">
+                            <thead class="bg-tertiary text-xs uppercase text-tertiary font-semibold">
+                                <tr>
+                                    <th class="px-4 py-2 border-b border-color">User</th>
+                                    <th class="px-4 py-2 border-b border-color">Company</th>
+                                    <th class="px-4 py-2 border-b border-color">Renewals</th>
+                                    <th class="px-4 py-2 border-b border-color">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody class="text-sm text-secondary bg-primary">
+                                {% for sub in finance.top_customers %}
+                                <tr class="hover:bg-tertiary transition-colors">
+                                    <td class="px-4 py-3 border-b border-color font-medium">{{ sub.user.username }}</td>
+                                    <td class="px-4 py-3 border-b border-color">{{ sub.user.company_name|default:"-" }}</td>
+                                    <td class="px-4 py-3 border-b border-color">{{ sub.renewal_count }}</td>
+                                    <td class="px-4 py-3 border-b border-color">
+                                        <span class="px-2 py-0.5 text-xs rounded-full 
+                                            {% if sub.status == 'active' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200
+                                            {% elif sub.status == 'expired' %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300
+                                            {% else %}bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200{% endif %}">
+                                            {{ sub.status|title }}
+                                        </span>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="flex flex-col items-center justify-center">
+                    <h6 class="text-xs uppercase tracking-wide text-tertiary mb-2 font-semibold text-center">Subscription Mix</h6>
+                    <div class="relative h-64 w-full">
+                        <canvas id="subTypeChart"></canvas>
+                    </div>
+                </div>
+                
+            </div>
+        </div>
+    </div>
+
+    <!-- Campaigns Performance Stats -->
+    <div class="bg-secondary rounded-xl shadow-sm border border-color mb-8 overflow-hidden">
+        <div class="bg-tertiary px-6 py-4 border-b border-color">
+            <h5 class="font-semibold text-lg text-primary">Campaigns Performance Stats</h5>
+        </div>
+        
+        <div class="p-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8 text-center">
+                <div class="p-4 rounded-lg bg-primary border border-color">
+                    <h2 class="text-4xl font-bold text-primary">{{ outreach.breakdown.total_campaigns }}</h2>
+                    <p class="text-xs uppercase tracking-wider text-tertiary mt-2">Total Campaigns</p>
+                </div>
+                <div class="p-4 rounded-lg bg-primary border border-color">
+                    <h2 class="text-4xl font-bold text-primary">{{ outreach.tracking.total_sent_all }}</h2>
+                    <p class="text-xs uppercase tracking-wider text-tertiary mt-2">Total Emails Sent</p>
+                </div>
+                <div class="p-4 rounded-lg bg-primary border border-color">
+                    <h2 class="text-4xl font-bold text-green-600">{{ outreach.tracking.total_sent_tracked }}</h2>
+                    <p class="text-xs uppercase tracking-wider text-tertiary mt-2">Tracked Emails Sent</p>
+                </div>
+                <div class="p-4 rounded-lg bg-primary border border-color">
+                    <h2 class="text-4xl font-bold text-blue-600">{{ outreach.tracking.total_opens }}</h2>
+                    <p class="text-xs uppercase tracking-wider text-tertiary mt-2">Total Opens</p>
+                </div>
+                <div class="p-4 rounded-lg bg-primary border border-color">
+                    <h2 class="text-4xl font-bold {% if outreach.tracking.open_rate_percent > 20 %}text-green-600{% else %}text-yellow-600{% endif %}">
+                        {{ outreach.tracking.open_rate_percent }}%
+                    </h2>
+                    <p class="text-xs uppercase tracking-wider text-tertiary mt-2">Global Open Rate</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div class="relative h-72 w-full">
+                    <canvas id="campaignStatusChart"></canvas>
+                </div>
+                <div class="relative h-72 w-full">
+                    <canvas id="outreachFunnelChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    const commonOptions = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: { labels: { color: '#6b7280', font: { size: 11 } } }, 
+            title: { display: true, color: '#374151', font: { size: 13, weight: 'bold' } } 
+        }
+    };
+
+    // --- 1. CAMPAIGN STATUS ---
+    new Chart(document.getElementById('campaignStatusChart').getContext('2d'), {
+        type: 'doughnut',
+        data: {
+            labels: ['Launched/Active', 'Processing', 'Scheduled'],
+            datasets: [{
+                data: [{{ outreach.breakdown.launched_active }}, {{ outreach.breakdown.processing }}, {{ outreach.breakdown.scheduled_pending }}],
+                backgroundColor: ['#10b981', '#3b82f6', '#f59e0b'],
+                borderWidth: 0
+            }]
+        },
+        options: { ...commonOptions, plugins: { ...commonOptions.plugins, title: { display: true, text: 'Active Campaign Status' } } }
+    });
+
+    // --- 2. OUTREACH FUNNEL ---
+    new Chart(document.getElementById('outreachFunnelChart').getContext('2d'), {
+        type: 'bar',
+        data: {
+            // [NEW] Updated labels
+            labels: ['Total Sent', 'Tracked Sent', 'Total Opens'],
+            datasets: [{
+                label: 'Volume',
+                // [NEW] Updated data array
+                data: [
+                    {{ outreach.tracking.total_sent_all }}, 
+                    {{ outreach.tracking.total_sent_tracked }}, 
+                    {{ outreach.tracking.total_opens }}
+                ],
+                backgroundColor: ['#6b7280', '#10b981', '#3b82f6'], // Gray, Green, Blue
+                borderRadius: 4
+            }]
+        },
+        options: { ...commonOptions, indexAxis: 'y', plugins: { ...commonOptions.plugins, title: { display: true, text: 'Engagement Funnel' } } }
+    });
+
+    // --- 3. REVENUE TREND (GLOBAL) ---
+    new Chart(document.getElementById('revenueTrendChart').getContext('2d'), {
+        type: 'line',
+        data: {
+            labels: {{ finance.trend_data.labels|safe }},
+            datasets: [
+                {
+                    label: 'Total Revenue',
+                    data: {{ finance.trend_data.total_revenue|safe }},
+                    borderColor: '#10b981', // Green
+                    tension: 0.3
+                },
+                {
+                    label: 'Net Profit',
+                    data: {{ finance.trend_data.net_profit|safe }},
+                    borderColor: '#3b82f6', // Blue
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    fill: true,
+                    tension: 0.3
+                },
+                // [UPDATED] Total Expenses: Solid Red
+                {
+                    label: 'Total Expenses',
+                    data: {{ finance.trend_data.total_expenses|safe }},
+                    borderColor: '#ef4444', // Red
+                    tension: 0.3,
+                    borderDash: [] // Removed dash to make it solid
+                },
+                // [UPDATED] Affiliate Costs: Yellow
+                {
+                    label: 'Affiliate Costs',
+                    data: {{ finance.trend_data.affiliate_paid|safe }},
+                    borderColor: '#f59e0b', // Yellow/Amber
+                    tension: 0.3
+                }
+            ]
+        },
+        options: { ...commonOptions, plugins: { ...commonOptions.plugins, title: { display: true, text: 'Revenue & Expenses (All Time)' } } }
+    });
+
+    // --- 4. SUB STATUS (NEW) ---
+    const subStatusLabels = []; const subStatusData = []; const subStatusColors = [];
+    {% for s in finance.sub_status_counts %}
+        subStatusLabels.push("{{ s.status|title }}");
+        subStatusData.push({{ s.count }});
+        
+        if("{{ s.status }}" === "active") subStatusColors.push('#10b981'); // Green
+        else if("{{ s.status }}" === "expired") subStatusColors.push('#9ca3af'); // Gray
+        else subStatusColors.push('#ef4444'); // Red (Canceled)
+    {% endfor %}
+
+    new Chart(document.getElementById('subStatusChart').getContext('2d'), {
+        type: 'doughnut',
+        data: {
+            labels: subStatusLabels,
+            datasets: [{
+                data: subStatusData,
+                backgroundColor: subStatusColors,
+                borderWidth: 0,
+                hoverOffset: 4
+            }]
+        },
+        options: { 
+            ...commonOptions, 
+            plugins: { 
+                ...commonOptions.plugins, 
+                legend: { position: 'right', labels: { boxWidth: 12, font: { size: 10 } } },
+                title: { display: false } 
+            } 
+        }
+    });
+
+    // --- 5. SUB TYPES ---
+    const subLabels = []; const subData = [];
+    {% for type in finance.sub_types %}
+        subLabels.push("{{ type.type|default:'Unknown' }}");
+        subData.push({{ type.count }});
+    {% endfor %}
+    new Chart(document.getElementById('subTypeChart').getContext('2d'), {
+        type: 'doughnut', // Changed to doughnut to match Status chart style
+        data: {
+            labels: subLabels,
+            datasets: [{
+                data: subData,
+                backgroundColor: ['#3b82f6', '#8b5cf6', '#ec4899', '#6366f1'],
+                borderWidth: 0,
+                hoverOffset: 4
+            }]
+        },
+        options: { 
+            ...commonOptions, 
+            plugins: { 
+                ...commonOptions.plugins, 
+                legend: { position: 'right', labels: { boxWidth: 12, font: { size: 10 } } },
+                title: { display: false } 
+            } 
+        }
+    });
+
+    // --- 6. SIGNUP TRENDS ---
+    new Chart(document.getElementById('signupTrendChart').getContext('2d'), {
+        type: 'line',
+        data: {
+            labels: {{ users.signup_trend.labels|safe }},
+            datasets: [{
+                label: 'New Signups',
+                data: {{ users.signup_trend.data|safe }},
+                borderColor: '#f97316',
+                backgroundColor: 'rgba(249, 115, 22, 0.1)',
+                fill: true,
+                tension: 0.4
+            }]
+        },
+        options: { ...commonOptions, plugins: { ...commonOptions.plugins, title: { display: true, text: 'User Growth Trend' } } }
+    });
+
+    // --- 7. REFERRAL DONUT ---
+    new Chart(document.getElementById('referralDonutChart').getContext('2d'), {
+        type: 'doughnut',
+        data: {
+            labels: ['Organic', 'Referral'],
+            datasets: [{
+                data: [{{ users.referral_stats.organic }}, {{ users.referral_stats.referred }}],
+                backgroundColor: ['#6b7280', '#8b5cf6'], // Gray vs Purple
+                borderWidth: 0
+            }]
+        },
+        options: { ...commonOptions, plugins: { ...commonOptions.plugins, title: { display: true, text: 'All-Time Acquisition Source' } } }
+    });
+
+    // --- 8. PROVIDER DISTRIBUTION ---
+    const provLabels = []; const provData = []; const provColors = [];
+    
+    function getProvColor(name) {
+        const n = name.toLowerCase();
+        if(n === 'gmail') return '#EA4335';
+        if(n === 'outlook') return '#0078D4';
+        if(n === 'yahoo') return '#6001D2';
+        if(n === 'zoho') return '#F0BC2C';
+        if(n === 'hostinger') return '#673DE6';
+        if(n === 'namecheap') return '#DE5147';
+        return '#9ca3af'; 
+    }
+
+    {% for p in users.provider_stats %}
+        provLabels.push("{{ p.provider }}");
+        provData.push({{ p.count }});
+        provColors.push(getProvColor("{{ p.provider }}"));
+    {% endfor %}
+
+    new Chart(document.getElementById('providerChart').getContext('2d'), {
+        type: 'bar',
+        data: {
+            labels: provLabels,
+            datasets: [{
+                label: 'Accounts',
+                data: provData,
+                backgroundColor: provColors,
+                borderRadius: 4
+            }]
+        },
+        options: { ...commonOptions, plugins: { ...commonOptions.plugins, title: { display: true, text: 'Normalized Email Infrastructure' } } }
+    });
+</script>
+
+
+{% endblock %}
+

@@ -1028,7 +1028,7 @@ def clear_drip_campaigns():
     """
     Deletes DripCampaign entries where:
     - status is 'Completed', 'Failed' or 'Cancelled' AND
-    - created_at is older than 60 days.
+    - created_at is older than 365 days.
     
     Because of on_delete=models.CASCADE in your models, this will automatically
     wipe the associated:
@@ -1036,7 +1036,7 @@ def clear_drip_campaigns():
     - DripTemplates
     - SentDripEmail (the logs)
     """
-    cutoff_date = timezone.now() - timedelta(days=60)
+    cutoff_date = timezone.now() - timedelta(days=365)
     safe_to_delete_statuses = ['Completed', 'Failed', 'Cancelled']
     
     deleted_count, _ = DripCampaign.objects.filter(

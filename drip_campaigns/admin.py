@@ -37,7 +37,7 @@ class DripCampaignAdmin(admin.ModelAdmin):
     list_filter = ('status', 'lead_source')
     search_fields = ('name', 'launched_by__username')
     inlines = [DripTemplateInline]
-    ordering = ('status',)
+    ordering = ('created_at',)
     
     # Add a read-only field for the creation time
     readonly_fields = ('created_at',)

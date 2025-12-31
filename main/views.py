@@ -9,6 +9,26 @@ from django.views.decorators.csrf import csrf_exempt # Important for the file up
 from django.contrib.auth.decorators import login_required
 from django.utils.translation import gettext_lazy as _
 from django.core.files.storage import default_storage
+from django.contrib.auth.decorators import user_passes_test
+from .utilities import *
+
+
+@user_passes_test(lambda u: u.is_superuser)
+def bi_dashboard_view(request):
+    
+    # 1. Fetch Data
+    outreach_data = get_global_outreach_stats()
+    financial_data = get_financial_stats()
+    user_data = get_user_growth_stats()
+
+    context = {
+        'outreach': outreach_data,
+        'finance': financial_data,
+        'users': user_data,
+        'page_title': "Dispatch Skool - Co Founder Dashboard"
+    }
+
+    return render(request, 'main/bi_dashboard.html', context)
 
 
 @csrf_exempt

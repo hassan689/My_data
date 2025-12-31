@@ -944,9 +944,9 @@ def clear_launched_campaigns():
     """
     Deletes CampaignRecord entries where:
     - status is 'launched', 'failed' or 'cancelled' AND
-    - launch_time is older than 60 days
+    - launch_time is older than 365 days
     """
-    cutoff_date = timezone.now() - timedelta(days=60)
+    cutoff_date = timezone.now() - timedelta(days=365)
     status = ['launched', 'failed', 'cancelled']
     deleted_count, _ = CampaignRecord.objects.filter(
         status__in=status,
