@@ -8,5 +8,5 @@ urlpatterns = [
 		path('pricing', views.price_page, name='price_page'),
     path('privacy/', views.privacy_policy, name='privacy_policy'),
     path('terms/', views.terms_of_service, name='terms_of_service'),
-    path('cofounder-dashboard/', views.bi_dashboard_view, name='cofounder_dashboard'),
+    path('ceo-dashboard/', views.bi_dashboard_view, name='cofounder_dashboard'),
 ]

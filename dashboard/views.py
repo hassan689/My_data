@@ -7,6 +7,7 @@ from django.core.paginator import Paginator
 from users.models import EmailAccount, AccountGroup
 from leads_data.models import DailySheet
 from .models import GmailToken, CampaignRecord, EmailOpen
+from drip_campaigns.models import EmailAccountAndLeads
 from warmup.models import WarmupCampaign
 from drip_campaigns.models import SentDripEmail
 from .forms import EmailAccountForm, CampaignForm, BulkCampaignForm
@@ -92,7 +93,7 @@ def campaign(request, email_account_id):
             lead_source = ''
 
             if file_upload:
-                leads = process_excel_file(file_upload, request.user)
+                leads = process_leads_file(file_upload, request.user)
                 lead_source = 'Excel'
                 debug_info['lead_source'] = 'Excel'
                 debug_info['leads_count'] = len(leads)
@@ -267,7 +268,7 @@ def bulk_campaign_step1(request):
             leads = []
             if file_upload:
                 lead_source = 'Excel'
-                leads = process_excel_file(file_upload, request.user)
+                leads = process_leads_file(file_upload, request.user)
             elif (mc_number and not request.user.on_free_trial) or ((lower_limit_mc_number and upper_limit_mc_number) and not request.user.on_free_trial):
                 lead_source = 'DB'
                 leads = get_leads_from_db(
@@ -369,7 +370,7 @@ def bulk_campaign_step1(request):
 #         if lead_source == "Excel":
 #             file_path = cached_data['file_path']
 #             with open(file_path, 'rb') as f:
-#                 refetched_leads = process_excel_file(f, request.user)
+#                 refetched_leads = process_leads_file(f, request.user)
 
 #         elif lead_source == "DB":
 #             params = cached_data['params']
@@ -594,7 +595,7 @@ def bulk_campaign_step2(request, campaign_key):
         if lead_source == "Excel":
           file_path = cached_data['file_path']
           with open(file_path, 'rb') as f:
-              refetched_leads = process_excel_file(f, request.user)
+              refetched_leads = process_leads_file(f, request.user)
 
         elif lead_source == "DB":
             params = cached_data['params']
@@ -885,43 +886,103 @@ class Echo:
     def write(self, value):
         return value
 
+# @login_required
+# def export_email_opens(request):
+    
+#     queryset = EmailOpen.objects.filter(
+#         launched_by=request.user, is_opened=True
+#     ).values_list('mc_number', 'legal_name', 'recipient_email').iterator()
+
+#     # 2. Determine Date for Filename "Email_Opens_till_{date}"
+#     latest_open = EmailOpen.objects.filter(launched_by=request.user).select_related('campaign').order_by('-timestamp').first()
+#     date_str = now().date().isoformat()
+    
+#     if latest_open:
+#         if latest_open.campaign:
+#             # Case A: Campaign still exists -> Use launch time
+#             target_time = latest_open.campaign.launch_time or latest_open.campaign.scheduled_launch_time
+#             if target_time:
+#                 date_str = target_time.date().isoformat()
+#         else:
+#             # Case B: Campaign was deleted by Celery -> Use the open timestamp
+#             if latest_open.timestamp:
+#                 date_str = latest_open.timestamp.date().isoformat()
+
+#     # 3. Define the Generator
+#     def stream_csv():
+#         buffer = Echo()
+#         writer = csv.writer(buffer)
+        
+#         yield writer.writerow(["MC Number", "Legal Name", "Email"])
+
+#         for row in queryset:
+#             yield writer.writerow(row)
+
+#     # 4. Construct Streaming Response
+#     response = StreamingHttpResponse(stream_csv(), content_type="text/csv")
+#     response['Content-Disposition'] = f'attachment; filename="Email_Opens__till_{date_str}.csv"'
+    
+#     return response
+
 @login_required
 def export_email_opens(request):
     
-    queryset = EmailOpen.objects.filter(
-        launched_by=request.user, is_opened=True
-    ).values_list('mc_number', 'legal_name', 'recipient_email').iterator()
+    # 1. Fetch Legacy Opens
+    legacy_opens = EmailOpen.objects.filter(
+        launched_by=request.user, 
+        is_opened=True
+    ).annotate(
+        source=Value('Standard')
+    ).values_list('mc_number', 'legal_name', 'recipient_email', 'source')
 
-    # 2. Determine Date for Filename "Email_Opens_till_{date}"
-    latest_open = EmailOpen.objects.filter(launched_by=request.user).select_related('campaign').order_by('-timestamp').first()
-    date_str = now().date().isoformat()
+    # 2. Build a Map for Drip Campaign Leads (Email -> Name)
+    # We fetch all lead data for this user's active/completed drip campaigns
+    drip_name_map = {}
+    lead_blobs = EmailAccountAndLeads.objects.filter(
+        campaign__launched_by=request.user
+    ).values_list('leads_data', flat=True)
+
+    for blob in lead_blobs:
+        if not blob: continue
+        for lead in blob:
+            email = lead.get('Email') or lead.get('email')
+            if not email: continue
+            
+            # Find a name key (Legal Name, Name, full_name, etc.)
+            name_key = next((k for k in lead.keys() if 'name' in k.lower()), None)
+            if name_key:
+                drip_name_map[email] = lead[name_key]
+
+    # 3. Fetch Drip Opens
+    drip_opens_qs = SentDripEmail.objects.filter(
+        drip_campaign__launched_by=request.user,
+        is_opened=True
+    ).values_list('lead_mc_number', 'lead_email')
+
+    # 4. Filename Date Logic (Optimized)
+    last_legacy = EmailOpen.objects.filter(launched_by=request.user).order_by('-timestamp').only('timestamp').first()
+    last_drip = SentDripEmail.objects.filter(drip_campaign__launched_by=request.user).order_by('-created_at').only('created_at').first()
     
-    if latest_open:
-        if latest_open.campaign:
-            # Case A: Campaign still exists -> Use launch time
-            target_time = latest_open.campaign.launch_time or latest_open.campaign.scheduled_launch_time
-            if target_time:
-                date_str = target_time.date().isoformat()
-        else:
-            # Case B: Campaign was deleted by Celery -> Use the open timestamp
-            if latest_open.timestamp:
-                date_str = latest_open.timestamp.date().isoformat()
+    dates = [d for d in [getattr(last_legacy, 'timestamp', None), getattr(last_drip, 'created_at', None)] if d]
+    date_str = max(dates).date().isoformat() if dates else now().date().isoformat()
 
-    # 3. Define the Generator
+    # 5. Generator with Dynamic Lookup
     def stream_csv():
         buffer = Echo()
         writer = csv.writer(buffer)
-        
-        yield writer.writerow(["MC Number", "Legal Name", "Email"])
+        yield writer.writerow(["MC Number", "Legal Name", "Email", "Campaign Type"])
 
-        for row in queryset:
+        # Stream Legacy
+        for row in legacy_opens.iterator():
             yield writer.writerow(row)
 
-    # 4. Construct Streaming Response
-    response = StreamingHttpResponse(stream_csv(), content_type="text/csv")
-    response['Content-Disposition'] = f'attachment; filename="Email_Opens__till_{date_str}.csv"'
-    
-    return response
+        # Stream Drip (Enriched with the name map)
+        for mc, email in drip_opens_qs.iterator():
+            name = drip_name_map.get(email, "N/A")
+            yield writer.writerow([mc, name, email, "Drip"])
+
+    return StreamingHttpResponse(stream_csv(), content_type="text/csv", 
+                                headers={'Content-Disposition': f'attachment; filename="Email_Opens__till_{date_str}.csv"'})
 
 
 @login_required

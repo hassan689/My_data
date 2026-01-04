@@ -8,7 +8,7 @@
 {% block 'content' %}
 
 
-<div class="w-full min-h-screen bg-primary text-primary p-20 mt-14">
+<div class="w-full min-h-screen bg-primary text-primary lg:p-20 mt-14">
 
     <div class="flex flex-col md:flex-row justify-between items-center mb-8">
         <h1 class="text-3xl font-bold text-primary">Executive Business Analytics Dashboard</h1>
@@ -25,33 +25,43 @@
 
         <div class="p-6">
             
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8 text-center">
-    
-                <div class="p-4 rounded-lg bg-primary border border-color">
+            <div class="flex flex-wrap justify-center gap-6 mb-8 text-center">
+
+                <div class="w-full md:w-[calc(50%-12px)] lg:w-[calc(25%-18px)] p-4 rounded-lg bg-green-900/20 border border-color">
+                    <h2 class="text-3xl font-bold text-green-700">Rs. {{ finance.global_totals.revenue }}</h2>
+                    <p class="text-xs uppercase tracking-wider font-bold text-green-600 mt-1">Total Revenue</p>
+                </div>
+
+                <div class="w-full md:w-[calc(50%-12px)] lg:w-[calc(25%-18px)] p-4 rounded-lg bg-blue-900/20 border border-color">
+                    <h2 class="text-3xl font-bold text-blue-700">Rs. {{ finance.global_totals.net_profit }}</h2>
+                    <p class="text-xs uppercase tracking-wider font-bold text-blue-600 mt-1">Total Net Profit</p>
+                </div>
+
+                <div class="w-full md:w-[calc(50%-12px)] lg:w-[calc(25%-18px)] p-4 rounded-lg bg-red-900/20 border border-color">
+                    <h2 class="text-3xl font-bold text-red-700">Rs. {{ finance.global_totals.expenses }}</h2>
+                    <p class="text-xs uppercase tracking-wider font-bold text-red-600 mt-1">Total Expenses</p>
+                </div>
+
+                <div class="w-full md:w-[calc(50%-12px)] lg:w-[calc(25%-18px)] p-4 rounded-lg bg-yellow-900/20 border border-color">
+                    <h2 class="text-3xl font-bold text-yellow-700">Rs. {{ finance.global_totals.affiliate }}</h2>
+                    <p class="text-xs uppercase tracking-wider font-bold text-yellow-600 mt-1">Total Affiliate Payouts</p>
+                </div>
+
+                <div class="w-full md:w-[calc(50%-12px)] lg:w-[calc(25%-18px)] p-4 rounded-lg bg-primary border border-color">
                     <h2 class="text-3xl font-bold text-primary">{{ users.total_users }}</h2>
                     <p class="text-xs uppercase tracking-wider text-tertiary mt-1">Total Users</p>
                 </div>
 
-                <div class="p-4 rounded-lg bg-primary border border-color">
+                <div class="w-full md:w-[calc(50%-12px)] lg:w-[calc(25%-18px)] p-4 rounded-lg bg-primary border border-color">
                     <h2 class="text-3xl font-bold text-primary">{{ users.total_subscribers }}</h2>
                     <p class="text-xs uppercase tracking-wider text-tertiary mt-1">Total Subscribers</p>
                 </div>
 
-                <div class="p-4 rounded-lg bg-primary border border-color">
-                    <h2 class="text-3xl font-bold text-primary">{{ users.infra_stats.total_accounts }}</h2>
-                    <p class="text-xs uppercase tracking-wider text-tertiary mt-1">Total Email Accounts</p>
+                <div class="w-full md:w-[calc(50%-12px)] lg:w-[calc(25%-18px)] p-4 rounded-lg bg-primary border border-color">
+                    <h2 class="text-3xl font-bold text-primary">{{ users.active_subscriptions }}</h2>
+                    <p class="text-xs uppercase tracking-wider text-tertiary mt-1">Active Subscribers</p>
                 </div>
 
-                <div class="p-4 rounded-lg bg-yellow-100 border border-yellow-300 text-yellow-900">
-                    <div class="text-3xl font-bold">{{ users.infra_stats.warmup_targets }}</div>
-                    <div class="text-xs uppercase tracking-wider font-semibold mt-1">Active Warmup Targets</div>
-                </div>
-
-                <div class="p-4 rounded-lg bg-red-100 border border-red-300 text-red-900">
-                    <div class="text-3xl font-bold">{{ users.infra_stats.blacklisted }}</div>
-                    <div class="text-xs uppercase tracking-wider font-semibold mt-1">Blacklisted Accounts</div>
-                </div>
-                
             </div>
 
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
@@ -66,13 +76,6 @@
                 </div>
             </div>
 
-            <div class="border-t border-color pt-6">
-                <h6 class="text-xs uppercase tracking-wide text-tertiary mb-4 font-semibold">Email Provider Distribution</h6>
-                <div class="relative h-72 w-full">
-                    <canvas id="providerChart"></canvas>
-                </div>
-            </div>
-
         </div>
     </div>
 
@@ -84,7 +87,7 @@
         </div>
         
         <div class="p-6">
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 text-center">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8 text-center">
                 {% if finance.current_month %}
                 <div class="p-4 rounded-lg bg-primary border border-color relative overflow-hidden">
                     <div class="absolute top-0 right-0 p-2 opacity-10 text-6xl text-green-500 font-black">Rs.</div>
@@ -96,8 +99,12 @@
                     <p class="text-xs text-tertiary mt-1">Net Profit ({% now "F" %})</p>
                 </div>
                 <div class="p-4 rounded-lg bg-primary border border-color">
-                    <h3 class="text-2xl font-bold text-purple-600">{{ finance.referral_subs_count }}</h3>
-                    <p class="text-xs text-tertiary mt-1">Active Subs via Referrals</p>
+                    <h3 class="text-2xl font-bold text-purple-600">{{ finance.current_month.signups }}</h3>
+                    <p class="text-xs text-tertiary mt-1">Total Signups ({% now "F" %})</p>
+                </div>
+                <div class="p-4 rounded-lg bg-primary border border-color">
+                    <h3 class="text-2xl font-bold text-green-600">{{ finance.current_month.subscriptions }}</h3>
+                    <p class="text-xs text-tertiary mt-1">Subscriptions ({% now "F" %})</p>
                 </div>
                 {% else %}
                 <div class="col-span-3 p-4 bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-lg">
@@ -175,7 +182,7 @@
         </div>
         
         <div class="p-6">
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8 text-center">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8 text-center">
                 <div class="p-4 rounded-lg bg-primary border border-color">
                     <h2 class="text-4xl font-bold text-primary">{{ outreach.breakdown.total_campaigns }}</h2>
                     <p class="text-xs uppercase tracking-wider text-tertiary mt-2">Total Campaigns</p>
@@ -198,6 +205,18 @@
                     </h2>
                     <p class="text-xs uppercase tracking-wider text-tertiary mt-2">Global Open Rate</p>
                 </div>
+                <div class="p-4 rounded-lg bg-primary border border-color">
+                    <h2 class="text-3xl font-bold text-primary">{{ users.infra_stats.total_accounts }}</h2>
+                    <p class="text-xs uppercase tracking-wider text-tertiary mt-1">Total Email Accounts</p>
+                </div>
+                <div class="p-4 rounded-lg bg-primary border border-color">
+                    <div class="text-3xl font-bold">{{ users.infra_stats.warmup_targets }}</div>
+                    <div class="text-xs uppercase tracking-wider font-semibold mt-1">Active Warmup Accounts</div>
+                </div>
+                <div class="p-4 rounded-lg bg-primary border border-color">
+                    <div class="text-3xl font-bold">{{ users.infra_stats.blacklisted }}</div>
+                    <div class="text-xs uppercase tracking-wider font-semibold mt-1">Blacklisted Accounts</div>
+                </div>
             </div>
 
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -206,6 +225,12 @@
                 </div>
                 <div class="relative h-72 w-full">
                     <canvas id="outreachFunnelChart"></canvas>
+                </div>
+            </div>
+            <div class="border-t border-color pt-6 mt-3">
+                <h6 class="text-xs uppercase tracking-wide text-tertiary mb-4 font-semibold">Email Provider Distribution</h6>
+                <div class="relative h-72 w-full">
+                    <canvas id="providerChart"></canvas>
                 </div>
             </div>
         </div>

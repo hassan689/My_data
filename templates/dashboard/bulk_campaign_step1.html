@@ -135,12 +135,18 @@
 
             <!-- Title & Description -->
             <div class="mt-4 text-center">
-                <h2 class="text-lg font-medium text-secondary">Upload Excel File</h2>
-                <p class="text-sm text-tertiary py-2">It is recommended that your sheet has upto <strong>300 leads per acccount</strong> only, as it'll help you to <strong>avoid spam</strong>. It should be <strong>only XLSX file.</strong> Support for other formats will be provided later, thank you for cooperation.</p>
+                <h2 class="text-lg font-medium text-secondary">Upload Leads File</h2>
+                
+                <p class="text-sm text-yellow-700 py-2">
+                    To maintain high deliverability and <strong>avoid spam filters</strong>, we recommend 
+                    uploading up to <strong>300 leads</strong> per account. 
+                    Supported formats: <strong>XLSX and CSV</strong>.
+                </p>
+                
                 <p class="text-sm text-red-700 py-2">
-                    Your file <strong>MUST HAVE</strong> at least an <strong>Email</strong> column. 
-                    All other columns (like <strong>Name</strong>, <strong>MC Number</strong>, etc.) 
-                    are optional and can be used for personalization if present.
+                    Your file <strong>MUST</strong> include an <strong>Email</strong> column. 
+                    Additional columns (e.g., <strong>Legal Name</strong>, <strong>MC Number</strong>) 
+                    will be automatically mapped for personalization.
                 </p>
             </div>
 
@@ -150,7 +156,7 @@
               
               <div class="flex flex-col items-center space-y-2">
                   <p class="text-sm font-medium text-primary">Click to upload or drag and drop</p>
-                  <p class="text-xs text-secondary">XLSX (max 10MB)</p>
+                  <p class="text-xs text-secondary">XLSX or CSV (max 10MB)</p>
                   <p id="file-name" class="text-sm text-tertiary"></p> <!-- Display file name -->
               </div>
             </label>

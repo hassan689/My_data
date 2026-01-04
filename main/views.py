@@ -25,7 +25,7 @@ def bi_dashboard_view(request):
         'outreach': outreach_data,
         'finance': financial_data,
         'users': user_data,
-        'page_title': "Dispatch Skool - Co Founder Dashboard"
+        'page_title': "Dispatch Skool - CEO Dashboard"
     }
 
     return render(request, 'main/bi_dashboard.html', context)

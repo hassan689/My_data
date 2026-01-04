@@ -81,7 +81,7 @@ def drip_campaign_step1(request):
             leads = []
             if file_upload:
                 lead_source = 'Excel'
-                leads = process_excel_file(file_upload, request.user)
+                leads = process_leads_file(file_upload, request.user)
             elif (mc_number and not request.user.on_free_trial) or ((lower_limit_mc_number and upper_limit_mc_number) and not request.user.on_free_trial):
                 lead_source = 'DB'
                 leads = get_leads_from_db(
@@ -188,7 +188,7 @@ def drip_campaign_step1(request):
 #         if lead_source == "Excel":
 #           file_path = cached_data['file_path']
 #           with open(file_path, 'rb') as f:
-#               refetched_leads = process_excel_file(f, request.user)
+#               refetched_leads = process_leads_file(f, request.user)
 
 #         elif lead_source == "DB":
 #             params = cached_data['params']
@@ -443,7 +443,7 @@ def drip_campaign_step2(request, campaign_key):
         if lead_source == "Excel":
           file_path = cached_data['file_path']
           with open(file_path, 'rb') as f:
-              refetched_leads = process_excel_file(f, request.user)
+              refetched_leads = process_leads_file(f, request.user)
 
         elif lead_source == "DB":
             params = cached_data['params']

@@ -15,106 +15,6 @@ import smtplib
 from bs4 import BeautifulSoup
 
 
-def process_excel_file(file, user):
-    """
-    Processes an uploaded Excel file, cleans the data, and filters
-    out leads found in the user's personal SkipList (by email and
-    optionally by MC number, if that column exists).
-    """
-    
-    if not file.name.endswith('.xlsx'):
-        return []
-
-    email_regex = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
-
-    try:
-        # Fetch the user's skip list and convert to sets for fast lookups
-        skip_mcs = set()
-        skip_emails = set()
-        if user and user.is_authenticated:
-            try:
-                skip_list = SkipList.objects.get(user=user)
-                skip_mcs = set(skip_list.mc_numbers or [])
-                skip_emails = set(skip_list.emails or [])
-            except SkipList.DoesNotExist:
-                pass  # Sets will remain empty
-
-        df = pd.read_excel(file)
-
-        def clean_value(val):
-            if pd.isnull(val):
-                return ''
-            if isinstance(val, float) and val.is_integer():
-                return str(int(val))
-            return str(val).strip()
-
-        # Normalize column names for internal lookup (finding 'email' column)
-        normalized_columns_map = {col: col.strip().lower().replace(" ", "") for col in df.columns}
-
-        # Find the original column names for email and (optionally) MC
-        email_col = None
-        mc_col = None # This will remain None if not found
-        for col, norm_col in normalized_columns_map.items():
-            if 'email' in norm_col:
-                email_col = col
-            
-            if 'mcnumber' in norm_col or norm_col == 'mc' or 'mc#' in norm_col:
-                mc_col = col
-
-        if not email_col:
-            print("Required 'Email' column not found in the Excel file.")
-            return []
-
-        leads = []
-        for _, row in df.iterrows():
-            lead = {}
-
-            # Process email: This is the only column strictly necessary for a lead
-            email_val = clean_value(row[email_col])
-            if not email_val or not re.match(email_regex, email_val):
-                continue
-            
-            # 2. Check against email skip list
-            if email_val in skip_emails:
-                continue  # Skip this row
-
-            # 3. Process and check MC number (ONLY if mc_col was found)
-            mc_val_formatted = None
-            if mc_col: # This logic is skipped if no MC column was found
-                mc_val_raw = clean_value(row[mc_col])
-                if mc_val_raw:
-                    # Standardize the MC number
-                    if not mc_val_raw.upper().startswith("MC"):
-                        mc_val_formatted = f"MC {mc_val_raw}"
-                    else:
-                        mc_val_formatted = mc_val_raw
-                    
-                    if mc_val_formatted in skip_mcs:
-                        continue  # Skip this row
-
-            # --- Lead is valid, add it ---
-            lead['Email'] = email_val
-
-            # Process all other columns without hardcoding their names
-            for col in df.columns:
-                if col == email_col:
-                    continue 
-                
-                # If this was the MC col, use the formatted value
-                if col == mc_col:
-                    lead[col] = mc_val_formatted
-                else:
-                    lead[col] = clean_value(row[col])
-
-            leads.append(lead)
-
-        return leads
-
-    except Exception as e:
-        print(f"Error in process_excel_file: {e}")
-        return []
-
-
 def _normalize_mc_value(value):
     """
     Normalize an MC number input to the format 'MC #######' where the numeric part
@@ -141,6 +41,83 @@ def _normalize_mc_value(value):
     if len(digits) < 7:
         digits = digits.zfill(7)
     return f"MC {digits}"
+
+
+def process_leads_file(file, user):
+    """
+    Processes CSV or XLSX, cleans data, and filters against SkipList.
+    Returns a list of dicts.
+    """
+    ext = file.name.split('.')[-1].lower()
+    
+    try:
+        # 1. Unified Reading Logic
+        if ext == 'xlsx':
+            df = pd.read_excel(file)
+        elif ext == 'csv':
+            # Use 'latin1' or 'utf-8-sig' to handle common Excel CSV encoding issues
+            df = pd.read_csv(file, encoding='utf-8-sig')
+        else:
+            return []
+
+        # 2. SkipList Setup
+        skip_mcs, skip_emails = set(), set()
+        if user and user.is_authenticated:
+            sl = SkipList.objects.filter(user=user).first()
+            if sl:
+                skip_mcs = set(sl.mc_numbers or [])
+                skip_emails = set(sl.emails or [])
+
+        # 3. Column Identification
+        cols_map = {col: col.strip().lower().replace(" ", "").replace("#", "") for col in df.columns}
+        email_col = next((c for c, n in cols_map.items() if 'email' in n), None)
+        mc_col = next((c for c, n in cols_map.items() if n in ['mcnumber', 'mc']), None)
+
+        if not email_col:
+            return []
+
+        # 4. Processing Helpers
+        email_regex = re.compile(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
+        
+        def clean(val):
+            if pd.isna(val): return ''
+            if isinstance(val, float) and val.is_integer(): return str(int(val))
+            return str(val).strip()
+
+        leads = []
+        
+        # 5. Iteration (More scalable than iterrows)
+        for row in df.to_dict('records'):
+            email_val = clean(row.get(email_col))
+            
+            # Email Validation & Skip Check
+            if not email_val or not email_regex.match(email_val) or email_val in skip_emails:
+                continue
+
+            # MC Validation & Skip Check
+            mc_formatted = None
+            if mc_col:
+                mc_raw = clean(row.get(mc_col))
+                if mc_raw:
+                    mc_formatted = _normalize_mc_value(mc_raw)
+                    if mc_formatted in skip_mcs:
+                        continue
+
+            # 6. Build Row Dictionary
+            # Clean every value in the row while keeping original keys
+            lead_item = {str(k): clean(v) for k, v in row.items()}
+            
+            # Normalize key names for your downstream logic
+            lead_item['Email'] = email_val
+            if mc_col:
+                lead_item[mc_col] = mc_formatted
+                
+            leads.append(lead_item)
+
+        return leads
+
+    except Exception as e:
+        return []
 
 
 def get_leads_from_db(user, starting_mc_number=None, targets_count=None,

@@ -1,5 +1,6 @@
 from django.db.models import Count, Sum, Q, OuterRef, Subquery, DecimalField, Sum, Value
 from django.db.models.functions import Coalesce, TruncMonth
+from django.contrib.auth import get_user_model
 from django.utils import timezone
 from drip_campaigns.utilities import normalize_provider
 from collections import Counter
@@ -8,7 +9,6 @@ from dashboard.models import CampaignRecord
 from drip_campaigns.models import DripCampaign, SentDripEmail
 from subscriptions.models import Subscription, Revenue, Expense
 from users.models import CustomUser, EmailAccount
-from warmup.models import WarmupCampaign
 
 
 def get_global_outreach_stats():
@@ -83,6 +83,30 @@ def get_financial_stats():
 
     # 1. Subscriptions via Referrals
     subs_via_referral = Subscription.objects.filter(user__referred_by__isnull=False).count()
+
+    # [NEW] Global Aggregates
+    global_metrics = Revenue.objects.aggregate(
+        sum_revenue=Sum('total_revenue'),
+        sum_net_profit=Sum('net_revenue'),
+        sum_affiliate=Sum('paid_to_affiliates')
+    )
+
+    # Calculate Global Expenses directly from Expense model for accuracy
+    global_expenses = Expense.objects.aggregate(sum_expenses=Sum('amount'))
+
+    # Extract values safely
+    g_net_profit = global_metrics['sum_net_profit'] or 0
+    g_affiliate = global_metrics['sum_affiliate'] or 0
+    g_expenses = global_expenses['sum_expenses'] or 0
+    g_expenses += 200000 # for the data tool
+    g_stored_revenue = global_metrics['sum_revenue'] or 0
+
+    # LOGIC FIX: If DB stored revenue is 0, calculate it from components
+    # Mathematical Truth: Revenue = Net Profit + Expenses + Affiliate Payouts
+    if g_stored_revenue == 0:
+        actual_total_revenue = g_net_profit + g_expenses + g_affiliate
+    else:
+        actual_total_revenue = g_stored_revenue
     
     top_customers = Subscription.objects.exclude(user__is_superuser=True) \
                                         .exclude(paid_amount__isnull=True) \
@@ -114,12 +138,25 @@ def get_financial_stats():
     # to ensure we have the expense data available.
     curr_revenue_obj = next((r for r in revenue_qs if r.month == current_month_start.date()), None)
 
+    User = get_user_model()
+    # 1. Signups this month
+    signups_count = User.objects.filter(
+        date_joined__gte=current_month_start
+    ).count()
+
+    # 2. Subscriptions started this month
+    # Replace 'Subscription' with your actual model name
+    subscriptions_count = Subscription.objects.filter(
+        start_date__gte=current_month_start
+    ).count()
+
     if curr_revenue_obj:
         current_month_stats = {
             'total_revenue': curr_revenue_obj.total_revenue,
             'net_profit': curr_revenue_obj.net_revenue,
             'affiliate_payouts': curr_revenue_obj.paid_to_affiliates,
-            # If you want to show explicit total expenses in text, you can use curr_revenue_obj.total_expenses
+            'signups': signups_count,
+            'subscriptions': subscriptions_count
         }
     else:
         current_month_stats = None
@@ -134,6 +171,12 @@ def get_financial_stats():
     }
 
     return {
+        'global_totals': {
+            'revenue': actual_total_revenue, # Use the calculated variable
+            'net_profit': g_net_profit,
+            'affiliate': g_affiliate,
+            'expenses': g_expenses,
+        },
         'referral_subs_count': subs_via_referral,
         'sub_types': list(sub_types),
         'sub_status_counts': list(sub_status_counts),
@@ -150,6 +193,7 @@ def get_user_growth_stats():
     # 1. Total Users (Global)
     total_users = CustomUser.objects.count()
     total_subscribers = Subscription.objects.count()
+    active_subs = Subscription.objects.filter(status='active').count()
 
     # 2. Signups Trend (Group by Month)
     signup_trends = CustomUser.objects.annotate(month=TruncMonth('date_joined')) \
@@ -187,6 +231,7 @@ def get_user_growth_stats():
     return {
         'total_users': total_users,
         'total_subscribers': total_subscribers,
+        'active_subscriptions': active_subs,
         'signup_trend': {'labels': trend_labels, 'data': trend_values},
         'referral_stats': {'organic': organic_signups, 'referred': referral_signups},
         'provider_stats': provider_stats_ready,
