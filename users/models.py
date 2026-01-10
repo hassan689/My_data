@@ -53,11 +53,26 @@ class CustomUser(AbstractUser):
         null=True, blank=True, related_name="referred_users", # affiliate_instance.referred_users.all()
     )
 
+    # --- NEW ADDITION: SESSION WAR TOKEN ---
+    # This stores the unique ID of the currently allowed device
+    desktop_session_id = models.CharField(max_length=100, null=True, blank=True)
+
     groups = models.ManyToManyField("auth.Group", related_name="customuser_set", blank=True)
     user_permissions = models.ManyToManyField("auth.Permission", related_name="customuser_set", blank=True)
 
     def has_active_subscription(self):
-        return self.subscriptions.filter(status="active").exists()
+        """
+        Checks if the user has a valid subscription.
+        Updated to support OneToOneField relationship.
+        """
+
+        # 2. Check relationship exists
+        if not hasattr(self, 'subscription'):
+            return False
+            
+        # 3. Check status
+        return self.subscription.status == "active"
+
         
     def is_free_trial_expired(self):
         """Check if 7 days have passed since user creation."""

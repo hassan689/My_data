@@ -1,5 +1,6 @@
 from django.urls import path, include
 from .views import *
+from . import api
 
 app_name = 'users'
 
@@ -15,5 +16,9 @@ urlpatterns = [
     # path("logout/", auth_views.LogoutView.as_view(), name="logout"),
 
     path("accounts/", include("django.contrib.auth.urls")),  # Include remaining auth views
+
+    # --- Desktop API Endpoints ---
+    path('api/desktop/login/', api.DesktopLoginView.as_view(), name='desktop_login'),
+    path('api/desktop/heartbeat/', api.DesktopHeartbeatView.as_view(), name='desktop_heartbeat'),
 ]
 
