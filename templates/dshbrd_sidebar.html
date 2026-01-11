@@ -53,6 +53,13 @@
         </a>
       </li>
       <li>
+        <a href="{% url 'dashboard:scraper_download' %}" class="flex items-center p-2 text-primary rounded-lg bg-hover-light group">
+          <i class="fa-solid fa-truck shrink-0 w-5 h-5 text-tertiary transition duration-75 group-hover:text-primary"></i>
+          <span class="flex-1 ms-3 whitespace-nowrap">Live FMCSA Scraper</span>
+          <span class="ml-2 text-xs font-semibold bg-green-100 text-green-800 px-2 py-0.5 rounded-full">New</span>
+        </a>
+      </li>
+      <li>
         <a href="{% url 'dashboard:bulk_campaign' %}" class="flex items-center p-2 text-primary rounded-lg bg-hover-light group">
           <i class="fa-solid fa-rocket shrink-0 w-5 h-5 text-tertiary transition duration-75 group-hover:text-primary"></i>
           <span class="flex-1 ms-3 whitespace-nowrap">1 Click Bulk Campaign</span>

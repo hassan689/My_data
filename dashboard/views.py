@@ -1345,6 +1345,10 @@ def coming_soon(request):
     return render(request, 'dashboard/coming_soon.html')
 
 
+@login_required
+def scraper_donwload(request):
+    return render(request, 'dashboard/scraper_dnld.html')
+
 
 ######################################## Views to connect to Gmail API
 
