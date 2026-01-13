@@ -5,6 +5,7 @@ from decimal import Decimal
 from .models import Subscription
 from users.models import EmailAccount
 from warmup.models import WarmupCampaign
+from .tasks import update_current_month_revenue
 
 
 # --- PRE_SAVE SIGNAL to capture old status ---
@@ -81,4 +82,7 @@ def update_affiliate_earnings_on_subscription_save(sender, instance, created, **
             affiliate.refresh_from_db()
             affiliate.lifetime_earnings += commission_to_add
             affiliate.save(update_fields=['lifetime_earnings'])
+
+    # After doing all the saves, call the task to update current month revenue
+    transaction.on_commit(lambda: update_current_month_revenue.delay())
 

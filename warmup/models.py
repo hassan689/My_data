@@ -1,5 +1,6 @@
 from django.db import models
 from users.models import EmailAccount
+import uuid
 
 
 class WarmupTemplateSet(models.Model):
@@ -36,6 +37,10 @@ class WarmupMessage(models.Model):
     campaign = models.ForeignKey(WarmupCampaign, on_delete=models.CASCADE, related_name="messages")
     sender = models.ForeignKey(EmailAccount, on_delete=models.CASCADE, related_name="sent_warmup_messages")
     recipient = models.ForeignKey(EmailAccount, on_delete=models.CASCADE, related_name="received_warmup_messages")
+
+    message_id = models.CharField(max_length=255, unique=True, null=True, blank=True)
+    in_reply_to_id = models.CharField(max_length=255, null=True, blank=True)
+    thread_id = models.UUIDField(default=uuid.uuid4, editable=False)
     
     subject = models.CharField(max_length=255)
     body = models.TextField()

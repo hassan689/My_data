@@ -1,9 +1,20 @@
 import random
 import re
 import smtplib
+import imaplib
+import email
 from django.core.mail import get_connection
 from users.models import EmailAccount
 
+
+IMAP_SETTINGS_MAP = {
+    'gmail':     {'host': 'imap.gmail.com', 'port': 993},
+    'outlook':   {'host': 'outlook.office365.com', 'port': 993},
+    'yahoo':     {'host': 'imap.mail.yahoo.com', 'port': 993},
+    'zoho':      {'host': 'imap.zoho.com', 'port': 993},
+    'hostinger': {'host': 'imap.hostinger.com', 'port': 993},
+    'namecheap': {'host': 'imap.privateemail.com', 'port': 993},
+}
 
 # A large list of common words to generate unique content on the fly.
 WORD_LIST = [
@@ -120,4 +131,156 @@ def get_email_connection(email_account, decrypted_password):
         return None
 
 
+def normalize_provider(provider_string):
+    """
+    Cleans the user-entered provider string to match a key in IMAP_SETTINGS_MAP.
+    """
+    if not provider_string:
+        return None
+        
+    provider_low = provider_string.lower()
+    
+    if 'gmail' in provider_low or 'google' in provider_low:
+        return 'gmail'
+    if 'outlook' in provider_low or 'microsoft' in provider_low:
+        return 'outlook'
+    if 'yahoo' in provider_low:
+        return 'yahoo'
+    if 'zoho' in provider_low:
+        return 'zoho'
+    if 'hostinger' in provider_low:
+        return 'hostinger'
+    if 'namecheap' in provider_low or 'privateemail' in provider_low:
+        return 'namecheap'
+        
+    return None
+
+
+def get_warmup_imap_connection(email_account):
+    """
+    Establishes IMAP connection specifically for Warmup. 
+    """
+    normalized_name = normalize_provider(email_account.email_provider)
+
+    imap_host = None
+    imap_port = 993
+
+    if normalized_name and normalized_name in IMAP_SETTINGS_MAP:
+        imap_host = IMAP_SETTINGS_MAP[normalized_name]['host']
+        imap_port = IMAP_SETTINGS_MAP[normalized_name]['port']
+    elif email_account.host:
+        # Fallback logic: replace smtp with imap
+        if email_account.host.startswith('smtp.'):
+            imap_host = email_account.host.replace('smtp.', 'imap.', 1)
+    
+    if not imap_host:
+        return None
+
+    try:
+        imap_conn = imaplib.IMAP4_SSL(imap_host, imap_port)
+        decrypted_password = email_account.get_password()
+        imap_conn.login(email_account.email_address, decrypted_password)
+        return imap_conn
+    except Exception as e:
+        print(f"Warmup IMAP Connection Failed for {email_account.email_address}: {e}")
+        return None
+
+
+def check_inbox_and_rescue(email_account, target_message_id):
+    """
+    1. Connects via IMAP.
+    2. Searches INBOX for the target_message_id.
+    3. If not found, searches SPAM/JUNK folders.
+    4. If found in SPAM, moves it to INBOX.
+    5. Returns the email body (text) for quoting, or None if not found.
+    """
+    imap_conn = get_warmup_imap_connection(email_account)
+    if not imap_conn:
+        return None
+
+    try:
+        # 1. Search INBOX
+        imap_conn.select("INBOX")
+        # Search for Header Message-ID (RFC 822)
+        status, messages = imap_conn.search(None, f'(HEADER Message-ID "{target_message_id}")')
+        
+        email_ids = messages[0].split()
+        
+        # 2. If not in Inbox, search Spam
+        if not email_ids:
+            spam_folders = ["Spam", "Junk", "Junk Email", "[Gmail]/Spam", "Bulk"]
+            found_in_spam = False
+            
+            for folder in spam_folders:
+                try:
+                    status, _ = imap_conn.select(folder)
+                    if status != 'OK':
+                        continue
+                        
+                    status, messages = imap_conn.search(None, f'(HEADER Message-ID "{target_message_id}")')
+                    email_ids = messages[0].split()
+                    
+                    if email_ids:
+                        print(f"Found Message-ID {target_message_id} in {folder}. Moving to INBOX.")
+                        # Move to Inbox
+                        msg_num = email_ids[0]
+                        # Copy to Inbox
+                        copy_res = imap_conn.copy(msg_num, "INBOX")
+                        if copy_res[0] == 'OK':
+                            # Mark as Deleted in Spam so it's effectively a "Move"
+                            imap_conn.store(msg_num, '+FLAGS', '\\Deleted')
+                            imap_conn.expunge()
+                            found_in_spam = True
+                            
+                            # Switch back to Inbox to fetch the content
+                            imap_conn.select("INBOX")
+                            # Search again in Inbox to get the new ID
+                            status, messages = imap_conn.search(None, f'(HEADER Message-ID "{target_message_id}")')
+                            email_ids = messages[0].split()
+                        break
+                except Exception as e:
+                    continue
+            
+            if not email_ids:
+                return None # Truly lost
+
+        # 3. Fetch Content (for Quoting)
+        latest_email_id = email_ids[-1]
+        status, msg_data = imap_conn.fetch(latest_email_id, "(RFC822)")
+        
+        if status != 'OK' or not msg_data or not msg_data[0] or len(msg_data[0]) < 2:
+            return None
+
+        raw_email = msg_data[0][1]
+        msg = email.message_from_bytes(raw_email)
+        
+        # Extract plain text body
+        body_content = ""
+        if msg.is_multipart():
+            for part in msg.walk():
+                content_type = part.get_content_type()
+                content_disposition = part.get("Content-Disposition")
+                if content_type == "text/plain" and "attachment" not in str(content_disposition):
+                    try:
+                        body_content = part.get_payload(decode=True).decode()
+                    except:
+                        pass
+                    break # Found the text part
+        else:
+            try:
+                body_content = msg.get_payload(decode=True).decode()
+            except:
+                pass
+
+        return body_content
+
+    except Exception as e:
+        print(f"Error in check_inbox_and_rescue: {e}")
+        return None
+    finally:
+        try:
+            imap_conn.close()
+            imap_conn.logout()
+        except:
+            pass
 
