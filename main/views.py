@@ -4,17 +4,60 @@ from django.shortcuts import render, redirect
 from django.conf import settings
 from .forms import ContactForm, PaymentVerificationForm, RequestReceipt
 import os
-from django.http import JsonResponse, Http404
+from django.http import JsonResponse, Http404, HttpResponse
+from django.utils.timezone import now
 from django.views.decorators.csrf import csrf_exempt # Important for the file upload POST
 from django.contrib.auth.decorators import login_required
 from django.utils.translation import gettext_lazy as _
 from django.core.files.storage import default_storage
 from django.contrib.auth.decorators import user_passes_test
 from .utilities import *
+import csv
 
 
 @user_passes_test(lambda u: u.is_superuser)
 def bi_dashboard_view(request):
+    
+    download_type = request.GET.get('download_csv')
+    
+    if download_type:
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = f'attachment; filename="{download_type}_users_{now().date()}.csv"'
+        writer = csv.writer(response)
+
+        # Define Common Headers
+        user_headers = ['Username', 'Email', 'Phone', 'Company', 'Joined Date']
+        sub_headers = ['Sub Status', 'Type', 'Renewals']
+        
+        if download_type == 'active_subs':
+            writer.writerow(user_headers + sub_headers)
+            queryset = Subscription.objects.filter(status='active').select_related('user')
+            for sub in queryset:
+                writer.writerow([
+                    sub.user.username, sub.user.email, sub.user.phone_number, sub.user.company_name, sub.user.date_joined.date(),
+                    sub.status, sub.type, sub.renewal_count
+                ])
+                
+        elif download_type == 'expired_subs':
+            writer.writerow(user_headers + sub_headers)
+            # Fetch expired OR canceled
+            queryset = Subscription.objects.filter(status__in=['expired', 'canceled']).select_related('user')
+            for sub in queryset:
+                writer.writerow([
+                    sub.user.username, sub.user.email, sub.user.phone_number, sub.user.company_name, sub.user.date_joined.date(),
+                    sub.status, sub.type, sub.renewal_count
+                ])
+
+        elif download_type == 'no_subs':
+            writer.writerow(user_headers + ['On Free Trial'])
+            # Users who have NO subscription relationship at all
+            queryset = CustomUser.objects.filter(subscription__isnull=True)
+            for user in queryset:
+                writer.writerow([
+                    user.username, user.email, user.phone_number, user.company_name, user.date_joined.date()
+                ])
+        
+        return response
     
     # 1. Fetch Data
     outreach_data = get_global_outreach_stats()

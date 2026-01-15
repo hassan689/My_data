@@ -19,8 +19,25 @@
 
     <!-- Growth & Infrastructure Section -->
     <div class="bg-secondary rounded-xl shadow-sm border border-color mb-8 overflow-hidden">
-        <div class="bg-tertiary px-6 py-4 border-b border-color">
+        <div class="bg-tertiary px-6 py-4 border-b border-color flex justify-between items-center">
             <h5 class="font-semibold text-lg text-primary">Growth & Infrastructure</h5>
+
+            <div class="flex space-x-2">
+                <a href="?download_csv=active_subs" 
+                  class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-2 px-4 rounded shadow">
+                    Active Sub Users
+                </a>
+
+                <a href="?download_csv=expired_subs" 
+                  class="bg-red-500 hover:bg-red-600 text-white text-xs font-bold py-2 px-4 rounded shadow">
+                    Expired Sub Users
+                </a>
+
+                <a href="?download_csv=no_subs" 
+                  class="bg-gray-500 hover:bg-gray-600 text-white text-xs font-bold py-2 px-4 rounded shadow">
+                    No-Sub Users
+                </a>
+            </div>
         </div>
 
         <div class="p-6">
@@ -83,7 +100,6 @@
     <div class="bg-secondary rounded-xl shadow-sm border border-color mb-8 overflow-hidden">
         <div class="bg-tertiary px-6 py-4 border-b border-color flex justify-between items-center">
             <h5 class="font-semibold text-lg text-primary">Financial Health</h5>
-            <span class="text-xs text-tertiary font-normal">Revenue vs Expenses (Global History)</span>
         </div>
         
         <div class="p-6">
