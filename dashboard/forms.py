@@ -458,3 +458,17 @@ class BulkCampaignForm(CampaignForm):
             if assigned_leads != self.total_leads:
                 self.add_error(None, f"ERROR! You assigned {assigned_leads} leads to email accounts, but {self.total_leads} leads are available from the selected lead source. Please resubmit the leads and make sure the numbers match this time.")
 
+
+class VerificationUploadForm(forms.Form):
+    file = forms.FileField(
+        label="Upload Leads (Excel or CSV)",
+        widget=forms.FileInput(attrs={'accept': '.csv, .xlsx, .xls'})
+    )
+
+    def clean_file(self):
+        file = self.cleaned_data['file']
+        # optional: Check file size (e.g., limit to 10MB)
+        if file.size > 10 * 1024 * 1024:
+            raise forms.ValidationError("File too large. Please upload a file smaller than 10MB.")
+        return file
+

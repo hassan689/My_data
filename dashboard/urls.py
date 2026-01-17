@@ -9,6 +9,7 @@ urlpatterns = [
 		path('coming-soon/', views.coming_soon, name='coming_soon'),
 		path('daily-sheets/', views.daily_sheets_view, name='daily_sheets'),
     path('fmcsa-scraper-download/', views.scraper_donwload, name='scraper_download'),
+    path('emails-list-verification/', views.verification_dashboard, name="verification_dashboard"),
 
 		path('campaign/<int:email_account_id>/', views.campaign, name='campaign'),
     path('bulk-campaign/', views.bulk_campaign_step1, name='bulk_campaign'),

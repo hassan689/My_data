@@ -4,6 +4,7 @@ from django.contrib.auth import get_user_model
 from cryptography.fernet import Fernet
 from django.conf import settings
 import base64
+from django.utils import timezone
 
 User = get_user_model()
 
@@ -119,4 +120,76 @@ class EmailOpen(models.Model):
 
     def __str__(self):
         return f"Open for {self.recipient_email} in Campaign {self.campaign.id}"
+
+
+
+class VerificationUsage(models.Model):
+    """
+    Tracks the user's daily verification consumption.
+    This is the 'wallet' that resets every 24 hours after the first use.
+    """
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='verification_usage')
+    used_count = models.PositiveIntegerField(default=0)
+    next_reset_at = models.DateTimeField(null=True, blank=True)
+
+    def check_and_reset(self):
+        """
+        Checks if the 24-hour window has passed. 
+        If yes, resets the counter to 0 and clears the timer.
+        """
+        if self.next_reset_at and timezone.now() >= self.next_reset_at:
+            self.used_count = 0
+            self.next_reset_at = None  # Timer clears, waiting for next upload to start new cycle
+            self.save()
+
+    def get_limit(self):
+        """
+        Determines limit based on Subscription type.
+        """
+        # Safe access to subscription in case user has none
+        if not hasattr(self.user, 'subscription'):
+            return 0
+            
+        sub_type = self.user.subscription.type
+        if sub_type == 'basic':
+            return 1000
+        elif sub_type in ['warmup', 'unibox', 'premium']:
+            return 3000
+        return 0 # Default fallback
+
+    def __str__(self):
+        return f"{self.user.username} - Used: {self.used_count}"
+
+
+class VerificationBatch(models.Model):
+    STATUS_CHOICES = [
+        ('PENDING', 'Pending'),
+        ('PROCESSING', 'Processing'),
+        ('COMPLETED', 'Completed'),
+        ('FAILED', 'Failed'),
+    ]
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='verification_batches')
+    
+    # Just for display in the history table (e.g., "leads_october.xlsx")
+    original_filename = models.CharField(max_length=255)
+    
+    # The intermediate JSON file (input for the worker). We will delete this after processing is done
+    clean_data_file = models.FileField(upload_to='verification_staging/', null=True, blank=True)
+    
+    # The final result (CSV) for the user to download
+    output_file = models.FileField(upload_to='verification_results/', null=True, blank=True)
+    
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING')
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.original_filename} ({self.status})"
+
+    @property
+    def is_downloadable(self):
+        return self.status == 'COMPLETED' and self.output_file
 

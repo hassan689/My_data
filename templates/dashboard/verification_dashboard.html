@@ -1,0 +1,221 @@
+{% extends "dshbrd_base.html" %}
+{% load static widget_tweaks %}
+
+{% block 'title' %}Dispatch Skool - Email Verifications{% endblock %}
+
+{% block 'content' %}
+
+  {% if request.user.subscription.status == "active" %}  
+
+    <div class="p-4 sm:ml-72">
+
+      <div class="my-6 text-center">
+          <h1 class="text-3xl md:text-4xl font-bold text-primary">Emails List Verification</h1>
+          <p class="text-tertiary text-lg md:text-xl mt-5">Upload your leads sheet to verify emails. Results will be ready for download below.</p>
+      </div>
+
+      <div class="mx-auto p-5 bg-primary max-w-6xl mt-5">
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              <div class="p-6 rounded-lg shadow-sm border border-gray-700 bg-secondary md:col-span-2">
+                  <div class="flex justify-between items-center mb-2">
+                      <h3 class="text-sm font-medium text-tertiary">Daily Quota Usage</h3>
+                      <span class="text-sm font-bold text-primary">{{ usage.used_count }} / {{ limit }}</span>
+                  </div>
+                  
+                  <div class="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
+                      <div class="bg-blue-600 h-2.5 rounded-full transition-all duration-500" 
+                          style="width: {% widthratio usage.used_count limit 100 %}%"></div>
+                  </div>
+                  
+                  <div class="mt-3 flex justify-between text-xs text-tertiary">
+                      {% if usage.next_reset_at %}
+                          <span>Resets in: {{ usage.next_reset_at|timeuntil }}</span>
+                      {% else %}
+                          <span>Quota ready</span>
+                      {% endif %}
+                      
+                      {% if is_locked %}
+                          <span class="text-red-500 font-semibold">Limit Reached</span>
+                      {% endif %}
+                  </div>
+              </div>
+
+              <div class="p-6 rounded-lg shadow-sm border border-gray-700 bg-secondary flex flex-col justify-center items-center">
+                  <span class="text-xs text-tertiary uppercase tracking-wider">Current Tier</span>
+                  <span class="text-xl font-bold text-primary mt-1 capitalize">{{ request.user.subscription.type|default:"No Plan" }}</span>
+              </div>
+          </div>
+
+          {% if messages %}
+            <div class="container mx-auto px-4 max-w-6xl my-4">
+              {% for message in messages %}
+                <div class="p-4 rounded-lg text-center font-medium
+                            {% if message.tags == 'success' %} bg-green-100 text-green-800 border border-green-300
+                            {% elif message.tags == 'error' %} bg-red-100 text-red-800 border border-red-300
+                            {% else %} bg-blue-100 text-blue-800 border border-blue-300
+                            {% endif %}"
+                    role="alert">
+                  {{ message }}
+                </div>
+              {% endfor %}
+            </div>
+          {% endif %}
+
+          <div class="p-6 rounded-lg shadow-sm border border-gray-700 bg-secondary mb-8 {% if is_locked %}opacity-50 pointer-events-none{% endif %}">
+              <h2 class="text-lg font-semibold text-primary mb-4">
+                  {% if is_locked %}
+                      Upload Locked (Cooldown Active)
+                  {% else %}
+                      New Verification Task
+                  {% endif %}
+              </h2>
+              
+              <form method="post" enctype="multipart/form-data" class="space-y-4">
+                  {% csrf_token %}
+                  
+                  <div class="flex items-center justify-center w-full">
+                      <label class="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer bg-primary border-color hover:bg-hover-light transition-colors group">
+                          
+                          {% render_field form.file class="hidden" id="verif-file-input" onchange="updateVerificationFile(this)" %}
+
+                          <div class="flex flex-col items-center justify-center pt-5 pb-6">
+                              <svg class="w-8 h-8 mb-4 text-tertiary group-hover:text-secondary transition-colors" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 16">
+                                  <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 13h3a3 3 0 0 0 0-6h-.025A5.56 5.56 0 0 0 16 6.5 5.5 5.5 0 0 0 5.207 5.021C5.137 5.017 5.071 5 5 5a4 4 0 0 0 0 8h2.167M10 15V6m0 0L8 8m2-2 2 2"/>
+                              </svg>
+                              
+                              <div id="verif-prompt">
+                                  <p class="mb-2 text-sm text-secondary text-center"><span class="font-semibold">Click to upload</span> or drag and drop</p>
+                                  <p class="text-xs text-tertiary text-center">XLSX or CSV (Max 10MB)</p>
+                              </div>
+                              
+                              <p id="verif-name" class="hidden text-sm font-medium text-primary text-center"></p>
+                          </div>
+                      </label>
+                  </div>
+                  
+                  {% if form.file.errors %}
+                      <p class="text-red-500 text-xs mt-1">{{ form.file.errors.0 }}</p>
+                  {% endif %}
+
+                  <div class="flex justify-end">
+                      <button type="submit" class="px-5 py-2.5 text-sm font-medium rounded-lg btn-text btn-bg-primary btn-bg-hover transition-colors">
+                          Start Verification
+                      </button>
+                  </div>
+              </form>
+          </div>
+
+          <div class="rounded-lg shadow-sm border border-gray-700 bg-secondary overflow-hidden">
+              <div class="p-6 border-b border-color flex justify-between items-center">
+                  <h2 class="text-lg font-semibold text-primary">History</h2>
+                  <button onClick="window.location.reload();" class="text-sm text-tertiary hover:text-secondary transition-colors flex items-center gap-2">
+                      <svg class="w-3 h-3" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 18 20">
+                          <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 1v5h-5M2 19v-5h5m10-4a8 8 0 0 1-14.947 3.97M1 10a8 8 0 0 1 14.947-3.97"/>
+                      </svg>
+                      Refresh
+                  </button>
+              </div>
+              
+              <div class="relative overflow-x-auto">
+                  <table class="w-full text-sm text-left text-tertiary">
+                      <thead class="text-xs uppercase bg-tertiary text-secondary">
+                          <tr>
+                              <th scope="col" class="px-6 py-3">File Name</th>
+                              <th scope="col" class="px-6 py-3">Date</th>
+                              <th scope="col" class="px-6 py-3">Status</th>
+                              <th scope="col" class="px-6 py-3 text-right">Action</th>
+                          </tr>
+                      </thead>
+                      <tbody>
+                          {% for batch in batches %}
+                          <tr class="border-b border-color hover:bg-hover-light transition-colors">
+                              <td class="px-6 py-4 font-medium text-primary whitespace-nowrap">
+                                  {{ batch.original_filename }}
+                              </td>
+                              <td class="px-6 py-4">
+                                  {{ batch.created_at|date:"M d, Y" }}
+                              </td>
+                              <td class="px-6 py-4">
+                                  {% if batch.status == 'COMPLETED' %}
+                                      <div class="inline-block px-2 py-1 rounded font-semibold bg-green-200 text-green-800 whitespace-nowrap text-xs">
+                                          Completed
+                                      </div>
+                                  {% elif batch.status == 'PROCESSING' %}
+                                      <div class="status-active inline-flex items-center gap-2 px-2 py-1 rounded font-semibold bg-blue-200 text-blue-800 whitespace-nowrap text-xs">
+                                          <svg class="animate-spin h-3 w-3 text-blue-800" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                          </svg>
+                                          Processing
+                                      </div>
+                                  {% elif batch.status == 'FAILED' %}
+                                      <div class="inline-block px-2 py-1 rounded font-semibold bg-red-200 text-red-800 whitespace-nowrap text-xs">
+                                          Failed
+                                      </div>
+                                  {% else %}
+                                      <div class="status-active inline-block px-2 py-1 rounded font-semibold bg-gray-200 text-gray-800 whitespace-nowrap text-xs">
+                                          Pending
+                                      </div>
+                                  {% endif %}
+                              </td>
+                              <td class="px-6 py-4 text-right">
+                                  {% if batch.is_downloadable %}
+                                      <a href="{{ batch.output_file.url }}" class="inline-flex items-center justify-center bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600 transition-colors text-xs font-medium">
+                                          Download ⬇️
+                                      </a>
+                                  {% else %}
+                                      <span class="text-tertiary cursor-not-allowed text-xs">N/A</span>
+                                  {% endif %}
+                              </td>
+                          </tr>
+                          {% empty %}
+                          <tr>
+                              <td colspan="4" class="px-6 py-12 text-center">
+                                  <p class="text-tertiary mb-1">No verifications found.</p>
+                                  <p class="text-xs text-tertiary opacity-75">Upload a file above to get started.</p>
+                              </td>
+                          </tr>
+                          {% endfor %}
+                      </tbody>
+                  </table>
+              </div>
+          </div>
+      </div>
+
+    </div>
+    
+    <script>
+        // 1. File Upload UI Handler
+        function updateVerificationFile(input) {
+            const prompt = document.getElementById('verif-prompt');
+            const nameDisplay = document.getElementById('verif-name');
+            
+            if (input.files && input.files[0]) {
+                prompt.classList.add('hidden');
+                nameDisplay.textContent = "Selected: " + input.files[0].name;
+                nameDisplay.classList.remove('hidden');
+            } else {
+                prompt.classList.remove('hidden');
+                nameDisplay.classList.add('hidden');
+            }
+        }
+
+        // 2. Auto-Refresh Page
+        document.addEventListener("DOMContentLoaded", function() {
+            const activeTasks = document.querySelectorAll('.status-active');
+            if (activeTasks.length > 0) {
+                setTimeout(() => {
+                    window.location.reload();
+                }, 5000);
+            }
+        });
+    </script>
+
+	{% else %}
+
+		{% include 'price_base.html' %}
+
+	{% endif %}
+
+{% endblock %}

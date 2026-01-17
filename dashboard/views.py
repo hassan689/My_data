@@ -6,12 +6,12 @@ from django.core.paginator import Paginator
 
 from users.models import EmailAccount, AccountGroup
 from leads_data.models import DailySheet
-from .models import GmailToken, CampaignRecord, EmailOpen
+from .models import GmailToken, CampaignRecord, EmailOpen, VerificationBatch, VerificationUsage
 from drip_campaigns.models import EmailAccountAndLeads
 from warmup.models import WarmupCampaign
 from drip_campaigns.models import SentDripEmail
-from .forms import EmailAccountForm, CampaignForm, BulkCampaignForm
-from .tasks import send_emails_chunk_celery_task, send_account_attach_notif_email
+from .forms import EmailAccountForm, CampaignForm, BulkCampaignForm, VerificationUploadForm
+from .tasks import send_emails_chunk_celery_task, send_account_attach_notif_email, verify_email_task
 from .utilities import *
 from django.db.models import F, Value, OuterRef, Subquery, Prefetch
 from django.db.models.functions import Coalesce
@@ -20,8 +20,9 @@ from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.core.cache import cache
 from django.utils.timezone import now, make_naive
+from django.core.files.base import ContentFile
 from django.utils import timezone
-from datetime import datetime
+from datetime import datetime, timedelta
 from django.db import transaction
 from django.db.models import Sum
 
@@ -1348,6 +1349,99 @@ def coming_soon(request):
 @login_required
 def scraper_donwload(request):
     return render(request, 'dashboard/scraper_dnld.html')
+
+
+@login_required
+def verification_dashboard(request):
+    # 1. Get or Create the Usage Wallet
+    usage, created = VerificationUsage.objects.get_or_create(user=request.user)
+    
+    # 2. Check for Reset (Is the cooldown over?)
+    usage.check_and_reset()
+    
+    limit = usage.get_limit()
+    remaining = max(0, limit - usage.used_count)
+
+    if request.method == 'POST':
+        form = VerificationUploadForm(request.POST, request.FILES)
+        
+        # EARLY EXIT: If user is already capped, don't even process the file
+        if usage.used_count >= limit:
+            messages.error(request, f"Daily limit reached. Resets at {usage.next_reset_at.strftime('%H:%M')}.")
+            return redirect('dashboard:verification_dashboard')
+
+        if form.is_valid():
+            uploaded_file = request.FILES['file']
+            
+            # 3. PROCESS IN MEMORY & DEDUPLICATE
+            raw_leads_list = process_leads_file(uploaded_file, request.user)
+            
+            # --- Deduplication Logic ---
+            clean_leads_list = []
+            seen_emails = set()
+            
+            for row in raw_leads_list:
+                # Normalize email for fair comparison
+                email_val = str(row.get('Email', '')).strip().lower()
+                
+                # Only add if we haven't seen this email before in this file
+                if email_val and email_val not in seen_emails:
+                    seen_emails.add(email_val)
+                    clean_leads_list.append(row)
+            # -------------------------------
+
+            file_row_count = len(clean_leads_list)
+            
+            if file_row_count == 0:
+                messages.error(request, "No valid (unique) emails found in this file.")
+                return redirect('dashboard:verification_dashboard')
+
+            # 4. CHECK QUOTA
+            if (usage.used_count + file_row_count) > limit:
+                messages.error(
+                    request, 
+                    f"File too large. You have {remaining} credits left, but this file has {file_row_count} unique emails."
+                )
+                return redirect('dashboard:verification_dashboard')
+
+            # 5. DEDUCT CREDITS & START TIMER (If needed)
+            if usage.used_count == 0:
+                # First upload of the cycle! Start the 24h timer.
+                usage.next_reset_at = timezone.now() + timedelta(hours=24)
+            
+            usage.used_count += file_row_count
+            usage.save()
+
+            # 6. SAVE BATCH & SUCCESS
+            batch = VerificationBatch(
+                user=request.user,
+                original_filename=uploaded_file.name,
+                status='PROCESSING'
+            )
+            
+            json_content = json.dumps(clean_leads_list)
+            file_name = f"staging_{request.user.id}_{uploaded_file.name.split('.')[0]}.json"
+            batch.clean_data_file.save(file_name, ContentFile(json_content))
+            batch.save()
+            
+            verify_email_task.delay(batch.id) # Trigger Celery
+
+            messages.success(request, f"Processing started. Used {file_row_count} credits (Duplicates removed).")
+            return redirect('dashboard:verification_dashboard')
+    else:
+        form = VerificationUploadForm()
+
+    batches = VerificationBatch.objects.filter(user=request.user)
+
+    context = {
+        'form': form,
+        'batches': batches,
+        'usage': usage,
+        'limit': limit,
+        'remaining': remaining,
+        'is_locked': usage.used_count >= limit
+    }
+    return render(request, 'dashboard/verification_dashboard.html', context)
 
 
 ######################################## Views to connect to Gmail API

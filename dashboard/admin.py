@@ -1,6 +1,7 @@
 from django.contrib import admin
-from .models import GmailToken, CampaignRecord, EmailOpen
+from .models import GmailToken, CampaignRecord, EmailOpen, VerificationBatch, VerificationUsage
 from django.utils import timezone
+from django.utils.html import format_html
 
 @admin.register(GmailToken)
 class GmailTokenAdmin(admin.ModelAdmin):
@@ -55,4 +56,84 @@ class EmailOpenAdmin(admin.ModelAdmin):
     list_display = ('campaign', 'is_opened')
     list_filter = ('is_opened',)
 
+
+@admin.register(VerificationUsage)
+class VerificationUsageAdmin(admin.ModelAdmin):
+    list_display = ('user', 'quota_status', 'next_reset_at', 'time_until_reset', 'total_batches_count')
+    search_fields = ('user__username', 'user__email')
+    readonly_fields = ('next_reset_at',)
+
+    def quota_status(self, obj):
+        # Shows "450 / 1000" with simple color coding
+        limit = obj.get_limit()
+        used = obj.used_count
+        
+        color = "green"
+        if used >= limit:
+            color = "red"
+        elif used > (limit * 0.8):
+            color = "orange"
+            
+        return format_html(
+            '<span style="color: {}; font-weight: bold;">{} / {}</span>',
+            color, used, limit
+        )
+    quota_status.short_description = "Usage / Limit"
+
+    def total_batches_count(self, obj):
+        # Just returns the number of files
+        return obj.user.verification_batches.count()
+    total_batches_count.short_description = "Total Files"
+
+    def time_until_reset(self, obj):
+        if not obj.next_reset_at:
+            return "-"
+        
+        now = timezone.now()
+        if now >= obj.next_reset_at:
+            return "Ready to Reset"
+        
+        diff = obj.next_reset_at - now
+        hours, remainder = divmod(diff.seconds, 3600)
+        minutes, _ = divmod(remainder, 60)
+        return f"{hours}h {minutes}m"
+    time_until_reset.short_description = "Reset In"
+
+
+@admin.register(VerificationBatch)
+class VerificationBatchAdmin(admin.ModelAdmin):
+    list_display = ('id', 'user', 'original_filename', 'status_badge', 'created_at', 'download_output')
+    list_filter = ('status', 'created_at')
+    search_fields = ('user__username', 'original_filename', 'user__email')
+    actions = ['mark_as_failed', 'retry_processing']
+
+    def status_badge(self, obj):
+        colors = {
+            'COMPLETED': 'green',
+            'PROCESSING': 'blue',
+            'PENDING': 'gray',
+            'FAILED': 'red',
+        }
+        color = colors.get(obj.status, 'black')
+        return format_html(
+            '<span style="background-color: {}; color: white; padding: 3px 10px; border-radius: 10px; font-size: 10px;">{}</span>',
+            color, obj.status
+        )
+    status_badge.short_description = "Status"
+
+    def download_output(self, obj):
+        if obj.output_file:
+            return format_html('<a href="{}" download>Download CSV</a>', obj.output_file.url)
+        return "-"
+    download_output.short_description = "Result"
+
+    # --- Actions ---
+    @admin.action(description='Mark selected batches as FAILED')
+    def mark_as_failed(self, request, queryset):
+        queryset.update(status='FAILED')
+
+    @admin.action(description='Reset to PENDING (Retry)')
+    def retry_processing(self, request, queryset):
+        queryset.update(status='PENDING')
+        self.message_user(request, "Selected batches reset to PENDING.")
 
