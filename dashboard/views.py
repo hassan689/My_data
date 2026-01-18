@@ -1,7 +1,7 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse, StreamingHttpResponse
-from django.views.decorators.http import require_http_methods, require_safe
+from django.views.decorators.http import require_http_methods, require_safe, require_GET
 from django.core.paginator import Paginator
 
 from users.models import EmailAccount, AccountGroup
@@ -1353,84 +1353,97 @@ def scraper_donwload(request):
 
 @login_required
 def verification_dashboard(request):
-    # 1. Get or Create the Usage Wallet
+    # 1. Get or create the user's daily usage wallet
     usage, created = VerificationUsage.objects.get_or_create(user=request.user)
     
-    # 2. Check for Reset (Is the cooldown over?)
+    # 2. Reset daily usage if cooldown is over
     usage.check_and_reset()
     
+    # 3. Get user's limit and check if unlimited (superuser)
     limit = usage.get_limit()
-    remaining = max(0, limit - usage.used_count)
+    is_unlimited = limit == float('inf')
+
+    # Remaining quota (infinity for superusers)
+    remaining = limit - usage.used_count if not is_unlimited else float('inf')
 
     if request.method == 'POST':
         form = VerificationUploadForm(request.POST, request.FILES)
         
-        # EARLY EXIT: If user is already capped, don't even process the file
-        if usage.used_count >= limit:
-            messages.error(request, f"Daily limit reached. Resets at {usage.next_reset_at.strftime('%H:%M')}.")
+        # Early exit: daily quota reached (skip for superusers)
+        if not is_unlimited and usage.used_count >= limit:
+            reset_time = usage.next_reset_at.strftime('%H:%M') if usage.next_reset_at else "unknown"
+            messages.error(request, f"Daily limit reached. Resets at {reset_time}.")
             return redirect('dashboard:verification_dashboard')
 
         if form.is_valid():
             uploaded_file = request.FILES['file']
-            
-            # 3. PROCESS IN MEMORY & DEDUPLICATE
+
+            # 4. Process file in memory & deduplicate emails
             raw_leads_list = process_leads_file(uploaded_file, request.user)
             
-            # --- Deduplication Logic ---
             clean_leads_list = []
             seen_emails = set()
-            
             for row in raw_leads_list:
-                # Normalize email for fair comparison
                 email_val = str(row.get('Email', '')).strip().lower()
-                
-                # Only add if we haven't seen this email before in this file
                 if email_val and email_val not in seen_emails:
                     seen_emails.add(email_val)
                     clean_leads_list.append(row)
-            # -------------------------------
 
             file_row_count = len(clean_leads_list)
-            
+
             if file_row_count == 0:
                 messages.error(request, "No valid (unique) emails found in this file.")
                 return redirect('dashboard:verification_dashboard')
 
-            # 4. CHECK QUOTA
-            if (usage.used_count + file_row_count) > limit:
+            # --- Per-upload limit for all users ---
+            per_upload_limit = 10000
+            if file_row_count > per_upload_limit:
+                messages.error(
+                    request,
+                    f"File too large. Maximum {per_upload_limit} unique emails are allowed per upload. "
+                    f"This file has {file_row_count}."
+                )
+                return redirect('dashboard:verification_dashboard')
+
+            # 5. Check daily quota for regular users
+            if not is_unlimited and (usage.used_count + file_row_count) > limit:
                 messages.error(
                     request, 
                     f"File too large. You have {remaining} credits left, but this file has {file_row_count} unique emails."
                 )
                 return redirect('dashboard:verification_dashboard')
 
-            # 5. DEDUCT CREDITS & START TIMER (If needed)
-            if usage.used_count == 0:
-                # First upload of the cycle! Start the 24h timer.
-                usage.next_reset_at = timezone.now() + timedelta(hours=24)
-            
-            usage.used_count += file_row_count
-            usage.save()
+            # 6. Deduct credits & start 24h timer for normal users
+            if not request.user.is_superuser:
+                if usage.used_count == 0:
+                    usage.next_reset_at = timezone.now() + timedelta(hours=24)
+                usage.used_count += file_row_count
+                usage.save()
 
-            # 6. SAVE BATCH & SUCCESS
+            # 7. Save batch & trigger Celery task
             batch = VerificationBatch(
                 user=request.user,
                 original_filename=uploaded_file.name,
                 status='PROCESSING'
             )
-            
+
             json_content = json.dumps(clean_leads_list)
             file_name = f"staging_{request.user.id}_{uploaded_file.name.split('.')[0]}.json"
             batch.clean_data_file.save(file_name, ContentFile(json_content))
             batch.save()
             
-            verify_email_task.delay(batch.id) # Trigger Celery
+            verify_email_task.delay(batch.id)
 
-            messages.success(request, f"Processing started. Used {file_row_count} credits (Duplicates removed).")
+            used_message = (
+                f"Used {file_row_count} credits (Duplicates removed)." 
+                if not is_unlimited else f"Processing {file_row_count} emails (Duplicates removed)."
+            )
+            messages.success(request, f"Processing started. {used_message}")
             return redirect('dashboard:verification_dashboard')
     else:
         form = VerificationUploadForm()
 
+    # Fetch user's previous batches
     batches = VerificationBatch.objects.filter(user=request.user)
 
     context = {
@@ -1438,11 +1451,44 @@ def verification_dashboard(request):
         'batches': batches,
         'usage': usage,
         'limit': limit,
+        'is_unlimited': is_unlimited,
         'remaining': remaining,
-        'is_locked': usage.used_count >= limit
+        'is_locked': False if is_unlimited else usage.used_count >= limit,
     }
+
     return render(request, 'dashboard/verification_dashboard.html', context)
 
+
+@require_GET
+@login_required
+def batch_status_api(request):
+    batch_ids = request.GET.getlist('ids[]')
+    
+    if not batch_ids:
+        return JsonResponse({}, status=200)
+
+    batches = VerificationBatch.objects.filter(
+        id__in=batch_ids, 
+        user=request.user
+    )
+
+    results = {}
+    for batch in batches:
+        # Securely get the URL only if the file actually exists on storage
+        download_url = None
+        try:
+            if batch.output_file and hasattr(batch.output_file, 'url'):
+                download_url = batch.output_file.url
+        except ValueError:
+            download_url = None
+
+        results[batch.id] = {
+            'status': batch.status,
+            'is_downloadable': batch.is_downloadable,
+            'download_url': download_url,
+        }
+    
+    return JsonResponse(results)
 
 ######################################## Views to connect to Gmail API
 

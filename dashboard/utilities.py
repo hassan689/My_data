@@ -576,3 +576,22 @@ def should_use_batch_processing(min_delay: int, max_delay: int, batch_size: int 
         return True
     return False
 
+
+# for the email verification processing
+def fill_missing_and_return(chunk_rows, processed_map):
+    """Ensures every original row has a status before returning to finalizer."""
+    final_chunk = []
+    for row in chunk_rows:
+        email = str(row.get('Email', '')).strip().lower()
+        res = processed_map.get(email, {})
+        
+        row.update({
+            'Status': res.get('result', 'timeout' if email else 'INVALID'),
+            'Score': res.get('score', 0),
+            'Reason': res.get('reason', 'API Timeout' if email else 'Empty email'),
+            'Disposable': res.get('is_disposable', False)
+        })
+        final_chunk.append(row)
+    return final_chunk
+
+

@@ -20,32 +20,51 @@
               <div class="p-6 rounded-lg shadow-sm border border-gray-700 bg-secondary md:col-span-2">
                   <div class="flex justify-between items-center mb-2">
                       <h3 class="text-sm font-medium text-tertiary">Daily Quota Usage</h3>
-                      <span class="text-sm font-bold text-primary">{{ usage.used_count }} / {{ limit }}</span>
+                      {% if is_unlimited %}
+                          <span class="text-sm font-bold text-primary">Unlimited</span>
+                      {% else %}
+                          <span class="text-sm font-bold text-primary">{{ usage.used_count }} / {{ limit }}</span>
+                      {% endif %}
                   </div>
                   
                   <div class="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
-                      <div class="bg-blue-600 h-2.5 rounded-full transition-all duration-500" 
-                          style="width: {% widthratio usage.used_count limit 100 %}%"></div>
+                      {% if is_unlimited %}
+                          <div class="bg-blue-600 h-2.5 rounded-full transition-all duration-500 w-full"></div>
+                      {% else %}
+                          <div class="bg-blue-600 h-2.5 rounded-full transition-all duration-500" 
+                              style="width: {% widthratio usage.used_count limit 100 %}%"></div>
+                      {% endif %}
                   </div>
                   
                   <div class="mt-3 flex justify-between text-xs text-tertiary">
-                      {% if usage.next_reset_at %}
-                          <span>Resets in: {{ usage.next_reset_at|timeuntil }}</span>
+                      {% if not is_unlimited %}
+                          {% if usage.next_reset_at %}
+                              <span>Resets in: {{ usage.next_reset_at|timeuntil }}</span>
+                          {% else %}
+                              <span>Quota ready</span>
+                          {% endif %}
+                          
+                          {% if is_locked %}
+                              <span class="text-red-500 font-semibold">Limit Reached</span>
+                          {% endif %}
                       {% else %}
-                          <span>Quota ready</span>
-                      {% endif %}
-                      
-                      {% if is_locked %}
-                          <span class="text-red-500 font-semibold">Limit Reached</span>
+                          <span>Unlimited access</span>
                       {% endif %}
                   </div>
               </div>
 
               <div class="p-6 rounded-lg shadow-sm border border-gray-700 bg-secondary flex flex-col justify-center items-center">
                   <span class="text-xs text-tertiary uppercase tracking-wider">Current Tier</span>
-                  <span class="text-xl font-bold text-primary mt-1 capitalize">{{ request.user.subscription.type|default:"No Plan" }}</span>
+                  <span class="text-xl font-bold text-primary mt-1 capitalize">
+                      {% if request.user.is_superuser %}
+                          Superuser
+                      {% else %}
+                          {{ request.user.subscription.type|default:"No Plan" }}
+                      {% endif %}
+                  </span>
               </div>
           </div>
+
 
           {% if messages %}
             <div class="container mx-auto px-4 max-w-6xl my-4">
@@ -75,7 +94,7 @@
                   {% csrf_token %}
                   
                   <div class="flex items-center justify-center w-full">
-                      <label class="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer bg-primary border-color hover:bg-hover-light transition-colors group">
+                      <label id="verif-drop-area"  class="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer bg-primary border-color hover:bg-hover-light transition-colors group">
                           
                           {% render_field form.file class="hidden" id="verif-file-input" onchange="updateVerificationFile(this)" %}
 
@@ -127,16 +146,21 @@
                               <th scope="col" class="px-6 py-3 text-right">Action</th>
                           </tr>
                       </thead>
-                      <tbody>
+                      <tbody id="batches-container">
                           {% for batch in batches %}
-                          <tr class="border-b border-color hover:bg-hover-light transition-colors">
+                          <tr id="batch-row-{{ batch.id }}" 
+                              data-batch-id="{{ batch.id }}" 
+                              data-status="{{ batch.status }}"
+                              class="border-b border-color hover:bg-hover-light transition-colors batch-row">
+                              
                               <td class="px-6 py-4 font-medium text-primary whitespace-nowrap">
                                   {{ batch.original_filename }}
                               </td>
                               <td class="px-6 py-4">
                                   {{ batch.created_at|date:"M d, Y" }}
                               </td>
-                              <td class="px-6 py-4">
+                              
+                              <td class="px-6 py-4 status-cell">
                                   {% if batch.status == 'COMPLETED' %}
                                       <div class="inline-block px-2 py-1 rounded font-semibold bg-green-200 text-green-800 whitespace-nowrap text-xs">
                                           Completed
@@ -159,7 +183,8 @@
                                       </div>
                                   {% endif %}
                               </td>
-                              <td class="px-6 py-4 text-right">
+                              
+                              <td class="px-6 py-4 text-right download-cell">
                                   {% if batch.is_downloadable %}
                                       <a href="{{ batch.output_file.url }}" class="inline-flex items-center justify-center bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600 transition-colors text-xs font-medium">
                                           Download ⬇️
@@ -170,12 +195,6 @@
                               </td>
                           </tr>
                           {% empty %}
-                          <tr>
-                              <td colspan="4" class="px-6 py-12 text-center">
-                                  <p class="text-tertiary mb-1">No verifications found.</p>
-                                  <p class="text-xs text-tertiary opacity-75">Upload a file above to get started.</p>
-                              </td>
-                          </tr>
                           {% endfor %}
                       </tbody>
                   </table>
@@ -200,17 +219,149 @@
                 nameDisplay.classList.add('hidden');
             }
         }
+    </script>
 
-        // 2. Auto-Refresh Page
-        document.addEventListener("DOMContentLoaded", function() {
-            const activeTasks = document.querySelectorAll('.status-active');
-            if (activeTasks.length > 0) {
-                setTimeout(() => {
-                    window.location.reload();
-                }, 5000);
+    <script>
+        const dropArea = document.getElementById('verif-drop-area');
+        const fileInput = document.getElementById('verif-file-input');
+        const fileNameDisplay = document.getElementById('verif-name');
+        const promptDisplay = document.getElementById('verif-prompt');
+
+        // Prevent default drag behaviors
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, e => e.preventDefault());
+            dropArea.addEventListener(eventName, e => e.stopPropagation());
+        });
+
+        // Highlight on dragover
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropArea.addEventListener(eventName, () => dropArea.classList.add('bg-hover-light'));
+        });
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, () => dropArea.classList.remove('bg-hover-light'));
+        });
+
+        // Handle dropped files
+        dropArea.addEventListener('drop', e => {
+            const files = e.dataTransfer.files;
+            if (files.length) {
+                fileInput.files = files; // populate hidden input
+                updateVerificationFile(fileInput);
             }
         });
+
+        dropArea.addEventListener('dragover', () => dropArea.classList.add('dragover'));
+        dropArea.addEventListener('dragleave', () => dropArea.classList.remove('dragover'));
+        dropArea.addEventListener('drop', () => dropArea.classList.remove('dragover'));
+
+        // Update file name display
+        function updateVerificationFile(input) {
+            const file = input.files[0];
+            if (file) {
+                promptDisplay.classList.add('hidden');
+                fileNameDisplay.classList.remove('hidden');
+                fileNameDisplay.textContent = file.name;
+            } else {
+                promptDisplay.classList.remove('hidden');
+                fileNameDisplay.classList.add('hidden');
+                fileNameDisplay.textContent = '';
+            }
+        }
     </script>
+
+    <script>
+      document.addEventListener('DOMContentLoaded', function() {
+          const pollInterval = 70000; // 70 seconds
+          let intervalId = null;
+
+          function getActiveBatches() {
+              // Select rows that are not Completed or Failed
+              return Array.from(document.querySelectorAll('.batch-row'))
+                  .filter(row => {
+                      const status = row.getAttribute('data-status');
+                      return status === 'PENDING' || status === 'PROCESSING';
+                  })
+                  .map(row => row.getAttribute('data-batch-id'));
+          }
+
+          function updateBatchRow(batchId, data) {
+              const row = document.getElementById(`batch-row-${batchId}`);
+              if (!row) return;
+
+              // Update data-status attribute to stop polling if finished
+              row.setAttribute('data-status', data.status);
+
+              // 1. Update Status Cell
+              const statusCell = row.querySelector('.status-cell');
+              statusCell.innerHTML = getStatusHtml(data.status);
+
+              // 2. Update Download Cell
+              const downloadCell = row.querySelector('.download-cell');
+              if (data.is_downloadable && data.download_url) {
+                  downloadCell.innerHTML = `
+                      <a href="${data.download_url}" class="inline-flex items-center justify-center bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600 transition-colors text-xs font-medium">
+                          Download ⬇️
+                      </a>
+                  `;
+              } else if (data.status === 'FAILED') {
+                  downloadCell.innerHTML = `<span class="text-red-500 text-xs">Error</span>`;
+              }
+          }
+
+          function getStatusHtml(status) {
+              // Returns the same HTML structure as your Django template
+              if (status === 'COMPLETED') {
+                  return `<div class="inline-block px-2 py-1 rounded font-semibold bg-green-200 text-green-800 whitespace-nowrap text-xs">Completed</div>`;
+              } else if (status === 'PROCESSING') {
+                  return `
+                      <div class="status-active inline-flex items-center gap-2 px-2 py-1 rounded font-semibold bg-blue-200 text-blue-800 whitespace-nowrap text-xs">
+                          <svg class="animate-spin h-3 w-3 text-blue-800" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          Processing
+                      </div>`;
+              } else if (status === 'FAILED') {
+                  return `<div class="inline-block px-2 py-1 rounded font-semibold bg-red-200 text-red-800 whitespace-nowrap text-xs">Failed</div>`;
+              } else {
+                  return `<div class="status-active inline-block px-2 py-1 rounded font-semibold bg-gray-200 text-gray-800 whitespace-nowrap text-xs">Pending</div>`;
+              }
+          }
+
+          function checkStatuses() {
+              const activeIds = getActiveBatches();
+
+              if (activeIds.length === 0) {
+                  if (intervalId) clearInterval(intervalId);
+                  return;
+              }
+
+              // Build Query String manually to avoid external dependencies
+              const queryString = activeIds.map(id => `ids[]=${id}`).join('&');
+
+              fetch(`{% url 'dashboard:batch_status_api' %}?${queryString}`)
+                .then(response => {
+                    if (!response.ok) throw new Error('Network response was not ok');
+                    return response.json();
+                })
+                .then(data => {
+                    Object.keys(data).forEach(batchId => {
+                        updateBatchRow(batchId, data[batchId]);
+                    });
+                })
+                .catch(error => {
+                    console.error('Batch API Error:', error);
+                    // Do not clear interval; let it try again in 1m 10s
+                });
+          }
+
+          // Start polling if there are active batches on load
+          if (getActiveBatches().length > 0) {
+              intervalId = setInterval(checkStatuses, pollInterval);
+          }
+      });
+    </script>
+
 
 	{% else %}
 

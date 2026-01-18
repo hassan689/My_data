@@ -151,7 +151,7 @@
             </div>
 
             <!-- Upload Box -->
-            <label class="mt-4 flex flex-col items-center justify-center w-full border-2 border-dashed btn-border-hover rounded-lg py-6 cursor-pointer hover:border-gray-400 focus-within:ring-2 focus-within:ring-blue-500">
+            <label id="verif-drop-area" class="mt-4 flex flex-col items-center justify-center w-full border-2 border-dashed btn-border-hover rounded-lg py-6 cursor-pointer hover:border-gray-400 focus-within:ring-2 focus-within:ring-blue-500">
               {{ form.file_upload|attr:"class:hidden" |attr:"onchange:updateFileName(this)" }}
               
               <div class="flex flex-col items-center space-y-2">
@@ -474,5 +474,47 @@
         });
     });
   </script>
+
+  <!-- Upload drag and drop -->
+
+  <script>
+    const dropArea = document.getElementById('verif-drop-area');
+    const fileInput = dropArea.querySelector('input[type="file"]'); // hidden input inside label
+    const fileNameDisplay = document.getElementById('file-name');
+
+    // Prevent default drag behaviors
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        dropArea.addEventListener(eventName, e => {
+            e.preventDefault();
+            e.stopPropagation();
+        });
+    });
+
+    // Add blue border on dragover
+    dropArea.addEventListener('dragenter', () => dropArea.classList.add('border-blue-500'));
+    dropArea.addEventListener('dragover', () => dropArea.classList.add('border-blue-500'));
+    dropArea.addEventListener('dragleave', () => dropArea.classList.remove('border-blue-500'));
+    dropArea.addEventListener('drop', () => dropArea.classList.remove('border-blue-500'));
+
+    // Handle dropped files
+    dropArea.addEventListener('drop', e => {
+        const files = e.dataTransfer.files;
+        if (files.length) {
+            fileInput.files = files; // populate hidden input
+            updateFileName(fileInput);
+        }
+    });
+
+    // Update file name display
+    function updateFileName(input) {
+        const file = input.files[0];
+        if (file) {
+            fileNameDisplay.textContent = file.name;
+        } else {
+            fileNameDisplay.textContent = '';
+        }
+    }
+  </script>
+
 
 {% endblock %}

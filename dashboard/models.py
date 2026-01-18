@@ -146,6 +146,11 @@ class VerificationUsage(models.Model):
         """
         Determines limit based on Subscription type.
         """
+
+        # Superusers have unlimited usage
+        if self.user.is_superuser:
+            return float('inf')
+
         # Safe access to subscription in case user has none
         if not hasattr(self.user, 'subscription'):
             return 0

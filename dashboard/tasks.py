@@ -17,6 +17,7 @@ import random
 import uuid
 import json
 import requests
+import csv
 import time
 import pandas as pd
 
@@ -24,11 +25,11 @@ from io import StringIO
 from email.utils import make_msgid
 from urllib.parse import urljoin
 from growth_skool.celery import app
-from celery import shared_task, states
+from celery import shared_task, states, chord, group
 from celery.exceptions import TimeLimitExceeded
 
 from drip_campaigns.utilities import get_imap_connection, save_email_with_existing_connection, get_best_sent_folder
-from .utilities import get_email_connection, personalize_template, sanitize_email_html, should_use_batch_processing
+from .utilities import get_email_connection, personalize_template, sanitize_email_html, should_use_batch_processing, fill_missing_and_return
 from django.core.mail import EmailMultiAlternatives, get_connection, send_mail, EmailMessage
 
 
@@ -990,281 +991,113 @@ def cleanup_old_task_results():
 
 
 
-# -------------------------------------------------------------------------
-    # PROBLEM & SOLUTION DOCUMENTATION
-# -------------------------------------------------------------------------
-    # Problem 1: Asynchronous Processing
-    # The mails.so batch API doesn't return results immediately. It creates a 
-    # background job and returns "pending".
-    # Solution: Implemented a "Submit & Poll" pattern. We POST the emails to 
-    # start a job, then enter a loop checking the status every 2 seconds until 
-    # it reports "completed".
+# Constants for the "Strong" Architecture
+CHUNK_SIZE = 500        # Fewer chunks = less API noise
+POLL_INTERVAL = 60      # 1-minute nagging (let the API cook)
+SOFT_DEADLINE = 180     # 3 minutes to audit and resubmit
+HARD_DEADLINE = 300     # 5 minutes - PENS DOWN
 
-    # Problem 2: API Deduplication & Index Mismatch
-    # The API silently removes duplicate emails. If we send 50 rows containing 
-    # duplicates, the API might return only 45 results. Relying on list index 
-    # (row[0] matches result[0]) causes data misalignment.
-    # Solution: Implemented a "Dictionary Lookup" strategy. We convert the API 
-    # results into a hash map keyed by email address. We then iterate through 
-    # our original rows and fetch the corresponding result from this map.
-# -------------------------------------------------------------------------
-
+API_SUBMIT_URL = 'https://api.mails.so/v1/batch'
 
 @shared_task(name="dashboard.verify_email_task")
 def verify_email_task(batch_id):
-    API_KEY = getattr(settings, 'MAILS_SO_API_KEY', 'your-api-key-here')
-    API_SUBMIT_URL = 'https://api.mails.so/v1/batch'
-    
+    batch = VerificationBatch.objects.get(id=batch_id)
+
+    with batch.clean_data_file.open('r') as f:
+        all_leads = json.load(f)
+
+    chunks = [all_leads[i:i + CHUNK_SIZE] for i in range(0, len(all_leads), CHUNK_SIZE)]
+
+    job = chord(
+        group(
+            verify_email_chunk.s(batch_id, list(chunk), time.time()) 
+            for chunk in chunks
+        ),
+        finalize_batch.s(batch_id)
+    )
+    job.delay()
+    return f"Dispatched {len(chunks)} chunks"
+
+
+@shared_task(bind=True, max_retries=10)
+def verify_email_chunk(self, batch_id, chunk_rows, start_time, job_id=None, processed_map=None):
+    elapsed = time.time() - start_time
+    processed_map = processed_map or {}
+    API_KEY = getattr(settings, 'MAILS_SO_API_KEY', '')
+    headers = {'Content-Type': 'application/json', 'x-mails-api-key': API_KEY}
+
+    # 1. HARD STOP: 5 Minute Period reached
+    if elapsed >= HARD_DEADLINE:
+        return fill_missing_and_return(chunk_rows, processed_map)
+
+    # 2. SUBMISSION PHASE (New job or Chasing stragglers at 3-min mark)
+    if not job_id:
+        pending_emails = [
+            str(r.get('Email', '')).strip().lower() 
+            for r in chunk_rows if str(r.get('Email', '')).lower() not in processed_map
+        ]
+        
+        if not pending_emails:
+            return list(processed_map.values())
+
+        try:
+            resp = requests.post(API_SUBMIT_URL, headers=headers, json={'emails': pending_emails}, timeout=30)
+            if resp.status_code in (200, 201, 202):
+                job_id = resp.json().get('id')
+            else:
+                # API failure: wait a minute and try again if we have time
+                raise self.retry(countdown=POLL_INTERVAL, kwargs={'job_id': None, 'processed_map': processed_map})
+        except Exception:
+            raise self.retry(countdown=POLL_INTERVAL, kwargs={'job_id': None, 'processed_map': processed_map})
+
+    # 3. POLLING PHASE
     try:
-        # 1. SETUP
-        batch = VerificationBatch.objects.get(id=batch_id)
-        batch.status = 'PROCESSING'
-        batch.save()
-        
-        try:
-            with batch.clean_data_file.open('r') as f:
-                all_leads = json.load(f)
-        except Exception as e:
-            batch.status = 'FAILED'
-            batch.save()
-            print(f"[ERROR] Failed to read staging file: {e}")
-            return f"Failed to read staging file: {e}"
+        poll_resp = requests.get(f"{API_SUBMIT_URL}/{job_id}", headers=headers, timeout=30)
+        if poll_resp.status_code == 200:
+            data = poll_resp.json()
+            # Update our local map with whatever we just got
+            for r in data.get('emails', []):
+                email = str(r.get('email', '')).lower()
+                processed_map[email] = r
 
-        total_leads = len(all_leads)
-        processed_leads = []
-        CHUNK_SIZE = 50
-        
-        print(f"[INFO] Starting verification for batch {batch_id}: {total_leads} emails")
-        
-        # 2. PROCESS CHUNKS
-        for chunk_idx, i in enumerate(range(0, total_leads, CHUNK_SIZE)):
-            chunk_rows = all_leads[i : i + CHUNK_SIZE]
-            chunk_num = chunk_idx + 1
-            total_chunks = (total_leads + CHUNK_SIZE - 1) // CHUNK_SIZE
-            
-            print(f"[INFO] Processing chunk {chunk_num}/{total_chunks} ({len(chunk_rows)} emails)")
-            
-            emails_to_verify = []
-            email_to_row_map = {}  # Map email -> row index for accurate mapping
-            
-            for idx, row in enumerate(chunk_rows):
-                email = row.get('Email')
-                clean_email = str(email).strip().lower() if email else ""
-                if clean_email:
-                    emails_to_verify.append(clean_email)
-                    email_to_row_map[clean_email] = idx
-                else:
-                    # Mark invalid rows immediately
-                    row['Status'] = 'INVALID'
-                    row['Score'] = 0
-                    row['Reason'] = 'Empty email'
-                    row['Disposable'] = False
-                    processed_leads.append(row)
-            
-            if not emails_to_verify:
-                print(f"[WARNING] Chunk {chunk_num} has no valid emails")
-                continue
-            
-            # Track which emails in this chunk need processing
-            pending_emails = set(emails_to_verify)
-            max_retries = 3
-            retry_count = 0
-            
-            while pending_emails and retry_count <= max_retries:
-                if retry_count > 0:
-                    print(f"[INFO] Retry {retry_count} for {len(pending_emails)} emails: {list(pending_emails)[:3]}...")
-                
-                payload = json.dumps({'emails': list(pending_emails)})
-                headers = {
-                    'Content-Type': 'application/json',
-                    'x-mails-api-key': API_KEY
-                }
+            if data.get('status') == 'completed' and len(processed_map) >= len(chunk_rows):
+                return fill_missing_and_return(chunk_rows, processed_map)
 
-                api_results_list = []
-                job_id = None
-                
-                # --- SUBMIT JOB ---
-                try:
-                    submit_response = requests.post(API_SUBMIT_URL, headers=headers, data=payload, timeout=30)
-                    
-                    if submit_response.status_code == 200:
-                        job_data = submit_response.json()
-                        job_id = job_data.get('id')
-                        print(f"[DEBUG] Submitted job {job_id} for {len(pending_emails)} emails")
-                    elif submit_response.status_code == 401:
-                        print(f"[ERROR] API Key Unauthorized")
-                        batch.status = 'FAILED'
-                        batch.save()
-                        return "API Key Unauthorized."
-                    elif submit_response.status_code == 429:
-                        print(f"[ERROR] Rate limit exceeded. Waiting 10 seconds...")
-                        time.sleep(10)
-                        continue
-                    else:
-                        print(f"[ERROR] Submission Failed: {submit_response.status_code}")
-                        break
-                        
-                except Exception as e:
-                    print(f"[ERROR] Submission exception: {e}")
-                    break
+        # 4. THE 3-MINUTE AUDIT (Soft Kill)
+        # If we are past 3 mins and still missing emails, clear job_id to trigger a "Chase" resubmission
+        if elapsed >= SOFT_DEADLINE and len(processed_map) < len(chunk_rows):
+            job_id = None 
 
-                # --- POLL FOR RESULTS ---
-                if job_id:
-                    max_attempts = 60  # 2 minutes max
-                    poll_attempt = 0
-                    
-                    while poll_attempt < max_attempts:
-                        poll_attempt += 1
-                        time.sleep(2)
-                        
-                        try:
-                            poll_url = f"{API_SUBMIT_URL}/{job_id}"
-                            poll_response = requests.get(poll_url, headers=headers, timeout=30)
-                            
-                            if poll_response.status_code == 200:
-                                poll_data = poll_response.json()
-                                status = poll_data.get('status', 'unknown')
-                                
-                                if status == 'completed':
-                                    api_results_list = poll_data.get('emails', [])
-                                    print(f"[DEBUG] Got {len(api_results_list)} results from API")
-                                    break
-                                
-                                elif status == 'failed':
-                                    print(f"[ERROR] API job failed")
-                                    break
-                                    
-                                elif poll_attempt % 10 == 0:
-                                    print(f"[DEBUG] Still processing... ({poll_attempt}/{max_attempts})")
-                                    
-                            elif poll_response.status_code == 202:
-                                # Still processing
-                                continue
-                            else:
-                                print(f"[WARNING] Poll failed: {poll_response.status_code}")
-                                break
-                                
-                        except Exception as e:
-                            print(f"[WARNING] Poll exception: {e}")
-                            break
-                
-                # --- PROCESS RESULTS ---
-                if api_results_list:
-                    # Create results map
-                    results_map = {}
-                    returned_emails = set()
-                    
-                    for res in api_results_list:
-                        res_email = str(res.get('email', '')).strip().lower()
-                        if res_email:
-                            results_map[res_email] = res
-                            returned_emails.add(res_email)
-                    
-                    print(f"[DEBUG] API returned {len(returned_emails)} unique emails")
-                    
-                    # Process returned emails
-                    for email in list(pending_emails):
-                        if email in results_map:
-                            result_data = results_map[email]
-                            row_idx = email_to_row_map[email]
-                            row = chunk_rows[row_idx]
-                            
-                            row['Status'] = result_data.get('result', 'unknown')
-                            row['Score'] = result_data.get('score', 0)
-                            row['Reason'] = result_data.get('reason', '')
-                            row['Disposable'] = result_data.get('is_disposable', False)
-                            
-                            # Add to processed leads
-                            processed_leads.append(row)
-                            pending_emails.remove(email)
-                    
-                    print(f"[DEBUG] Processed {len(returned_emails)} emails, {len(pending_emails)} still pending")
-                
-                # Increment retry count
-                retry_count += 1
-                
-                # Small delay before retry
-                if pending_emails and retry_count <= max_retries:
-                    time.sleep(5)
-            
-            # --- HANDLE STILL-PENDING EMAILS AFTER RETRIES ---
-            if pending_emails:
-                print(f"[WARNING] {len(pending_emails)} emails still pending after {max_retries} retries")
-                
-                for email in pending_emails:
-                    row_idx = email_to_row_map[email]
-                    row = chunk_rows[row_idx]
-                    
-                    row['Status'] = 'API_ERROR'
-                    row['Score'] = 0
-                    row['Reason'] = f'API did not return result after {max_retries + 1} attempts'
-                    row['Disposable'] = False
-                    
-                    processed_leads.append(row)
-            
-            # Small delay between chunks
-            if chunk_idx < total_chunks - 1:
-                time.sleep(2)
-        
-        # 3. SAVE RESULTS
-        print(f"[INFO] Saving results for {len(processed_leads)} processed rows")
-        
-        if not processed_leads:
-            print(f"[ERROR] No processed leads to save")
-            batch.status = 'FAILED'
-            batch.save()
-            return "No processed leads to save"
-        
-        # Create DataFrame
-        df = pd.DataFrame(processed_leads)
-        
-        # Ensure required columns exist
-        required_cols = ['Email', 'Status', 'Score', 'Reason', 'Disposable']
-        for col in required_cols:
-            if col not in df.columns:
-                df[col] = ''
-        
-        # Organize columns: required cols first, then others
-        other_cols = [c for c in df.columns if c not in required_cols]
-        df = df[required_cols + other_cols]
-        
-        # Drop completely empty rows
-        df.dropna(how='all', inplace=True)
-        
-        # Save to CSV
-        csv_buffer = StringIO()
-        df.to_csv(csv_buffer, index=False, lineterminator='\n')
-        
-        output_filename = f"verified_{batch.original_filename.split('.')[0]}.csv"
-        batch.output_file.save(output_filename, ContentFile(csv_buffer.getvalue()))
-        
-        # Count statistics
-        status_counts = df['Status'].value_counts().to_dict()
-        print(f"[INFO] Verification complete. Status counts: {status_counts}")
-        
-        batch.status = 'COMPLETED'
-        batch.save()
-        
-        # Clean up staging file
-        try:
-            if batch.clean_data_file:
-                batch.clean_data_file.delete()
-        except Exception as e:
-            print(f"[WARNING] Could not delete staging file: {e}")
-        
-        return f"Processed {total_leads} emails. Results: {status_counts}"
+    except Exception:
+        pass # Let the retry handle it
 
-    except Exception as e:
-        print(f"[CRITICAL ERROR] Task crashed: {e}")
-        import traceback
-        traceback.print_exc()
-        
-        try:
-            batch = VerificationBatch.objects.get(id=batch_id)
-            batch.status = 'FAILED'
-            batch.save()
-        except:
-            pass
-            
-        return f"Critical error: {e}"
+    raise self.retry(countdown=POLL_INTERVAL, kwargs={'job_id': job_id, 'processed_map': processed_map})
+
+
+@shared_task
+def finalize_batch(results, batch_id):
+    flat_rows = [item for sublist in results for item in sublist]
+    
+    fieldnames = ['Email', 'Status', 'Score', 'Reason', 'Disposable']
+    all_keys = set().union(*(d.keys() for d in flat_rows))
+    extra_cols = [k for k in all_keys if k not in fieldnames]
+
+    csv_buffer = StringIO()
+    writer = csv.DictWriter(csv_buffer, fieldnames=fieldnames + extra_cols, extrasaction='ignore')
+    writer.writeheader()
+    writer.writerows(flat_rows)
+
+    batch = VerificationBatch.objects.get(id=batch_id)
+    output_filename = f"verified_{batch.original_filename.split('.')[0]}.csv"
+    batch.output_file.save(output_filename, ContentFile(csv_buffer.getvalue().encode('utf-8')))
+    batch.status = 'COMPLETED'
+
+    # CLEANUP: Delete the staging JSON file to save disk space
+    if batch.clean_data_file:
+        batch.clean_data_file.delete(save=False)
+
+    batch.save(update_fields=['status', 'output_file'])
+    
+    return f"Processed {len(flat_rows)} rows"
+
 
