@@ -5,7 +5,7 @@
 
 {% block 'content' %}
 
-  {% if request.user.subscription.status == "active" %}  
+  {% if request.user.on_free_trial or request.user.subscription.status == "active" %} 
 
     <div class="p-4 sm:ml-72">
 

@@ -132,6 +132,10 @@ class VerificationUsage(models.Model):
     used_count = models.PositiveIntegerField(default=0)
     next_reset_at = models.DateTimeField(null=True, blank=True)
 
+    class Meta:
+        verbose_name = "Verification Usage"
+        verbose_name_plural = "Verification Usages"
+    
     def check_and_reset(self):
         """
         Checks if the 24-hour window has passed. 
@@ -150,6 +154,10 @@ class VerificationUsage(models.Model):
         # Superusers have unlimited usage
         if self.user.is_superuser:
             return float('inf')
+        
+        # Check Free Trial status (Prioritized over subscription)
+        if getattr(self.user, 'on_free_trial', False):
+            return 500
 
         # Safe access to subscription in case user has none
         if not hasattr(self.user, 'subscription'):
@@ -190,6 +198,8 @@ class VerificationBatch(models.Model):
     
     class Meta:
         ordering = ['-created_at']
+        verbose_name = "Verification Batch"
+        verbose_name_plural = "Verification Batches"
 
     def __str__(self):
         return f"{self.original_filename} ({self.status})"

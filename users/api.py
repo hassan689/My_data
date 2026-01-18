@@ -23,7 +23,9 @@ class DesktopLoginView(View):
                 return JsonResponse({"error": "Invalid credentials"}, status=401)
             
             # 2. Check Subscription (The Gatekeeper)
-            if not user.has_active_subscription():
+            is_allowed = user.on_free_trial or user.has_active_subscription()
+
+            if not is_allowed:
                 return JsonResponse({
                     "error": "No active subscription found. Please upgrade on the website."
                 }, status=403)
@@ -70,10 +72,11 @@ class DesktopHeartbeatView(View):
                 }, status=403)
             
             # 3. Check subscription status again (In case it expired while app was running)
-            if not user.has_active_subscription():
+            is_allowed = user.on_free_trial or user.has_active_subscription()
+            if not is_allowed:
                 return JsonResponse({
                     "kill": True, 
-                    "reason": "Subscription expired."
+                    "reason": "Trial or Subscription expired."
                 }, status=403)
 
             return JsonResponse({"kill": False})
@@ -82,3 +85,44 @@ class DesktopHeartbeatView(View):
             # If something breaks, don't kill the app, just warn
             return JsonResponse({"error": str(e)}, status=500)
         
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class ValidateScrapeRequestView(View):
+    def post(self, request):
+        try:
+            data = json.loads(request.body)
+            user_id = data.get('user_id')
+            requested_count = int(data.get('count', 0))
+            
+            user = CustomUser.objects.get(id=user_id)
+            
+            # 1. Unlimited Users
+            if user.is_superuser or user.has_active_subscription():
+                return JsonResponse({"allowed": True})
+
+            # 2. Trial Users
+            if user.on_free_trial:
+                limit = 1000
+                remaining = limit - user.trial_usage_count
+                
+                if requested_count > remaining:
+                    return JsonResponse({
+                        "allowed": False, 
+                        "error": f"Insufficient tokens. You have {remaining} left, but requested {requested_count}."
+                    }, status=403)
+                
+                # Deduct upfront
+                user.trial_usage_count += requested_count
+                user.save(update_fields=['trial_usage_count'])
+                
+                return JsonResponse({
+                    "allowed": True, 
+                    "remaining_tokens": limit - user.trial_usage_count
+                })
+
+            return JsonResponse({"allowed": False, "error": "No active trial or subscription."}, status=403)
+            
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
+

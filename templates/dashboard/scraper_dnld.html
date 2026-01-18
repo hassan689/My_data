@@ -5,160 +5,169 @@
 
 {% block 'content' %}
 
-<div class="p-4 sm:ml-72 min-h-screen bg-primary text-primary transition-colors duration-200">
-    
-    <div class="max-w-4xl mx-auto mt-10">
 
-        <div class="text-center mb-12">
-            <h1 class="text-4xl font-bold mb-4">Download Desktop App</h1>
-            <p class="text-lg text-tertiary">
-                Live FMCSA Scraper for Windows, Mac, and Linux.
-                <span class="inline-flex items-center px-2.5 py-0.5 border-green-600 text-green-600 rounded-full text-xs font-medium bg-secondary text-secondary border border-color ml-2">
-                    Latest: v1.0.5
-                </span>
-            </p>
-        </div>
+  {% if request.user.on_free_trial or request.user.subscription.status == "active" %}
 
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-            
-            <button onclick="switchTab('windows')" id="tab-windows" class="os-tab active group relative p-6 rounded-xl border border-color bg-secondary transition-all duration-200 hover:shadow-md">
-                <div class="flex flex-col items-center">
-                    <i class="fa-brands fa-windows text-5xl mb-4 text-tertiary group-[.active]:text-blue-600 transition-colors duration-200"></i>
-                    <span class="font-semibold group-[.active]:text-blue-600 transition-colors">Windows</span>
-                </div>
-                <div class="absolute inset-0 border-2 border-transparent group-[.active]:border-blue-600 rounded-xl pointer-events-none"></div>
-            </button>
+    <div class="p-4 sm:ml-72 min-h-screen bg-primary text-primary transition-colors duration-200">
+        
+        <div class="max-w-4xl mx-auto mt-10">
 
-            <button onclick="switchTab('mac')" id="tab-mac" class="os-tab group relative p-6 rounded-xl border border-color bg-secondary transition-all duration-200 hover:shadow-md">
-                <div class="flex flex-col items-center">
-                    <i class="fa-brands fa-apple text-5xl mb-4 text-tertiary group-[.active]:text-purple-600 dark:group-[.active]:text-purple-400 transition-colors duration-200"></i>
-                    
-                    <span class="font-semibold group-[.active]:text-purple-600 dark:group-[.active]:text-purple-400 transition-colors">macOS</span>
-                </div>
-                <div class="absolute inset-0 border-2 border-transparent group-[.active]:border-purple-500 rounded-xl pointer-events-none"></div>
-            </button>
+            <div class="text-center mb-12">
+                <h1 class="text-4xl font-bold mb-4">Download Desktop App</h1>
+                <p class="text-lg text-tertiary">
+                    Live FMCSA Scraper for Windows, Mac, and Linux.
+                    <span class="inline-flex items-center px-2.5 py-0.5 border-green-600 text-green-600 rounded-full text-xs font-medium bg-secondary text-secondary border border-color ml-2">
+                        Latest: v1.0.5
+                    </span>
+                </p>
+            </div>
 
-            <button onclick="switchTab('linux')" id="tab-linux" class="os-tab group relative p-6 rounded-xl border border-color bg-secondary transition-all duration-200 hover:shadow-md">
-                <div class="flex flex-col items-center">
-                    <i class="fa-brands fa-ubuntu text-5xl mb-4 text-tertiary group-[.active]:text-yellow-500 transition-colors duration-200"></i>
-                    <span class="font-semibold group-[.active]:text-yellow-500 transition-colors">Ubuntu</span>
-                </div>
-                <div class="absolute inset-0 border-2 border-transparent group-[.active]:border-yellow-500 rounded-xl pointer-events-none"></div>
-            </button>
-
-        </div>
-
-        <div class="relative">
-            
-            <div id="content-windows" class="os-content p-8 rounded-2xl bg-secondary border border-color shadow-sm">
-                <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-                    <div>
-                        <h2 class="text-2xl font-bold flex items-center gap-2">Download for Windows</h2>
-                        <p class="text-tertiary mt-2">Compatible with Windows 10 and 11 (64-bit).</p>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+                
+                <button onclick="switchTab('windows')" id="tab-windows" class="os-tab active group relative p-6 rounded-xl border border-color bg-secondary transition-all duration-200 hover:shadow-md">
+                    <div class="flex flex-col items-center">
+                        <i class="fa-brands fa-windows text-5xl mb-4 text-tertiary group-[.active]:text-blue-600 transition-colors duration-200"></i>
+                        <span class="font-semibold group-[.active]:text-blue-600 transition-colors">Windows</span>
                     </div>
-                    <a href="/DLC/DispatchSkoolLiveScraper.exe" download
-                       class="w-full md:w-auto px-8 py-3 rounded-lg font-semibold shadow-md transition-transform active:scale-95 btn-bg-primary btn-text btn-bg-hover">
-                        Download .exe
-                    </a>
-                </div>
-                <div class="mt-8 p-4 rounded-lg bg-tertiary border border-color">
-                    <div class="flex items-start gap-3">
-                        <div class="text-blue-500 mt-1">
-                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                        </div>
+                    <div class="absolute inset-0 border-2 border-transparent group-[.active]:border-blue-600 rounded-xl pointer-events-none"></div>
+                </button>
+
+                <button onclick="switchTab('mac')" id="tab-mac" class="os-tab group relative p-6 rounded-xl border border-color bg-secondary transition-all duration-200 hover:shadow-md">
+                    <div class="flex flex-col items-center">
+                        <i class="fa-brands fa-apple text-5xl mb-4 text-tertiary group-[.active]:text-purple-600 dark:group-[.active]:text-purple-400 transition-colors duration-200"></i>
+                        
+                        <span class="font-semibold group-[.active]:text-purple-600 dark:group-[.active]:text-purple-400 transition-colors">macOS</span>
+                    </div>
+                    <div class="absolute inset-0 border-2 border-transparent group-[.active]:border-purple-500 rounded-xl pointer-events-none"></div>
+                </button>
+
+                <button onclick="switchTab('linux')" id="tab-linux" class="os-tab group relative p-6 rounded-xl border border-color bg-secondary transition-all duration-200 hover:shadow-md">
+                    <div class="flex flex-col items-center">
+                        <i class="fa-brands fa-ubuntu text-5xl mb-4 text-tertiary group-[.active]:text-yellow-500 transition-colors duration-200"></i>
+                        <span class="font-semibold group-[.active]:text-yellow-500 transition-colors">Ubuntu</span>
+                    </div>
+                    <div class="absolute inset-0 border-2 border-transparent group-[.active]:border-yellow-500 rounded-xl pointer-events-none"></div>
+                </button>
+
+            </div>
+
+            <div class="relative">
+                
+                <div id="content-windows" class="os-content p-8 rounded-2xl bg-secondary border border-color shadow-sm">
+                    <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
                         <div>
-                            <h3 class="font-semibold text-lg">First time opening?</h3>
-                            <p class="text-sm mt-1 text-secondary">Microsoft Defender SmartScreen may prevent the app from starting because it is new.</p>
-                            <div class="mt-3 text-sm bg-primary p-3 rounded border border-color">
-                                <p class="font-mono text-tertiary">1. Click <strong>"More info"</strong></p>
-                                <p class="font-mono text-tertiary mt-1">2. Click <strong>"Run anyway"</strong></p>
+                            <h2 class="text-2xl font-bold flex items-center gap-2">Download for Windows</h2>
+                            <p class="text-tertiary mt-2">Compatible with Windows 10 and 11 (64-bit).</p>
+                        </div>
+                        <a href="/DLC/DispatchSkoolLiveScraper.exe" download
+                          class="w-full md:w-auto px-8 py-3 rounded-lg font-semibold shadow-md transition-transform active:scale-95 btn-bg-primary btn-text btn-bg-hover">
+                            Download .exe
+                        </a>
+                    </div>
+                    <div class="mt-8 p-4 rounded-lg bg-tertiary border border-color">
+                        <div class="flex items-start gap-3">
+                            <div class="text-blue-500 mt-1">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            </div>
+                            <div>
+                                <h3 class="font-semibold text-lg">First time opening?</h3>
+                                <p class="text-sm mt-1 text-secondary">Microsoft Defender SmartScreen may prevent the app from starting because it is new.</p>
+                                <div class="mt-3 text-sm bg-primary p-3 rounded border border-color">
+                                    <p class="font-mono text-tertiary">1. Click <strong>"More info"</strong></p>
+                                    <p class="font-mono text-tertiary mt-1">2. Click <strong>"Run anyway"</strong></p>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
-            </div>
 
-            <div id="content-mac" class="os-content hidden p-8 rounded-2xl bg-secondary border border-color shadow-sm">
-                <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-                    <div>
-                        <h2 class="text-2xl font-bold flex items-center gap-2">Download for macOS</h2>
-                        <p class="text-tertiary mt-2">Universal build for Intel & Apple Silicon (M1/M2/M3).</p>
-                    </div>
-                    <a href="/DLC/DispatchSkoolLiveScraper.app.zip" download
-                       class="w-full md:w-auto px-8 py-3 rounded-lg font-semibold shadow-md transition-transform active:scale-95 btn-bg-primary btn-text btn-bg-hover">
-                        Download .zip
-                    </a>
-                </div>
-                <div class="mt-8 p-4 rounded-lg bg-tertiary border border-color">
-                    <div class="flex items-start gap-3">
-                        <div class="text-orange-500 mt-1">
-                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
-                        </div>
+                <div id="content-mac" class="os-content hidden p-8 rounded-2xl bg-secondary border border-color shadow-sm">
+                    <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
                         <div>
-                            <h3 class="font-semibold text-lg">"App is damaged"?</h3>
-                            <p class="text-sm mt-1 text-secondary">Apple Gatekeeper blocks new apps. You must bypass this once.</p>
-                            <div class="mt-3 text-sm bg-primary p-3 rounded border border-color">
-                                <ol class="list-decimal list-inside space-y-1 font-mono text-tertiary">
-                                    <li>Unzip the downloaded file.</li>
-                                    <li><strong>Right-Click</strong> (or Control+Click) the App icon.</li>
-                                    <li>Select <strong>Open</strong> from the menu.</li>
-                                    <li>Click <strong>Open</strong> in the dialog box.</li>
-                                </ol>
+                            <h2 class="text-2xl font-bold flex items-center gap-2">Download for macOS</h2>
+                            <p class="text-tertiary mt-2">Universal build for Intel & Apple Silicon (M1/M2/M3).</p>
+                        </div>
+                        <a href="/DLC/DispatchSkoolLiveScraper.app.zip" download
+                          class="w-full md:w-auto px-8 py-3 rounded-lg font-semibold shadow-md transition-transform active:scale-95 btn-bg-primary btn-text btn-bg-hover">
+                            Download .zip
+                        </a>
+                    </div>
+                    <div class="mt-8 p-4 rounded-lg bg-tertiary border border-color">
+                        <div class="flex items-start gap-3">
+                            <div class="text-orange-500 mt-1">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                            </div>
+                            <div>
+                                <h3 class="font-semibold text-lg">"App is damaged"?</h3>
+                                <p class="text-sm mt-1 text-secondary">Apple Gatekeeper blocks new apps. You must bypass this once.</p>
+                                <div class="mt-3 text-sm bg-primary p-3 rounded border border-color">
+                                    <ol class="list-decimal list-inside space-y-1 font-mono text-tertiary">
+                                        <li>Unzip the downloaded file.</li>
+                                        <li><strong>Right-Click</strong> (or Control+Click) the App icon.</li>
+                                        <li>Select <strong>Open</strong> from the menu.</li>
+                                        <li>Click <strong>Open</strong> in the dialog box.</li>
+                                    </ol>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
-            </div>
 
-            <div id="content-linux" class="os-content hidden p-8 rounded-2xl bg-secondary border border-color shadow-sm">
-                <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-                    <div>
-                        <h2 class="text-2xl font-bold flex items-center gap-2">Download for Linux</h2>
-                        <p class="text-tertiary mt-2">Tested on Ubuntu 22.04+ (GLIBC 2.35+ required).</p>
-                    </div>
-                    <a href="/DLC/DispatchSkoolLiveScraper" download
-                       class="w-full md:w-auto px-8 py-3 rounded-lg font-semibold shadow-md transition-transform active:scale-95 btn-bg-primary btn-text btn-bg-hover">
-                        Download Binary
-                    </a>
-                </div>
-                <div class="mt-8 p-4 rounded-lg bg-tertiary border border-color">
-                    <div class="flex items-start gap-3">
-                        <div class="text-yellow-500 mt-1">
-                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
-                        </div>
+                <div id="content-linux" class="os-content hidden p-8 rounded-2xl bg-secondary border border-color shadow-sm">
+                    <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
                         <div>
-                            <h3 class="font-semibold text-lg">Dependencies Required</h3>
-                            <p class="text-sm mt-1 text-secondary">The app requires GStreamer. If it fails to launch:</p>
-                            <div class="mt-3 p-3 rounded border border-color bg-primary overflow-x-auto">
-                                <code class="text-sm font-mono text-tertiary whitespace-nowrap">sudo apt-get install libgstreamer1.0-0 gstreamer1.0-plugins-base</code>
+                            <h2 class="text-2xl font-bold flex items-center gap-2">Download for Linux</h2>
+                            <p class="text-tertiary mt-2">Tested on Ubuntu 22.04+ (GLIBC 2.35+ required).</p>
+                        </div>
+                        <a href="/DLC/DispatchSkoolLiveScraper" download
+                          class="w-full md:w-auto px-8 py-3 rounded-lg font-semibold shadow-md transition-transform active:scale-95 btn-bg-primary btn-text btn-bg-hover">
+                            Download Binary
+                        </a>
+                    </div>
+                    <div class="mt-8 p-4 rounded-lg bg-tertiary border border-color">
+                        <div class="flex items-start gap-3">
+                            <div class="text-yellow-500 mt-1">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
                             </div>
-                            <p class="text-xs text-tertiary mt-2">Run <code class="bg-hover-light px-1 rounded">chmod +x DispatchSkoolLiveScraper</code> first.</p>
+                            <div>
+                                <h3 class="font-semibold text-lg">Dependencies Required</h3>
+                                <p class="text-sm mt-1 text-secondary">The app requires GStreamer. If it fails to launch:</p>
+                                <div class="mt-3 p-3 rounded border border-color bg-primary overflow-x-auto">
+                                    <code class="text-sm font-mono text-tertiary whitespace-nowrap">sudo apt-get install libgstreamer1.0-0 gstreamer1.0-plugins-base</code>
+                                </div>
+                                <p class="text-xs text-tertiary mt-2">Run <code class="bg-hover-light px-1 rounded">chmod +x DispatchSkoolLiveScraper</code> first.</p>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
 
+            </div>
         </div>
     </div>
-</div>
 
-<script>
-    function switchTab(os) {
-        document.querySelectorAll('.os-tab').forEach(tab => {
-            tab.classList.remove('active');
+    <script>
+        function switchTab(os) {
+            document.querySelectorAll('.os-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.os-content').forEach(content => {
+                content.classList.add('hidden');
+            });
+            document.getElementById('tab-' + os).classList.add('active');
+            document.getElementById('content-' + os).classList.remove('hidden');
+        }
+        document.addEventListener('DOMContentLoaded', () => {
+            const platform = navigator.platform.toLowerCase();
+            if (platform.includes('mac')) switchTab('mac');
+            else if (platform.includes('linux')) switchTab('linux');
+            else switchTab('windows'); 
         });
-        document.querySelectorAll('.os-content').forEach(content => {
-            content.classList.add('hidden');
-        });
-        document.getElementById('tab-' + os).classList.add('active');
-        document.getElementById('content-' + os).classList.remove('hidden');
-    }
-    document.addEventListener('DOMContentLoaded', () => {
-        const platform = navigator.platform.toLowerCase();
-        if (platform.includes('mac')) switchTab('mac');
-        else if (platform.includes('linux')) switchTab('linux');
-        else switchTab('windows'); 
-    });
-</script>
+    </script>
+
+  {% else %}
+
+    {% include 'price_base.html' %}
+
+  {% endif %}
 
 {% endblock %}

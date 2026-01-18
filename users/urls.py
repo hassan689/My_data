@@ -20,5 +20,6 @@ urlpatterns = [
     # --- Desktop API Endpoints ---
     path('api/desktop/login/', api.DesktopLoginView.as_view(), name='desktop_login'),
     path('api/desktop/heartbeat/', api.DesktopHeartbeatView.as_view(), name='desktop_heartbeat'),
+    path('api/desktop/validate-scrape/', api.ValidateScrapeRequestView.as_view(), name='validate_scrape_request'),
 ]
 

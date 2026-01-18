@@ -50,15 +50,44 @@ class CustomUser(AbstractUser):
     # A user can be referred by an affiliate, or not (null=True, blank=True)
     referred_by = models.ForeignKey(
         'users.Affiliate', on_delete=models.SET_NULL, # If an affiliate is deleted, referred users remain, but their 'referred_by' becomes NULL
-        null=True, blank=True, related_name="referred_users", # affiliate_instance.referred_users.all()
+        null=True, blank=True, related_name="referred_users",
     )
 
-    # --- NEW ADDITION: SESSION WAR TOKEN ---
-    # This stores the unique ID of the currently allowed device
+    trial_started_at = models.DateTimeField(null=True, blank=True)
+    trial_usage_count = models.PositiveIntegerField(default=0) # Track MC checks for the desktop scraper app during the trial
+
+    # This stores the unique ID of the currently allowed device for the scraper desktop app
     desktop_session_id = models.CharField(max_length=100, null=True, blank=True)
 
     groups = models.ManyToManyField("auth.Group", related_name="customuser_set", blank=True)
     user_permissions = models.ManyToManyField("auth.Permission", related_name="customuser_set", blank=True)
+
+    class Meta:
+        # This creates the 'cheat sheet' for the database
+        indexes = [
+            models.Index(fields=['on_free_trial', 'trial_started_at']),
+        ]
+        verbose_name = "User"
+        verbose_name_plural = "Users"
+
+    def save(self, *args, **kwargs):
+        
+        if self.id:  # If this is an update, not a new creation
+            old_instance = CustomUser.objects.get(id=self.id)
+            # If it WAS False and is NOW True
+            if not old_instance.on_free_trial and self.on_free_trial:
+                self.trial_started_at = now()
+        elif self.on_free_trial: # If creating a new user with trial active
+            self.trial_started_at = now()
+            
+        super().save(*args, **kwargs)
+
+    def can_use_scraper(self):
+        if self.is_superuser or self.has_active_subscription():
+            return True
+        if self.on_free_trial:
+            return self.trial_usage_count <= 1000
+        return False
 
     def has_active_subscription(self):
         """
@@ -75,8 +104,11 @@ class CustomUser(AbstractUser):
 
         
     def is_free_trial_expired(self):
-        """Check if 7 days have passed since user creation."""
-        return now() >= self.date_joined + timedelta(days=7)
+        
+        """Check if 7 days have passed since the trial actually started."""
+        # Use the new field if it exists, otherwise fallback to date_joined
+        start_date = self.trial_started_at or self.date_joined
+        return now() >= start_date + timedelta(days=7)
 
     def __str__(self):
         return self.username

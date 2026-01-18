@@ -69,7 +69,7 @@
       </p>
     </div>
 
-	{% elif  request.user.subscription and request.user.subscription.status == "active" and email_accounts_count >= 2 %}
+	{% elif request.user.on_free_trial or request.user.subscription and request.user.subscription.status == "active" and email_accounts_count >= 2 %}
 
 		<div class="text-center max-w-4xl mx-auto px-4 pt-16 pb-5">
 			<h2 class="text-3xl md:text-4xl font-bold text-primary">
