@@ -103,7 +103,7 @@ class ValidateScrapeRequestView(View):
 
             # 2. Trial Users
             if user.on_free_trial:
-                limit = 1000
+                limit = 5000
                 remaining = limit - user.trial_usage_count
                 
                 if requested_count > remaining:

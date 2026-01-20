@@ -1039,9 +1039,11 @@ def index(request):
 
     user_subscription = getattr(request.user, 'subscription', None)
     is_warmup_eligible = (
-        user_subscription is not None and
-        user_subscription.status == "active" and
-        user_subscription.type in ("warmup", "premium")
+        request.user.on_free_trial or (
+            user_subscription is not None and
+            user_subscription.status == "active" and
+            user_subscription.type in ("warmup", "premium")
+        )
     )
     is_unibox_eligible = (
         user_subscription is not None and
