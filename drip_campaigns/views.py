@@ -8,8 +8,9 @@ from django.core.paginator import Paginator
 from django.core.cache import cache
 from django.contrib import messages
 from django.db import transaction
-from django.db.models import Sum, Max, Count
+from django.db.models import Max, Count
 from django.http import JsonResponse
+from django.utils import timezone
 
 from dashboard.utilities import *
 from users.models import EmailAccount, AccountGroup
@@ -1014,50 +1015,57 @@ def stop_account_chain(request, account_info_id, campaign_id):
 
 @require_safe
 def track_drip(request, unique_identifier):
-    
-    print("View is called")
-    
+    ua = request.META.get('HTTP_USER_AGENT', '').lower()
+    ip = request.META.get('REMOTE_ADDR', '')
+
+    # 1. BEHAVIOR BLOCKLIST
+    bot_signatures = [
+        'bot', 'spider', 'crawl', 'slurp',       
+        'facebookexternalhit', 'whatsapp',       
+        'curl', 'wget', 'python-requests',       
+        'headless',                              
+        'preview',                               
+        'barracuda', 'mimecast',                 
+        'trend micro', 'sophos'                  
+    ]
+
+    # Quick exit for obvious bots
+    if any(sig in ua for sig in bot_signatures):
+        print(f"Bot blocked (UA Match) in Drip: {ua} - IP: {ip}")
+        return gif_response()
+
     try:
         with transaction.atomic():
             email_log = (
                 SentDripEmail.objects
-                .select_for_update()  # Locks row until transaction ends
+                .select_for_update()  # Locks row
                 .get(unique_identifier=unique_identifier)
             )
             template = email_log.template
 
-            # Detect suspicious proxy/preload hits
-            ua = request.META.get('HTTP_USER_AGENT', '').lower()
-            ip = request.META.get('REMOTE_ADDR', '')
+            # 2. SUPERHUMAN TIME CHECK (6 Seconds)
+            now = timezone.now()
+            time_diff = (now - email_log.created_at).total_seconds()
 
-            suspicious_patterns = [
-                'applemail',        # Apple Mail Privacy Protection
-                # 'googleimageproxy', # Gmail image proxy
-                # 'outlook',          # Outlook image cache proxy
-                'yahoo',            # Yahoo Mail proxy
-                'samsung',          # Samsung Email client
-            ]
+            if time_diff < 6:
+                print(f"Superhuman drip open ignored ({time_diff:.2f}s): {email_log.lead_email}")
+                return gif_response()
 
-            if any(pattern in ua for pattern in suspicious_patterns):
-                print(f"⚠️ Suspicious open detected for {email_log.recipient_email} (UA: {ua}, IP: {ip})")
-                return gif_response()  # Exit without increment
-
-            # If real open (idempotent due to DB row lock)
+            # 3. UPDATE STATS
             if not email_log.is_opened:
-                template.open_rate = F('open_rate') + 1
-                template.save(update_fields=['open_rate'])
+                if template:
+                    template.open_rate = F('open_rate') + 1
+                    template.save(update_fields=['open_rate'])
 
                 email_log.is_opened = True
                 email_log.save(update_fields=['is_opened'])
 
-
-    except SentDripEmail.DoesNotExist as e:
+    except SentDripEmail.DoesNotExist:
         print(
-              f"The tracking pixel was hit with an unknown unique_identifier:\n\n"
-              f"{unique_identifier}\n\n"
-              f"IP: {request.META.get('REMOTE_ADDR', '')}\n"
-              f"User-Agent: {request.META.get('HTTP_USER_AGENT', '')}"
-          )
+            f"Unknown Drip Pixel Hit:\n"
+            f"ID: {unique_identifier}\n"
+            f"IP: {ip} | UA: {ua}"
+        )
 
     return gif_response()
 

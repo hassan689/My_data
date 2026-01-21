@@ -105,7 +105,8 @@ class EmailAccountAndLeadsAdmin(admin.ModelAdmin):
 
     list_filter = ('campaign__last_action_at', 'campaign__status')
     search_fields = ('campaign__name', 'email_account__email_address', 'campaign__launched_by__email')
-    readonly_fields = ('leads_data',) 
+    readonly_fields = ('leads_data',)
+    ordering = ('campaign__current_step',)
 
     # 5. --- Query Optimization ---
     # This is critical for performance. It tells Django to
@@ -155,10 +156,10 @@ class DripTemplateAdmin(admin.ModelAdmin):
     """
     Admin for viewing the DripTemplate model directly.
     """
-    list_display = ('campaign__name', 'get_launched_by', 'step_number', 'subject', 'delivered_status', 'open_rate')
+    list_display = ('campaign__name', 'get_launched_by', 'step_number', 'delivered_status', 'open_rate')
     list_filter = ('delivered_status',)
-    search_fields = ('subject', 'campaign__name')
-    ordering = ('-campaign', 'step_number',)
+    search_fields = ('campaign__name',)
+    ordering = ('step_number',)
 
     @admin.display(description='Launched By')
     def get_launched_by(self, obj):
@@ -169,6 +170,7 @@ class DripTemplateAdmin(admin.ModelAdmin):
 class SentDripAdmin(admin.ModelAdmin):
     list_display = ('get_name', 'get_launched_by', 'lead_email', 'status', 'created_at')
     list_filter = ('created_at', 'status',)
+    ordering = ('created_at',)
 
     @admin.display(description='Launched By')
     def get_launched_by(self, obj):

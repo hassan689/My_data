@@ -812,50 +812,60 @@ def bulk_campaign_step2(request, campaign_key):
 
 @require_safe
 def track_open(request, unique_identifier):
+    ua = request.META.get('HTTP_USER_AGENT', '').lower()
+    ip = request.META.get('REMOTE_ADDR', '')
+
+    # We block generic bots, scrapers, and preview tools.
+    bot_signatures = [
+        'bot', 'spider', 'crawl', 'slurp',       # General crawlers
+        'facebookexternalhit', 'whatsapp',       # Social previews
+        'curl', 'wget', 'python-requests',       # Scripts
+        'headless',                              # Headless browsers
+        'preview',                               # Email client preview generators
+        'barracuda', 'mimecast',                 # Security scanners
+        'trend micro', 'sophos'                  # More security scanners
+    ]
+
+    # Quick exit for obvious bots
+    if any(sig in ua for sig in bot_signatures):
+        print(f"Bot blocked (UA Match): {ua} - IP: {ip}")
+        return gif_response()
+
     try:
         with transaction.atomic():
             email_log = (
                 EmailOpen.objects
-                .select_for_update()  # Locks row until transaction ends
+                .select_for_update()
                 .get(unique_identifier=unique_identifier)
             )
 
-            # Detect suspicious proxy/preload hits
-            ua = request.META.get('HTTP_USER_AGENT', '').lower()
-            ip = request.META.get('REMOTE_ADDR', '')
+            # 2. SUPERHUMAN TIME CHECK
+            # Calculate how long it has been since the email was generated.
+            now = timezone.now()
+            time_diff = (now - email_log.timestamp).total_seconds()
 
-            suspicious_patterns = [
-                'applemail',        # Apple Mail Privacy Protection
-                'googleimageproxy', # Gmail image proxy
-                'outlook',          # Outlook image cache proxy
-                'yahoo',            # Yahoo Mail proxy
-                'samsung',          # Samsung Email client
-            ]
+            # If opened in less than 6 seconds, it's likely a security filter pre-fetching the image.
+            if time_diff < 6:
+                print(f"⚡ Superhuman open ignored ({time_diff:.2f}s): {email_log.recipient_email}")
+                return gif_response()
 
-            if any(pattern in ua for pattern in suspicious_patterns):
-                print(f"⚠️ Suspicious open detected for {email_log.recipient_email} (UA: {ua}, IP: {ip})")
-                return gif_response()  # Exit without increment
-
-            # If real open (idempotent due to DB row lock)
+            # 3. RECORD THE OPEN
+            # Idempotency check: Only count if not already opened
             if not email_log.is_opened:
                 campaign = email_log.campaign
+                
                 campaign.open_rate = F('open_rate') + 1
                 campaign.save(update_fields=['open_rate'])
 
                 email_log.is_opened = True
                 email_log.save(update_fields=['is_opened'])
 
-
-    except EmailOpen.DoesNotExist as e:
-        print(
-              f"The tracking pixel was hit with an unknown unique_identifier:\n\n"
-              f"{unique_identifier}\n\n"
-              f"IP: {request.META.get('REMOTE_ADDR', '')}\n"
-              f"User-Agent: {request.META.get('HTTP_USER_AGENT', '')}"
-          )
-
+    except EmailOpen.DoesNotExist:
+        # Log the error but don't crash
+        print(f"Unknown Pixel Hit: {unique_identifier} | IP: {ip} | UA: {ua}")
+    
+    # Always return the invisible pixel
     return gif_response()
-
 
 
 ######################################## Email accounts creation and dashboard views
