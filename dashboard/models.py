@@ -59,9 +59,26 @@ class GmailToken(models.Model):
         return decrypt_data(self.refresh_token_encrypted)
 
 
-class CampaignRecord(models.Model):
+class CampaignTemplate(models.Model):
+    """
+    New model to support A/B testing and multiple templates per campaign.
+    """
     subject = models.CharField(max_length=255)
     body = models.TextField()
+    owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name="campaign_templates")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Template: {self.subject[:30]}..."
+
+class CampaignRecord(models.Model):
+    subject = models.CharField(max_length=255, null=True, blank=True)
+    body = models.TextField(null=True, blank=True)
+
+    # --- New Architecture (M2M) ---
+    templates = models.ManyToManyField(CampaignTemplate, blank=True, related_name="campaigns")
+
     launch_time = models.DateTimeField(auto_now_add=True)
     launched_by = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
     sender_account = models.ForeignKey(EmailAccount, on_delete=models.CASCADE, null=True, blank=True, related_name="campaigns")
@@ -99,11 +116,38 @@ class CampaignRecord(models.Model):
 
     def __str__(self):
         return f"Launched by {self.launched_by} via {self.sender_account} at {self.launch_time.strftime('%Y-%m-%d %H:%M')}"
+    
+    def get_assigned_template(self, lead_index=0):
+        """
+        Returns a Template object (or a shim) based on the Round Robin logic.
+        Handles both V2 (M2M) and Legacy (Direct fields) records.
+        """
+        # 1. Try to fetch from M2M (V2 Logic)
+        # Note: In a loop, you might want to prefetch this to avoid N+1 queries
+        active_templates = list(self.templates.all())
+        
+        if active_templates:
+            # Round Robin Math: Index % Count
+            return active_templates[lead_index % len(active_templates)]
+        
+        # 2. Fallback to Legacy Logic
+        # Return a simple object that mimics a CampaignTemplate so the worker code doesn't break
+        return LegacyTemplateShim(self.subject, self.body)
 
     class Meta:
         verbose_name = "Campaign Launch Record"
         verbose_name_plural = "Campaign Launch Records"
 
+
+class LegacyTemplateShim:
+    """
+    A temporary helper class to make old data look like a CampaignTemplate object.
+    This allows the worker to treat everything as an object with .subject, .body, and .id
+    """
+    def __init__(self, subject, body):
+        self.subject = subject
+        self.body = body
+        self.id = None  # Legacy records have no Template ID
 
 
 class EmailOpen(models.Model):
@@ -112,6 +156,9 @@ class EmailOpen(models.Model):
     unique_identifier = models.UUIDField(unique=True)
     is_opened = models.BooleanField(default=False)
     timestamp = models.DateTimeField(auto_now_add=True, blank=True, null=True)
+
+    # We set NULL on delete so we don't lose the "Open" event if the template is deleted later.
+    template = models.ForeignKey(CampaignTemplate, on_delete=models.SET_NULL, null=True, blank=True)
 
     mc_number = models.CharField(max_length=50, verbose_name="MC Number", blank=True, null=True)
     legal_name = models.CharField(max_length=255, blank=True, null=True)

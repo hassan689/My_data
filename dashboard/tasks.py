@@ -135,8 +135,12 @@ def send_single_email(self, campaign_record_id):
         mailbox_instance = GmailToken.objects.filter(email_account=email_account).first()
 
         # 6. --- Prepare Email ---
-        personalized_subject = personalize_template(campaign.subject, lead)
-        personalized_body = personalize_template(campaign.body, lead)
+        # NEW: Fetch the specific template based on rotation logic
+        # We use 'sent_count' as the index so templates rotate sequentially
+        template_obj = campaign.get_assigned_template(campaign.sent_count)
+
+        personalized_subject = personalize_template(template_obj.subject, lead)
+        personalized_body = personalize_template(template_obj.body, lead)
         message_id = make_msgid(idstring=uuid.uuid4().hex, domain='dispatchskool.com')
         DOMAIN = "https://dispatchskool.com"
         personalized_body = sanitize_email_html(personalized_body, DOMAIN)
@@ -149,6 +153,7 @@ def send_single_email(self, campaign_record_id):
             try:
                 EmailOpen.objects.create(
                     campaign=campaign,
+                    template=template_obj if template_obj.id else None, # NEW: Link the specific template for A/B analytics
                     recipient_email=lead['Email'],
                     unique_identifier=unique_id,
                     mc_number=lead.get('MC Number', ''),
@@ -464,8 +469,15 @@ def send_emails_batch(self, campaign_record_id, batch_size=10):
                     continue
                 
                 # Prepare email content
-                personalized_subject = personalize_template(campaign_for_loop.subject, lead)
-                personalized_body = personalize_template(campaign_for_loop.body, lead)
+                
+                # NEW: Calculate the index for this specific lead in the batch
+                # (Previous Total Sent + Current Batch Iteration)
+                # iter_count starts at 1, so we subtract 1 to get 0-based index relative to the batch start
+                current_lead_index = campaign_for_loop.sent_count + (iter_count - 1)
+                template_obj = campaign_for_loop.get_assigned_template(current_lead_index)
+
+                personalized_subject = personalize_template(template_obj.subject, lead)
+                personalized_body = personalize_template(template_obj.body, lead)
                 message_id = make_msgid(idstring=uuid.uuid4().hex, domain='dispatchskool.com')
                 DOMAIN = "https://dispatchskool.com"
                 personalized_body = sanitize_email_html(personalized_body, DOMAIN)
@@ -479,6 +491,7 @@ def send_emails_batch(self, campaign_record_id, batch_size=10):
                     try:
                         EmailOpen.objects.create(
                             campaign=campaign_for_loop,
+                            template=template_obj if template_obj.id else None, # NEW: Link the specific template for A/B analytics
                             recipient_email=lead['Email'],
                             unique_identifier=unique_id,
                             mc_number=lead.get('MC Number', ''),

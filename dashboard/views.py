@@ -6,11 +6,11 @@ from django.core.paginator import Paginator
 
 from users.models import EmailAccount, AccountGroup
 from leads_data.models import DailySheet
-from .models import GmailToken, CampaignRecord, EmailOpen, VerificationBatch, VerificationUsage
+from .models import GmailToken, CampaignRecord, EmailOpen, VerificationBatch, VerificationUsage, CampaignTemplate
 from drip_campaigns.models import EmailAccountAndLeads
 from warmup.models import WarmupCampaign
 from drip_campaigns.models import SentDripEmail
-from .forms import EmailAccountForm, CampaignForm, BulkCampaignForm, VerificationUploadForm
+from .forms import EmailAccountForm, CampaignForm, BulkCampaignForm, TemplateFormSet, VerificationUploadForm
 from .tasks import send_emails_chunk_celery_task, send_account_attach_notif_email, verify_email_task
 from .utilities import *
 from django.db.models import F, Value, OuterRef, Subquery, Prefetch
@@ -45,10 +45,12 @@ email_regex = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
 def campaign(request, email_account_id):
     email_account = get_object_or_404(EmailAccount, id=email_account_id, user=request.user)
     form = CampaignForm(user=request.user)
+    
+    template_formset = TemplateFormSet(queryset=CampaignTemplate.objects.none(), prefix='templates')
 
     if request.method == 'POST':
         is_ajax = request.headers.get('x-requested-with') == 'XMLHttpRequest'
-        post_data = request.POST.copy()  # Make mutable copy
+        post_data = request.POST.copy()
         files_data = request.FILES
 
         # ✅ Fix: Normalize schedule datetime to string format acceptable to form
@@ -62,12 +64,13 @@ def campaign(request, email_account_id):
             except Exception as e:
                 print("⛔ Failed to parse schedule datetime:", e)
 
+        # Bind data to forms
         form = CampaignForm(post_data, files_data, user=request.user)
+        template_formset = TemplateFormSet(post_data, prefix='templates')
 
-
-        if form.is_valid():
-            email_subject = form.cleaned_data['email_subject']
-            email_body = form.cleaned_data['email_body']
+        if form.is_valid() and template_formset.is_valid():
+            
+            # --- 1. Extract Main Form Data (Subject/Body removed) ---
             file_upload = form.cleaned_data['file_upload']
             lower_limit_mc_number = form.cleaned_data['lower_limit_mc_number']
             upper_limit_mc_number = form.cleaned_data['upper_limit_mc_number']
@@ -75,11 +78,12 @@ def campaign(request, email_account_id):
             targets_count = form.cleaned_data['targets_count']
             min_delay = form.cleaned_data.get('min_delay')
             max_delay = form.cleaned_data.get('max_delay')
-                
+            
             scheduled_launch_datetime = form.cleaned_data.get('schedule_launch_datetime')
             skip_mc_numbers = form.cleaned_data.get("skip_mc_numbers")
             track_campaign = form.cleaned_data.get('track_campaign')
 
+            # Filters
             power_units_comparison = form.cleaned_data.get('power_units_comparison')
             power_units_value = form.cleaned_data.get('power_units_value')
             drivers_comparison = form.cleaned_data.get('drivers_comparison')
@@ -93,6 +97,7 @@ def campaign(request, email_account_id):
             debug_info = {}
             lead_source = ''
 
+            # --- 2. Lead Fetching Logic ---
             if file_upload:
                 leads = process_leads_file(file_upload, request.user)
                 lead_source = 'Excel'
@@ -112,15 +117,10 @@ def campaign(request, email_account_id):
                 debug_info['leads_count'] = len(leads)
 
             if not leads:
-                message = "❌ No valid leads found. Either the Excel is empty or filters didn't return any results."
-                print("🛑", message)
+                message = "❌ No valid leads found."
                 messages.error(request, message)
                 if is_ajax:
-                    return JsonResponse({
-                        'success': False,
-                        'message': message,
-                        'debug': debug_info
-                    }, status=400)
+                    return JsonResponse({'success': False, 'message': message}, status=400)
                 return redirect('dashboard:index')
 
             # Remove duplicate emails
@@ -135,79 +135,58 @@ def campaign(request, email_account_id):
             leads = unique_leads
             debug_info['unique_leads'] = len(leads)
 
-            # Filters info for preview
-            filter_data = {}
-            for key in ['mc_number', 'targets_count', 'power_units_comparison', 'power_units_value',
-                        'drivers_comparison', 'drivers_value', 'status', 'carrier_operation',
-                        'cargo_classification_search', 'cargo_info_search']:
-                val = locals().get(key)
-                if val not in [None, '', 'None']:
-                    filter_data[key] = val
+            # --- 3. Save Templates & Create Campaign (Atomic Transaction) ---
+            try:
+                with transaction.atomic():
+                    # A. Save Templates
+                    new_templates = template_formset.save(commit=False)
+                    for t in new_templates:
+                        t.owner = request.user
+                        t.save()
+                    
+                    # Handle deletions
+                    for deleted_obj in template_formset.deleted_objects:
+                        deleted_obj.delete()
 
-            if is_ajax and not request.POST.get('confirm'):
-                return JsonResponse({
-                    'lead_count': len(leads),
-                    'filters': filter_data,
-                    'confirmed': False,
-                    'success': True,
-                    'debug': debug_info
-                })
+                    # B. Create Campaign Record (Without subject/body)
+                    campaign_data = {
+                        'leads_data': leads,
+                        'min_delay': min_delay,
+                        'max_delay': max_delay,
+                        'launched_by': request.user,
+                        'sender_account': email_account,
+                        'total_recipients': len(leads),
+                        'sent_count': 0,
+                        'lead_source': 'Excel' if file_upload else 'DB',
+                        'track_campaign': track_campaign
+                    }
 
-            if scheduled_launch_datetime:
-                print("📅 Scheduler detected. Saving scheduled campaign...")
-                CampaignRecord.objects.create(
-                    subject = email_subject,
-                    body = email_body,
-                    leads_data = leads,
-                    min_delay = min_delay,
-                    max_delay = max_delay,
-                    scheduled_launch_time = scheduled_launch_datetime,
-                    launched_by = request.user,
-                    sender_account = email_account,
-                    total_recipients = len(leads),
-                    sent_count = 0,
-                    status = 'pending',
-                    lead_source = 'Excel' if file_upload else 'DB',
-                    track_campaign = track_campaign
-                )
-                pst_tz = pytz.timezone('Asia/Karachi')
-                scheduled_time_pst = scheduled_launch_datetime.astimezone(pst_tz)
-                success_message = f"✅ Campaign '{email_subject}' scheduled for {scheduled_time_pst.strftime('%Y-%m-%d %H:%M %p %Z')}."
+                    if scheduled_launch_datetime:
+                        campaign_data['status'] = 'pending'
+                        campaign_data['scheduled_launch_time'] = scheduled_launch_datetime
+                        campaign_record = CampaignRecord.objects.create(**campaign_data)
+                        
+                        # C. Link Templates M2M
+                        campaign_record.templates.set(new_templates)
+                        
+                        pst_tz = pytz.timezone('Asia/Karachi')
+                        scheduled_time_pst = scheduled_launch_datetime.astimezone(pst_tz)
+                        success_message = f"✅ Campaign scheduled for {scheduled_time_pst.strftime('%Y-%m-%d %H:%M %p %Z')}."
+                    
+                    else:
+                        campaign_data['status'] = 'processing'
+                        campaign_record = CampaignRecord.objects.create(**campaign_data)
+                        
+                        # C. Link Templates M2M
+                        campaign_record.templates.set(new_templates)
 
-                if is_ajax:
-                    return JsonResponse({
-                        'success': True,
-                        'message': success_message,
-                        'redirect_url': str(redirect('dashboard:index').url),
-                        'debug': debug_info
-                    })
-
-                messages.success(request, success_message)
-                return redirect('dashboard:index')
-            else: # imidiate started campaign
-                new_camp = CampaignRecord.objects.create(
-                    subject = email_subject,
-                    body = email_body,
-                    leads_data = leads,
-                    min_delay = min_delay,
-                    max_delay = max_delay,
-                    launched_by = request.user,
-                    sender_account = email_account,
-                    total_recipients = len(leads),
-                    sent_count = 0,
-                    status = 'processing',
-                    lead_source =  'Excel' if file_upload else 'DB',
-                    track_campaign = track_campaign
-                )
-
-                # Immediate send
-                print(f"📤 Queuing email campaign to {len(leads)} leads for {email_account.email_address}")
-                # Pass only the campaign id to Celery; the task will read leads and other params from DB
-                send_emails_chunk_celery_task.delay(new_camp.id)
-                email_account.last_used_at = now()
-                email_account.save(update_fields=["last_used_at"])
-
-                success_message = f"✅ Success! Emails are being sent for {email_account.email_address}."
+                        # Queue Task
+                        send_emails_chunk_celery_task.delay(campaign_record.id)
+                        
+                        email_account.last_used_at = timezone.now()
+                        email_account.save(update_fields=["last_used_at"])
+                        
+                        success_message = f"✅ Success! Emails are being sent for {email_account.email_address}."
 
                 if is_ajax:
                     return JsonResponse({
@@ -219,18 +198,28 @@ def campaign(request, email_account_id):
 
                 messages.success(request, success_message)
                 return redirect('dashboard:index')
+
+            except Exception as e:
+                print(f"Error creating campaign: {e}")
+                if is_ajax:
+                    return JsonResponse({'success': False, 'message': f"Error: {str(e)}"}, status=500)
+                messages.error(request, "An error occurred while creating the campaign.")
 
         # Invalid form
-        print("🛑 Form is invalid:", form.errors)
+        print("🛑 Form is invalid:", form.errors, template_formset.errors)
         if is_ajax:
             return JsonResponse({
                 'success': False,
                 'message': "Form is invalid.",
-                'errors': form.errors
+                'errors': {**form.errors, **template_formset.errors}
             }, status=400)
         return redirect('dashboard:index')
 
-    return render(request, 'dashboard/campaign.html', {'form': form, 'email_account': email_account})
+    return render(request, 'dashboard/campaign.html', {
+        'form': form, 
+        'template_formset': template_formset,
+        'email_account': email_account
+    })
 
 
 @login_required
@@ -581,11 +570,14 @@ def bulk_campaign_step2(request, campaign_key):
     email_accounts = EmailAccount.objects.filter(user=request.user)
     email_accounts_count = email_accounts.count()
     form = BulkCampaignForm(user=request.user)
+    template_formset = TemplateFormSet(queryset=CampaignTemplate.objects.none(), prefix='templates')
 
     if request.method == 'POST' and 'submit_allocation' in request.POST:
         
         total_leads = cached_data['leads_available'] if cached_data and 'leads_available' in cached_data else 0
         form = BulkCampaignForm(request.POST, request.FILES, user=request.user, total_leads=total_leads)
+        template_formset = TemplateFormSet(request.POST, prefix='templates')
+
         if not cached_data:
             messages.error(request, "Lead data not found. Please start over.")
             return redirect('dashboard:bulk_campaign')
@@ -608,12 +600,13 @@ def bulk_campaign_step2(request, campaign_key):
             return render(request, 'dashboard/bulk_campaign_step2.html', {
                 'form': form,
                 'email_accounts': email_accounts,
+                'template_formset': template_formset,
                 'email_accounts_count': email_accounts_count,
                 'leads_ready': bool(cached_data),
                 'leads_count': 0,
             })
 
-        if form.is_valid():
+        if form.is_valid() and template_formset.is_valid():
 
             leads = refetched_leads
             email_subject = form.cleaned_data.get('email_subject')
@@ -640,6 +633,7 @@ def bulk_campaign_step2(request, campaign_key):
                     return render(request, 'dashboard/bulk_campaign_step2.html', {
                         'form': form,
                         'email_accounts': email_accounts,
+                        'template_formset': template_formset,
                         'email_accounts_count': email_accounts_count,
                         'leads_ready': bool(cached_data),
                         'leads_count': len(leads),
@@ -666,6 +660,7 @@ def bulk_campaign_step2(request, campaign_key):
                     return render(request, 'dashboard/bulk_campaign_step2.html', {
                         'form': form,
                         'email_accounts': email_accounts,
+                        'template_formset': template_formset,
                         'email_accounts_count': email_accounts_count,
                         'leads_ready': bool(cached_data),
                         'leads_count': len(leads),
@@ -684,6 +679,7 @@ def bulk_campaign_step2(request, campaign_key):
                             return render(request, 'dashboard/bulk_campaign_step2.html', {
                                 'form': form,
                                 'email_accounts': email_accounts,
+                                'template_formset': template_formset,
                                 'email_accounts_count': email_accounts_count,
                                 'leads_ready': bool(cached_data),
                                 'leads_count': len(leads),
@@ -700,71 +696,84 @@ def bulk_campaign_step2(request, campaign_key):
                 accounts_to_update = []
 
                 with transaction.atomic():
-                    # Prepare campaign records for bulk creation
+                    # 1. Save the new Templates from the FormSet
+                    new_templates = template_formset.save(commit=False)
+                    for template in new_templates:
+                        template.owner = request.user
+                        template.save()
+
+                    # Handle deletions if any (standard FormSet behavior)
+                    for deleted_obj in template_formset.deleted_objects:
+                        deleted_obj.delete()
+
+                    # 2. Prepare the CampaignRecord objects
+                    # Note: We leave 'subject' and 'body' empty to use the new M2M architecture
                     for account, assigned_leads in account_lead_map.items():
                         if assigned_leads:
+                            campaign_params = {
+                                'leads_data': assigned_leads,
+                                'min_delay': min_delay,
+                                'max_delay': max_delay,
+                                'launched_by': request.user,
+                                'sender_account': account,
+                                'total_recipients': len(assigned_leads),
+                                'sent_count': 0,
+                                'lead_source': lead_source,
+                                'track_campaign': track_campaign
+                            }
+
                             if scheduled_launch_datetime:
-                                # Prepare scheduled campaign record
-                                scheduled_campaigns.append(CampaignRecord(
-                                    subject=email_subject,
-                                    body=email_body,
-                                    leads_data=assigned_leads,
-                                    min_delay=min_delay,
-                                    max_delay=max_delay,
-                                    scheduled_launch_time=scheduled_launch_datetime, # Already UTC from form.clean()
-                                    launched_by=request.user,
-                                    sender_account=account,
-                                    total_recipients=len(assigned_leads),
-                                    sent_count=0,
-                                    status='pending',
-                                    lead_source=lead_source,
-                                    track_campaign=track_campaign
-                                ))
-                                print(f"Scheduled bulk campaign for {account.email_address} with {len(assigned_leads)} leads.")
+                                campaign_params.update({
+                                    'status': 'pending',
+                                    'scheduled_launch_time': scheduled_launch_datetime
+                                })
+                                scheduled_campaigns.append(CampaignRecord(**campaign_params))
                             else:
-                                # Prepare immediate campaign record
-                                immediate_campaigns.append(CampaignRecord(
-                                    subject=email_subject,
-                                    body=email_body,
-                                    leads_data=assigned_leads,
-                                    min_delay=min_delay,
-                                    max_delay=max_delay,
-                                    launched_by=request.user,
-                                    sender_account=account,
-                                    total_recipients=len(assigned_leads),
-                                    sent_count=0,
-                                    status='processing',
-                                    lead_source=lead_source,
-                                    track_campaign=track_campaign
-                                ))
-                                print(f"Queuing immediate bulk email campaign to {len(assigned_leads)} leads for {account.email_address}")
+                                campaign_params.update({'status': 'processing'})
+                                immediate_campaigns.append(CampaignRecord(**campaign_params))
                                 
-                                # Mark account for updating last_used_at
-                                account.last_used_at = now()
+                                # Track account usage
+                                account.last_used_at = timezone.now()
                                 accounts_to_update.append(account)
 
-                    # Bulk create scheduled campaigns
+                    # 3. Execution Phase (Postgres returns IDs for bulk_create)
+                    created_scheduled = []
                     if scheduled_campaigns:
-                        CampaignRecord.objects.bulk_create(scheduled_campaigns)
-                    
-                    # Bulk create immediate campaigns and get their IDs
-                    created_immediate_campaigns = []
+                        created_scheduled = CampaignRecord.objects.bulk_create(scheduled_campaigns)
+                        print(f"Scheduled {len(created_scheduled)} bulk campaigns.")
+
+                    created_immediate = []
                     if immediate_campaigns:
-                        created_immediate_campaigns = CampaignRecord.objects.bulk_create(immediate_campaigns)
+                        created_immediate = CampaignRecord.objects.bulk_create(immediate_campaigns)
+                        print(f"Launched {len(created_immediate)} bulk campaigns immediately.")
+
+                    # 4. The "Bridge": Link Many-to-Many Templates
+                    # We combine all newly created campaigns to attach the templates
+                    all_new_campaigns = created_scheduled + created_immediate
                     
-                    # Update email accounts' last_used_at in bulk
+                    # We use the through model's bulk_create for maximum performance 
+                    # instead of looping .add() calls
+                    CampaignThroughModel = CampaignRecord.templates.through
+                    m2m_links = []
+                    for campaign in all_new_campaigns:
+                        for template in new_templates:
+                            m2m_links.append(CampaignThroughModel(
+                                campaignrecord_id=campaign.id,
+                                campaigntemplate_id=template.id
+                            ))
+                    
+                    if m2m_links:
+                        CampaignThroughModel.objects.bulk_create(m2m_links)
+
+                    # 5. Finalize Accounts and Celery Tasks
                     if accounts_to_update:
                         EmailAccount.objects.bulk_update(accounts_to_update, ['last_used_at'])
-                    
-                    # Queue immediate campaigns for processing
-                    immediate_campaign_count = 0
-                    for i, (account, assigned_leads) in enumerate([(acc, leads) for acc, leads in account_lead_map.items() if leads and not scheduled_launch_datetime]):
-                        campaign = created_immediate_campaigns[immediate_campaign_count]
-                        # Queue the kicker task by campaign id only
-                        send_emails_chunk_celery_task.delay(campaign.id)
-                        immediate_campaign_count += 1
 
-                return len(scheduled_campaigns), len(created_immediate_campaigns)
+                    for campaign in created_immediate:
+                        send_emails_chunk_celery_task.delay(campaign.id)
+
+                return len(created_scheduled), len(created_immediate)
+
 
             scheduled_count, immediate_count = start_campaign_processing()
             cache.delete(cache_key) # Clean up cache
@@ -794,6 +803,7 @@ def bulk_campaign_step2(request, campaign_key):
             return render(request, 'dashboard/bulk_campaign_step2.html', {
                 'form': form,  # bound form with errors
                 'email_accounts': email_accounts,
+                'template_formset': template_formset,
                 'email_accounts_count': email_accounts_count,
                 'leads_ready': bool(cached_data),
                 'leads_count': leads_count,
@@ -803,6 +813,7 @@ def bulk_campaign_step2(request, campaign_key):
     return render(request, 'dashboard/bulk_campaign_step2.html', {
         'form': form,
         'email_accounts': email_accounts,
+        'template_formset': template_formset,
         'email_accounts_count': email_accounts_count,
         'leads_ready': bool(cached_data),
         'leads_count': leads_count,

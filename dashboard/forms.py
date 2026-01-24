@@ -1,10 +1,12 @@
 from django import forms
 import re
 from django.utils import timezone
+from dashboard.models import CampaignTemplate
 from users.models import EmailAccount
 from django_ckeditor_5.widgets import CKEditor5Widget
 from django.forms.widgets import DateTimeInput
 from datetime import timezone as dt_timezone
+from django.forms import modelformset_factory
 import pytz
 # from ckeditor_uploader.widgets import CKEditorUploadingWidget 
 
@@ -52,6 +54,29 @@ class EmailAccountForm(forms.ModelForm):
 class DateTimePickerInput(DateTimeInput):
     input_type = 'datetime-local'
 
+
+class CampaignTemplateForm(forms.ModelForm):
+    # We include 'id' to ensure updates work correctly
+    id = forms.IntegerField(widget=forms.HiddenInput, required=False)
+    
+    class Meta:
+        model = CampaignTemplate
+        fields = ['subject', 'body']
+        widgets = {
+            'subject': forms.TextInput(attrs={'placeholder': 'Hello [Legal Name] - [MC Number] - Some Big Offer', 'class': 'w-full p-3 border rounded-lg bg-primary text-primary'}),
+            'body': CKEditor5Widget(config_name='default'),
+        }
+
+# The Factory
+TemplateFormSet = modelformset_factory(
+    CampaignTemplate,
+    form=CampaignTemplateForm,
+    extra=1,      # Start with 1
+    can_delete=True,
+    can_delete_extra=True
+)
+
+
 class CampaignForm(forms.Form):
     
     # added for Drip Campaign Form ..... Name of the Campaign
@@ -77,15 +102,17 @@ class CampaignForm(forms.Form):
         widget=forms.NumberInput(attrs={'placeholder': 'e.g., 30'})
     )
 
-    email_subject = forms.CharField(
-        max_length=255,
-        required=True,
-        widget=forms.TextInput(attrs={'placeholder': 'Hello [Legal Name] - [MC Number] - Some Big Offer'})
-    )
-    email_body = forms.CharField(
-        widget=CKEditor5Widget(config_name='default'),
-        required=True
-    )
+    # Legacy code, now shifting to multi template architectur, we dont need these fields.
+    # email_subject = forms.CharField(
+    #     max_length=255,
+    #     required=True,
+    #     widget=forms.TextInput(attrs={'placeholder': 'Hello [Legal Name] - [MC Number] - Some Big Offer'})
+    # )
+    # email_body = forms.CharField(
+    #     widget=CKEditor5Widget(config_name='default'),
+    #     required=True
+    # )
+
     file_upload = forms.FileField(
         required=False,
         widget=forms.ClearableFileInput(attrs={'class': 'hidden'})

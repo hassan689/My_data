@@ -6,6 +6,7 @@
 
 {% block 'head' %}
     {{ form.media }}
+    {{ template_formset.media }}
     <script>
         document.addEventListener('DOMContentLoaded', function () {
             const form = document.querySelector('form');
@@ -453,10 +454,11 @@
 							
 					<!-- Campaign Message Box -->
 					<div class="p-6 bg-primary rounded-lg shadow-md">
-              <h2 class="text-xl font-semibold text-secondary">Campaign Message</h2>
-              <p class="text-tertiary">Create a compelling message for your campaign</p>
+              <h2 class="text-xl font-semibold text-secondary">Campaign Message(s)</h2>
+              <p class="text-tertiary">Create one or more message variations. The system will rotate through them automatically (A/B Testing).</p>
 
-              
+              {{ template_formset.management_form }}
+
               <div class="my-4 p-4 bg-secondary rounded-lg border border-gray-700 shadow-md">
                 <h3 class="text-base font-bold text-secondary">Personalization Guide</h3>
                 <p class="mt-2 text-sm text-primary">
@@ -480,36 +482,68 @@
                 </div>
               </div>
 
+              <div id="template-forms-container">
+                  {% for form in template_formset %}
+                      <div class="template-form p-6 bg-secondary rounded-lg shadow-md mb-6 border border-gray-700">
+                          
+                          <h2 class="template-counter text-xl font-semibold text-secondary mb-4">Template {{ forloop.counter }}</h2>
+                          
+                          {{ form.id }}
 
-              <div class="mt-4">
-                <label class="block text-sm font-medium text-secondary mb-1">Email Subject</label>
-                
-                <div class="flex items-center gap-4">
-                  {{ form.email_subject|add_class:"w-2/3 p-3 border focus:ring-gray-500 focus:border-gray-500 rounded-lg outline-none text-primary bg-primary" }}
 
-                  <div class="flex items-center space-x-2">
-                    {{ form.track_campaign|add_class:"sr-only toggle-input" }}
-                    
-                    <label for="{{ form.track_campaign.id_for_label }}" class="toggle-label"></label>
-                    <span class="text-base text-primary">Track Open Rate</span>
-                  </div>
-                </div>
+                          <div class="mt-4">
+                            <label for="{{ form.subject.id_for_label }}" class="block text-sm font-medium text-secondary mb-1">Email Subject</label>
+                            <div class="flex items-center gap-4">
+                              {{ form.subject|add_class:"w-2/3 p-3 border focus:ring-gray-500 focus:border-gray-500 rounded-lg outline-none text-primary bg-primary" }}
 
-                {% if form.email_subject.errors %}
-                  <div class="bg-red-200 p-5 my-3 rounded-xl border-2 border-solid border-red-700">
-                    <p class="text-red-700 text-sm">{{ form.email_subject.errors.0 }}</p>
-                  </div>
-                {% endif %}
+                              {% comment %}
+                              <div class="flex items-center space-x-2">
+                                {{ form.track_campaign|add_class:"sr-only toggle-input" }}
+                                
+                                <label for="{{ form.track_campaign.id_for_label }}" class="toggle-label"></label>
+                                <span class="text-base text-primary">Track Open Rate</span>
+                              </div>
+                              {% endcomment %}
+
+                            </div>
+
+                            {% if form.subject.errors %}
+                              <div class="bg-red-200 p-5 my-3 rounded-xl border-2 border-solid border-red-700">
+                                <p class="text-red-700 text-sm">{{ form.subject.errors.0 }}</p>
+                              </div>
+                            {% endif %}
+                          </div>
+
+                          <div class="mt-4">
+                              <label class="block text-sm font-medium text-secondary">Email Body</label>
+                              <div class="mt-1 w-full border rounded-lg">
+                                  {{ form.body }}
+                              </div>
+                              {% if form.body.errors %}
+                                  <div class="text-red-500 text-sm mt-1">{{ form.body.errors.0 }}</div>
+                              {% endif %}
+                          </div>
+
+                          <div class="flex items-center gap-4 mt-4 form-deletable-area">
+                              {% if form.instance.id %}
+                                  <div class="flex items-center space-x-2">
+                                      {{ form.DELETE }}
+                                      <label for="{{ form.DELETE.id_for_label }}" class="text-red-500 cursor-pointer hover:underline">Delete this Template</label>
+                                  </div>
+                              {% endif %}
+                              
+                              <button type="button" class="remove-template-btn text-red-500 hover:text-red-400 font-medium">
+                                  Remove this Template
+                              </button>
+                          </div>
+                      </div>
+                  {% endfor %}
               </div>
 
-              <div class="mt-4">
-                <label class="block text-sm font-medium text-secondary">Email Body</label>
-                <div class="mt-1 w-full border rounded-lg focus-within:ring-2 focus-within:ring-gray-500 focus-within:border-gray-500">
-                    {{ form.email_body }}
-                </div>
-                {% if form.email_body.errors %}
-                    <div class="bg-red-200 p-5 my-3 rounded-xl border-2 border-solid border-red-700"><p class="text-red-700 text-sm">{{ form.email_body.errors.0 }}</p></div>
-                {% endif %}
+              <div class="mt-6">
+                  <button type="button" id="add-template-btn" class="btn-bg-primary btn-bg-hover btn-text font-semibold py-3 px-6 rounded-xl shadow-lg text-base">
+                      ➕ Add Another Template
+                  </button>
               </div>
           </div>
 
@@ -728,6 +762,140 @@
     }
   </script>
 
+  <template id="empty-form-template">
+      <div class="template-form p-6 bg-secondary rounded-lg shadow-md mb-6 border border-gray-700">
+          
+          <h2 class="template-counter text-xl font-semibold text-secondary mb-4">Template</h2>
+          
+          {{ template_formset.empty_form.id }}
+
+          <div class="mb-4">
+              <label class="block text-sm font-medium text-secondary mb-1">Variation Name (Internal)</label>
+              {{ template_formset.empty_form.name|add_class:"w-full p-3 border focus:ring-gray-500 focus:border-gray-500 rounded-lg outline-none text-primary bg-primary" }}
+          </div>
+
+          <div class="mt-4">
+              <label class="block text-sm font-medium text-secondary mb-1">Email Subject</label>
+              {{ template_formset.empty_form.subject|add_class:"w-full p-3 border focus:ring-gray-500 focus:border-gray-500 rounded-lg outline-none text-primary bg-primary" }}
+          </div>
+
+          <div class="mt-4">
+              <label class="block text-sm font-medium text-secondary">Email Body</label>
+              <div class="mt-1 w-full border rounded-lg">
+                  {{ template_formset.empty_form.body }}
+              </div>
+          </div>
+
+          <div class="flex items-center gap-4 mt-4 form-deletable-area">
+              {{ template_formset.empty_form.DELETE|add_class:"hidden" }}
+              <button type="button" class="remove-template-btn text-red-500 hover:text-red-400 font-medium">
+                  Remove this Template
+              </button>
+          </div>
+      </div>
+  </template>
+
+  <script>
+    
+    document.addEventListener('DOMContentLoaded', function () {
+      const addBtn = document.getElementById('add-template-btn');
+      const formsContainer = document.getElementById('template-forms-container');
+      const template = document.getElementById('empty-form-template');
+      
+      // Prefix must match the one used in your Django View (e.g., prefix='templates')
+      const totalFormsInput = document.querySelector('input[name="templates-TOTAL_FORMS"]');
+
+      if (!addBtn || !formsContainer || !template || !totalFormsInput) {
+          console.warn('Formset JS: Missing one or more required elements.');
+          return;
+      }
+
+      /**
+       * Updates the visible numbering (Template 1, Template 2, etc.)
+       */
+      function updateTemplateCounters() {
+          const visibleForms = formsContainer.querySelectorAll('.template-form:not([style*="display: none"])');
+          visibleForms.forEach((form, index) => {
+              const counter = form.querySelector('.template-counter');
+              if (counter) {
+                  counter.textContent = `Template ${index + 1}`;
+              }
+          });
+      }
+
+      /**
+       * Manually initializes CKEditor for a specific textarea.
+       * Django-CKEditor usually stores config in a global 'CKEDITOR_CONFIGS'.
+       */
+      function initCKEditorOnForm(formElement) {
+          const textareas = formElement.querySelectorAll('textarea');
+          textareas.forEach(textarea => {
+              // Ensure CKEDITOR exists and this specific ID isn't already initialized
+              if (window.CKEDITOR && !CKEDITOR.instances[textarea.id]) {
+                  // We use the 'default' config. If you have a custom one, 
+                  // change 'default' to your config name from settings.py.
+                  const config = window.CKEDITOR_CONFIGS ? window.CKEDITOR_CONFIGS['default'] : {};
+                  CKEDITOR.replace(textarea.id, config);
+              }
+          });
+      }
+
+      // --- 1. Add Template ---
+      addBtn.addEventListener('click', function() {
+          let currentFormCount = parseInt(totalFormsInput.value, 10);
+          let newFormHtml = template.innerHTML;
+
+          // Replace __prefix__ with the current index to ensure unique IDs
+          newFormHtml = newFormHtml.replace(/__prefix__/g, currentFormCount);
+
+          const newFormWrapper = document.createElement('div');
+          newFormWrapper.innerHTML = newFormHtml;
+          const newFormElement = newFormWrapper.firstElementChild;
+          
+          formsContainer.appendChild(newFormElement);
+
+          // Update management form count
+          totalFormsInput.value = currentFormCount + 1;
+          
+          // Initialize CKEditor on the new fields
+          initCKEditorOnForm(newFormElement);
+          
+          updateTemplateCounters();
+      });
+
+      // --- 2. Remove Template ---
+      formsContainer.addEventListener('click', function(e) {
+          // Check if the clicked element has the 'remove-template-btn' class
+          if (e.target && e.target.classList.contains('remove-template-btn')) {
+              e.preventDefault();
+
+              // Find the closest parent form wrapper (ensure this class exists on your div)
+              const formWrapper = e.target.closest('.template-form');
+              if (!formWrapper) return;
+
+              // 1. Handle Django deletion for existing records
+              const deleteCheckbox = formWrapper.querySelector('input[type="checkbox"][name$="-DELETE"]');
+              if (deleteCheckbox) {
+                  deleteCheckbox.checked = true;
+              }
+
+              // 2. Cleanup CKEditor to prevent JS errors on submit
+              const textarea = formWrapper.querySelector('textarea');
+              if (textarea && window.CKEDITOR && CKEDITOR.instances[textarea.id]) {
+                  CKEDITOR.instances[textarea.id].destroy();
+              }
+
+              // 3. Hide the element and update counters
+              formWrapper.style.display = 'none';
+              updateTemplateCounters();
+          }
+      });
+
+      // Initial run for any forms already on the page
+      updateTemplateCounters();
+  });
+
+  </script>
 
 
 </div>

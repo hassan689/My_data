@@ -172,12 +172,15 @@
                       <div class="flex items-center gap-4">
                         {{ form.subject|add_class:"w-2/3 p-3 border focus:ring-gray-500 focus:border-gray-500 rounded-lg outline-none text-primary bg-primary" }}
 
+                        {% comment %}
                         <div class="flex items-center space-x-2">
                           {{ form.track_template|add_class:"sr-only toggle-input" }}
                           
                           <label for="{{ form.track_template.id_for_label }}" class="toggle-label"></label>
                           <span class="text-base text-primary">Track Open Rate</span>
                         </div>
+                        {% endcomment %}
+
                       </div>
                       {% if form.subject.errors %}
                         <div class="text-red-500 text-sm mt-1">{{ form.subject.errors|first }}</div>
@@ -295,11 +298,14 @@
           <div class="flex items-center gap-4">
             {{ formset.empty_form.subject|add_class:"w-2/3 p-3 border focus:ring-gray-500 focus:border-gray-500 rounded-lg outline-none text-primary bg-primary" }}
 
+            {% comment %}
             <div class="flex items-center space-x-2">
               {{ formset.empty_form.track_template|add_class:"sr-only toggle-input" }}
               <label for="{{ formset.empty_form.track_template.id_for_label }}" class="toggle-label"></label>
               <span class="text-base text-primary">Track Open Rate</span>
             </div>
+            {% endcomment %}
+            
           </div>
         </div>
 

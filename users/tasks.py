@@ -39,10 +39,10 @@ def send_expiry_email(self, user_email):
 @app.task(name="users.tasks.check_free_trial_expiry")
 def check_free_trial_expiry():
     # 1. Identify targets (Using our new index!)
-    seven_days_ago = now() - timedelta(days=7)
+    ten_days_ago = now() - timedelta(days=10)
     expired_users_qs = CustomUser.objects.filter(
         on_free_trial=True, 
-        trial_started_at__lte=seven_days_ago
+        trial_started_at__lte=ten_days_ago
     )
 
     # 2. Grab emails BEFORE updating

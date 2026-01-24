@@ -4,12 +4,14 @@ import subprocess
 from datetime import datetime
 from django.core.management.base import BaseCommand
 from django.conf import settings
+from django.db.models import Q
 
-from dashboard.models import GmailToken, CampaignRecord
-from users.models import EmailAccount, Affiliate, CustomUser
-from leads_data.models import DailySheet
+from dashboard.models import GmailToken, CampaignRecord, EmailOpen
+from users.models import EmailAccount, Affiliate, CustomUser, AccountGroup
+from leads_data.models import DailySheet, SkipList
 from subscriptions.models import Subscription, Revenue, Expense
 from unibox.models import EmailThread, OutgoingEmailMessage, IncomingEmailMessage
+from drip_campaigns.models import DripCampaign, EmailAccountAndLeads, DripTemplate, SentDripEmail
 
 
 class Command(BaseCommand):
@@ -39,17 +41,40 @@ class Command(BaseCommand):
         # Model backup mapping
         models_to_backup = [
             ("EmailAccount", EmailAccount.objects.all().iterator(chunk_size=100), self.serialize_email_account),
+            ("AccountGroup", AccountGroup.objects.all().iterator(chunk_size=100), self.serialize_model),
             ("GmailToken", GmailToken.objects.all().iterator(chunk_size=100), self.serialize_gmail_token),
-            ("CampaignRecord", CampaignRecord.objects.filter(track_campaign=True).iterator(chunk_size=100), self.serialize_model),
-            ("DailySheet", DailySheet.objects.all().order_by("-uploaded_at")[:30].iterator(chunk_size=100), self.serialize_model),
+            ("CampaignRecord", CampaignRecord.objects.filter(status__in=['pending', 'processing']).iterator(chunk_size=100), self.serialize_model),
+            ("EmailOpen", EmailOpen.objects.filter(
+                Q(campaign__status__in=['processing', 'pending']) | 
+                Q(is_opened=True)
+            ).iterator(chunk_size=1000), self.serialize_model),
+
+            # Save templates for only those campaigns under status pening or processing
+            ("CampaignTemplate", CampaignRecord.objects.filter(status__in=['pending', 'processing']).values_list('template_id', flat=True).distinct().iterator(chunk_size=100), self.serialize_model),
+
+            ("DailySheet", DailySheet.objects.all().order_by("-uploaded_at")[:30], self.serialize_model),
+            ("SkipList", SkipList.objects.all().iterator(chunk_size=100), self.serialize_model),
+
             ("Subscription", Subscription.objects.all().iterator(chunk_size=100), self.serialize_model),
             ("Revenue", Revenue.objects.all().iterator(chunk_size=100), self.serialize_model),
             ("Expense", Expense.objects.all().iterator(chunk_size=100), self.serialize_model),
+
             ("EmailThread", EmailThread.objects.all().iterator(chunk_size=100), self.serialize_model),
             ("OutgoingEmailMessage", OutgoingEmailMessage.objects.all().iterator(chunk_size=100), self.serialize_model),
             ("IncomingEmailMessage", IncomingEmailMessage.objects.all().iterator(chunk_size=100), self.serialize_model),
+
             ("Affiliate", Affiliate.objects.all().iterator(chunk_size=100), self.serialize_model),
             ("CustomUser", CustomUser.objects.all().iterator(chunk_size=100), self.serialize_model),
+
+            ("DripCampaign", DripCampaign.objects.filter(status__in=['Active', 'Processing', 'Paused']).iterator(chunk_size=100), self.serialize_model),
+            ("EmailAccountAndLeads", EmailAccountAndLeads.objects.filter(
+                campaign__status__in=['Active', 'Processing', 'Paused']
+            ).iterator(chunk_size=100), self.serialize_model),
+            ("DripTemplate", DripTemplate.objects.filter(campaign__status__in=['Active', 'Processing', 'Paused']).iterator(chunk_size=100), self.serialize_model),
+            ("SentDripEmail", SentDripEmail.objects.filter(
+                Q(drip_campaign__status__in=['Active', 'Processing', 'Paused']) | 
+                Q(is_opened=True)
+            ).iterator(chunk_size=1000), self.serialize_model),
         ]
 
         for model_name, queryset_iterator, serializer in models_to_backup:

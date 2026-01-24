@@ -1,6 +1,8 @@
 from django.contrib import admin
-from .models import GmailToken, CampaignRecord, EmailOpen, VerificationBatch, VerificationUsage
+from django.urls import reverse
+from .models import GmailToken, CampaignRecord, EmailOpen, VerificationBatch, VerificationUsage, CampaignTemplate
 from django.utils import timezone
+from django.db.models import Count
 from django.utils.html import format_html
 
 @admin.register(GmailToken)
@@ -33,22 +35,114 @@ class GmailTokenAdmin(admin.ModelAdmin):
     masked_refresh_token.short_description = "Refresh Token"
 
 
+# 1. Register the CampaignTemplate Model
+@admin.register(CampaignTemplate)
+class CampaignTemplateAdmin(admin.ModelAdmin):
+    list_display = ('id', 'subject', 'owner', 'created_at', 'first_campaign_link')
+    list_filter = ('created_at', 'owner')
+    search_fields = ('name', 'subject', 'body')
+    readonly_fields = ('created_at', 'updated_at')
 
+    def first_campaign_link(self, obj):
+        # Fetch the first campaign associated with this template
+        # "campaigns" is the related_name defined on CampaignRecord.templates
+        first_campaign = obj.campaigns.first()
+        
+        if first_campaign:
+            # Generate the URL for the CampaignRecord change page
+            url = reverse("admin:dashboard_campaignrecord_change", args=[first_campaign.id])
+            
+            # Return a safe HTML link
+            return format_html('<a href="{}">{} (ID: {})</a>', url, first_campaign, first_campaign.id)
+        
+        return "-" # Fallback if not used in any campaign yet
+
+    first_campaign_link.short_description = "First Linked Campaign"
+
+
+# 2. Update the Inline
+class CampaignTemplateInline(admin.TabularInline):
+    model = CampaignRecord.templates.through
+    extra = 1
+    verbose_name = "Associated Template"
+    verbose_name_plural = "Associated Templates"
+    
+    # 'campaigntemplate' is the ForeignKey. By listing it in 'fields' without 
+    # adding it to 'readonly_fields', it becomes an editable dropdown.
+    fields = ('campaigntemplate', 'template_id_display')
+    readonly_fields = ('template_id_display',)
+
+    def template_id_display(self, instance):
+        # Safely get ID (handle cases where row is new/unsaved)
+        try:
+            return instance.campaigntemplate.id
+        except (AttributeError, CampaignTemplate.DoesNotExist):
+            return "-"
+    
+    template_id_display.short_description = "Template ID"
+
+
+# 3. Update CampaignRecord Admin with Dynamic Fields
 @admin.register(CampaignRecord)
 class CampaignRecordAdmin(admin.ModelAdmin):
-    list_display = ('launched_by', 'sender_account', 'display_launch_or_schedule_time', 'total_recipients', 'sent_count', 'status', 'lead_source')
+    list_display = (
+        'launched_by', 
+        'sender_account', 
+        'display_launch_or_schedule_time', 
+        'total_recipients', 
+        'sent_count', 
+        'status', 
+        'lead_source', 
+        'template_count_display'
+    )
     list_filter = ("launch_time", 'status',)
     search_fields = ("launched_by__username", "sender_account__email_address")
+    
+    exclude = ('templates',)
+    inlines = [CampaignTemplateInline]
 
+    # --- Dynamic Field Hiding Logic ---
+    def get_fields(self, request, obj=None):
+        """
+        Dynamically hide 'subject' and 'body' if they are empty (V2 records).
+        Show them if they have data (Legacy records).
+        """
+        # Get the default list of fields
+        fields = list(super().get_fields(request, obj))
+        
+        # Only apply logic if we are editing an existing object
+        if obj:
+            # Check if legacy fields have data
+            has_subject = bool(obj.subject and obj.subject.strip())
+            has_body = bool(obj.body and obj.body.strip())
+            
+            # If both are empty, this is a V2 record -> Hide them
+            if not has_subject and not has_body:
+                if 'subject' in fields: fields.remove('subject')
+                if 'body' in fields: fields.remove('body')
+        
+        return fields
+
+    # --- Display Helpers ---
     def display_launch_or_schedule_time(self, obj):
         if obj.status == 'pending' and obj.scheduled_launch_time:
             return timezone.localtime(obj.scheduled_launch_time).strftime('%Y-%m-%d %H:%M %p (Scheduled)')
         elif obj.launch_time:
             return timezone.localtime(obj.launch_time).strftime('%Y-%m-%d %H:%M %p (Started)')
-        return "-" # Fallback if no time is available
+        return "-" 
 
     display_launch_or_schedule_time.short_description = 'Launch/Schedule Time'
-    display_launch_or_schedule_time.admin_order_field = 'launch_time' # Allows sorting by launch_time
+    display_launch_or_schedule_time.admin_order_field = 'launch_time'
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        return qs.annotate(templates_count=Count('templates'))
+
+    def template_count_display(self, obj):
+        return obj.templates_count 
+
+    template_count_display.short_description = 'Templates Used'
+    template_count_display.admin_order_field = 'templates_count'
 
 
 @admin.register(EmailOpen)
