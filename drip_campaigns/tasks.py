@@ -4,7 +4,7 @@ from email.utils import make_msgid
 from celery.exceptions import TimeLimitExceeded, MaxRetriesExceededError
 from urllib.parse import urljoin
 
-from .models import DripCampaign, EmailAccountAndLeads, DripTemplate, SentDripEmail
+from .models import DripCampaign, DripVariation, EmailAccountAndLeads, DripTemplate, SentDripEmail
 from dashboard.models import GmailToken
 from unibox.models import EmailThread, OutgoingEmailMessage
 
@@ -428,9 +428,16 @@ def send_single_email(self, campaign_id, account_info_id, template_id, lead_inde
         mailbox_instance = GmailToken.objects.filter(email_account=email_account).first()
 
         # --- Prepare Email ---
-        # *** FIX: Use template subject/body, not campaign ***
-        personalized_subject = personalize_template(template.subject, lead)
-        personalized_body = personalize_template(template.body, lead)
+        # NEW: Fetch the specific variation (Content) instead of the Step (Manager)
+        # We use lead_index as the rotation counter (0, 1, 2...)
+        variation = template.get_assigned_variation(lead_index) # will use the subject and body of the template (manager) for older camapigns with no var
+
+        # Handle Legacy vs New Attribute names
+        # DripVariation uses 'track_variation', DripTemplate (Legacy) uses 'track_template'
+        should_track = getattr(variation, 'track_variation', getattr(variation, 'track_template', False))
+
+        personalized_subject = personalize_template(variation.subject, lead)
+        personalized_body = personalize_template(variation.body, lead)
         
         # message_id = make_msgid(idstring=uuid.uuid4().hex, domain='dispatchskool.com')
         raw_msg_id = make_msgid(idstring=uuid.uuid4().hex, domain='dispatchskool.com')
@@ -440,10 +447,8 @@ def send_single_email(self, campaign_id, account_info_id, template_id, lead_inde
 
         # --- Tracking ---
         unique_id = None
-        if template.track_template:
-            # pixel_url = reverse('drip_campaigns:track_drip', kwargs={'message_id': clean_message_id})
-            # pixel_link = urljoin(settings.BASE_URL, pixel_url)
-
+        if should_track:
+            
             unique_id = uuid.uuid4()
             pixel_url = reverse('drip_campaigns:track_drip', kwargs={'unique_identifier': unique_id})
             pixel_link = urljoin(settings.BASE_URL, pixel_url)
@@ -481,10 +486,15 @@ def send_single_email(self, campaign_id, account_info_id, template_id, lead_inde
             
             # Log to Database (Use the CLEAN ID)
             try:
+                # Determine if 'variation' is a real DripVariation object or the legacy DripTemplate
+                # If it's the Step itself (legacy), we store None for the variation FK
+                variation_fk = variation if isinstance(variation, DripVariation) else None
+                
                 SentDripEmail.objects.create(
                     drip_campaign=campaign,
-                    template=template,
-                    message_id=clean_message_id, # Matches the pixel link exactly
+                    template=template,        # The Step (Manager)
+                    variation=variation_fk,   # NEW: The specific Content used
+                    message_id=clean_message_id,
                     lead_email=lead['Email'],
                     unique_identifier=unique_id,
                     lead_mc_number=lead.get('MC Number'),
@@ -707,8 +717,14 @@ def send_batch_emails(self, campaign_id, account_info_id, template_id, start_ind
 
             # --- Prepare & Send Email (Inside Loop) ---
             try:
-                personalized_subject = personalize_template(template.subject, lead)
-                personalized_body = personalize_template(template.body, lead)
+                # NEW: Fetch variation using the current lead_index
+                variation = template.get_assigned_variation(lead_index)
+                
+                # Handle Attribute differences
+                should_track = getattr(variation, 'track_variation', getattr(variation, 'track_template', False))
+
+                personalized_subject = personalize_template(variation.subject, lead)
+                personalized_body = personalize_template(variation.body, lead)
                 
                 # message_id = make_msgid(idstring=uuid.uuid4().hex, domain='dispatchskool.com')
                 raw_msg_id = make_msgid(idstring=uuid.uuid4().hex, domain='dispatchskool.com')
@@ -718,7 +734,7 @@ def send_batch_emails(self, campaign_id, account_info_id, template_id, start_ind
 
                 # --- Tracking ---
                 unique_id = None
-                if template.track_template:
+                if should_track:
                     # pixel_url = reverse('drip_campaigns:track_drip', kwargs={'message_id': clean_message_id})
                     # pixel_link = urljoin(settings.BASE_URL, pixel_url)
 
@@ -759,9 +775,12 @@ def send_batch_emails(self, campaign_id, account_info_id, template_id, start_ind
                     
                     # Log to Database (Use the CLEAN ID)
                     try:
+                        # Determine if 'variation' is a real DripVariation object or the legacy DripTemplate
+                        variation_fk = variation if isinstance(variation, DripVariation) else None
                         SentDripEmail.objects.create(
                             drip_campaign=campaign,
-                            template=template,
+                            template=template,      # The Step
+                            variation=variation_fk, # The Variation
                             message_id=clean_message_id, # Matches the pixel link exactly
                             lead_email=lead['Email'],
                             unique_identifier=unique_id,

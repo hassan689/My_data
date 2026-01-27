@@ -80,6 +80,10 @@ class EmailAccountAndLeads(models.Model):
 
 
 class DripTemplate(models.Model):
+    """
+    ACTS AS THE 'STEP MANAGER'.
+    Tracks the status of a specific day/step in the sequence.
+    """
     
     campaign = models.ForeignKey(DripCampaign, on_delete=models.CASCADE, related_name="templates")
     step_number = models.IntegerField() # Order of this step in the drip campaign
@@ -101,11 +105,41 @@ class DripTemplate(models.Model):
     def __str__(self):
         return f"Step {self.step_number} of Drip Campaign {self.campaign.id}"
     
+    def get_assigned_variation(self, index=0):
+        """
+        Round-Robin Logic:
+        Returns a DripVariation object (or self if legacy) based on the index.
+        """
+        variations = list(self.variations.all())
+        if not variations:
+            # Fallback for legacy records or steps with 0 variations
+            # We return 'self' so the worker can access .subject and .body directly
+            return self
+            
+        return variations[index % len(variations)]
+    
     class Meta:
         unique_together = ('campaign', 'step_number')
         ordering = ['step_number']
         verbose_name = "Drip Template"
         verbose_name_plural = "Drip Templates"
+
+
+class DripVariation(models.Model):
+    """
+    ACTS AS THE 'CONTENT'.
+    Stores the actual Subject/Body for A/B testing.
+    """
+    step = models.ForeignKey(DripTemplate, on_delete=models.CASCADE, related_name="variations")
+    
+    subject = models.CharField(max_length=255)
+    body = models.TextField() # CKEditor widget will apply in the form
+    
+    track_variation = models.BooleanField(default=False)
+    open_rate = models.IntegerField(default=0)
+    
+    def __str__(self):
+        return f"Variation {self.id} for Step {self.step.step_number}"
 
 
 class SentDripEmail(models.Model):
@@ -125,6 +159,13 @@ class SentDripEmail(models.Model):
         related_name="sent_logs",
         null=True,
         blank=True
+    )
+    # Link to the specific Variation (for A/B analytics)
+    variation = models.ForeignKey(
+        DripVariation,
+        on_delete=models.SET_NULL,
+        related_name="sent_logs",
+        null=True, blank=True
     )
     # The unique ID we sent in the email header
     message_id = models.CharField(
