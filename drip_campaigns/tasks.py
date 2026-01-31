@@ -438,20 +438,24 @@ def send_single_email(self, campaign_id, account_info_id, template_id, lead_inde
 
         personalized_subject = personalize_template(variation.subject, lead)
         personalized_body = personalize_template(variation.body, lead)
+
+        user = campaign.launched_by
+        has_verified_domain = (user and user.tracking_custom_domain and user.tracking_domain_verified)
         
-        # message_id = make_msgid(idstring=uuid.uuid4().hex, domain='dispatchskool.com')
-        raw_msg_id = make_msgid(idstring=uuid.uuid4().hex, domain='dispatchskool.com')
+        current_domain = user.tracking_custom_domain if has_verified_domain else 'dispatchskool.com'
+        raw_msg_id = make_msgid(idstring=uuid.uuid4().hex, domain=current_domain)
         clean_message_id = raw_msg_id.strip('<>')
-        DOMAIN = "https://dispatchskool.com"
-        personalized_body = sanitize_email_html(personalized_body, DOMAIN)
+        
+        sanitization_base = f"https://{current_domain}"
+        personalized_body = sanitize_email_html(personalized_body, sanitization_base)
 
         # --- Tracking ---
         unique_id = None
-        if should_track:
+        if should_track and has_verified_domain:
             
             unique_id = uuid.uuid4()
             pixel_url = reverse('drip_campaigns:track_drip', kwargs={'unique_identifier': unique_id})
-            pixel_link = urljoin(settings.BASE_URL, pixel_url)
+            pixel_link = urljoin(f"https://{user.tracking_custom_domain}", pixel_url)
             
             tracking_pixel = f'<img src="{pixel_link}" width="1" height="1" style="display:none;" alt="">'
             personalized_body += tracking_pixel
@@ -726,21 +730,25 @@ def send_batch_emails(self, campaign_id, account_info_id, template_id, start_ind
                 personalized_subject = personalize_template(variation.subject, lead)
                 personalized_body = personalize_template(variation.body, lead)
                 
-                # message_id = make_msgid(idstring=uuid.uuid4().hex, domain='dispatchskool.com')
-                raw_msg_id = make_msgid(idstring=uuid.uuid4().hex, domain='dispatchskool.com')
+                user = campaign.launched_by
+                has_verified_domain = (user and user.tracking_custom_domain and user.tracking_domain_verified)
+
+                # 1. Set the Domain for Message-ID and Sanitization
+                current_domain = user.tracking_custom_domain if has_verified_domain else 'dispatchskool.com'
+
+                raw_msg_id = make_msgid(idstring=uuid.uuid4().hex, domain=current_domain)
                 clean_message_id = raw_msg_id.strip('<>')
-                DOMAIN = "https://dispatchskool.com"
-                personalized_body = sanitize_email_html(personalized_body, DOMAIN)
+                
+                sanitization_base = f"https://{current_domain}"
+                personalized_body = sanitize_email_html(personalized_body, sanitization_base)
 
                 # --- Tracking ---
                 unique_id = None
-                if should_track:
-                    # pixel_url = reverse('drip_campaigns:track_drip', kwargs={'message_id': clean_message_id})
-                    # pixel_link = urljoin(settings.BASE_URL, pixel_url)
+                if should_track and has_verified_domain:
 
                     unique_id = uuid.uuid4()
                     pixel_url = reverse('drip_campaigns:track_drip', kwargs={'unique_identifier': unique_id})
-                    pixel_link = urljoin(settings.BASE_URL, pixel_url)
+                    pixel_link = urljoin(f"https://{user.tracking_custom_domain}", pixel_url)
                     
                     tracking_pixel = f'<img src="{pixel_link}" width="1" height="1" style="display:none;" alt="">'
                     personalized_body += tracking_pixel

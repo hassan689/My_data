@@ -4,6 +4,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.shortcuts import render
 from main.views import custom_ckeditor_upload
+from users.views import check_domain
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -15,10 +16,11 @@ urlpatterns = [
     path('warmup/', include('warmup.urls')),
     path('drip-campaigns/', include('drip_campaigns.urls')),
     path('leads/', include('leads_data.urls')),
+
+    path('check-domain/', check_domain, name='check_domain'),
     
 		path("ckeditor5/image_upload/", custom_ckeditor_upload, name="custom_ckeditor_upload"),
     path("ckeditor5/", include('django_ckeditor_5.urls')),
-    # path('ckeditor/', include('ckeditor_uploader.urls')),
 ]
 
 def custom_404(request, exception):

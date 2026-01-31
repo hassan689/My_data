@@ -21,6 +21,13 @@
           </label>
         </div>
       </li>
+      <li class="mt-5">
+        <a href="{% url 'users:user_profile_edit' %}" class="flex items-center p-2 text-primary rounded-lg bg-hover-light group">
+          <i class="fa-solid fa-pen-to-square shrink-0 w-5 h-5 text-tertiary transition duration-75 group-hover:text-primary"></i>
+          <span class="flex-1 ms-3 whitespace-nowrap">Edit Profile</span>
+          <span class="ml-2 text-xs font-semibold bg-green-100 text-green-800 px-2 py-0.5 rounded-full">New</span>
+        </a>
+      </li>
     </ul>
     <ul class="space-y-2 font-medium border-t border-gray-200 mt-3">
       <li class="mt-5">

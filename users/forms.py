@@ -1,7 +1,8 @@
 from django import forms
+import re
 from django.contrib.auth.forms import UserCreationForm
 from .models import CustomUser, Affiliate, AccountGroup, EmailAccount
-from django.forms import modelformset_factory
+from django.forms import ValidationError, modelformset_factory
 
 class CustomUserSignupForm(UserCreationForm):
     phone_number = forms.CharField()
@@ -129,6 +130,43 @@ EmailAccountAssignmentFormSet = modelformset_factory(
     extra=0  # Don't show any new, empty forms
 )
 
+
+
+class UserProfileUpdateForm(forms.ModelForm):
+    class Meta:
+        model = CustomUser
+        fields = [
+            'first_name', 
+            'last_name', 
+            'email', 
+            'phone_number', 
+            'company_name', 
+            'tracking_custom_domain'
+        ]
+        widgets = {
+            'tracking_custom_domain': forms.TextInput(attrs={
+                'placeholder': 'track.yourcompany.com',
+            }),
+        }
+
+    def clean_tracking_custom_domain(self):
+        domain = self.cleaned_data.get('tracking_custom_domain')
+        if domain:
+            # Normalize: lower case, remove spaces
+            domain = domain.lower().strip()
+            # Remove protocol if user pasted it
+            domain = domain.replace("https://", "").replace("http://", "")
+            # Remove trailing slashes
+            domain = domain.rstrip('/')
+
+            # 2. Regex Validation
+            # This handles multiple subdomains (e.g., sub.track.site.com)
+            domain_regex = r'^(?!-)[A-Za-z0-9-]{1,63}(?<!-)(\.[A-Za-z0-9-]{1,63})+$'
+
+            if not re.match(domain_regex, domain):
+                raise ValidationError("Invalid domain format. Please enter a valid domain like 'track.yourcompany.com'.")
+                
+            return domain
 
 
 # Uncomment the following code to enable email + OTP login functionality for future use. Not required now as. Business decision.

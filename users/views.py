@@ -1,11 +1,15 @@
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import login, authenticate, get_backends
+import dns.resolver
+
+from growth_skool import settings
 # from .forms import CustomUserSignupForm, EmailLoginForm, OTPForm
-from .forms import CustomUserSignupForm, AccountGroupForm, EmailAccountAssignmentFormSet
+from .forms import CustomUserSignupForm, AccountGroupForm, EmailAccountAssignmentFormSet, UserProfileUpdateForm
 from django.contrib.auth import views as auth_views
 from django.urls import reverse_lazy
-from .models import AccountGroup, EmailAccount
-from django.views.decorators.http import require_http_methods, require_POST
+from .models import AccountGroup, CustomUser, EmailAccount
+from django.views.decorators.http import require_http_methods, require_POST, require_GET
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 # import random
@@ -245,5 +249,118 @@ def delete_group(request, group_id):
     group.delete()
     messages.success(request, f"Group '{group_name}' has been successfully deleted.")
     return redirect('dashboard:account_groups')
+
+
+
+@login_required
+def user_profile_view(request):
+    user = request.user
+    
+    if request.method == 'POST':
+        form = UserProfileUpdateForm(request.POST, instance=user)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Profile updated successfully.")
+            return redirect('users:user_profile_edit')
+        else:
+            messages.error(request, "Please correct the errors below.")
+    else:
+        form = UserProfileUpdateForm(instance=user)
+
+    context = {
+        'form': form,
+        'is_verified': user.tracking_domain_verified,
+        'tracking_domain': user.tracking_custom_domain,
+    }
+    return render(request, 'registration/profile_edit.html', context)
+
+
+@require_GET
+def check_domain(request):
+    """
+    Caddy 'ask' endpoint.
+    Verifies if a domain is allowed to have an SSL certificate issued.
+    
+    Args:
+        domain (query param): The domain Caddy wants to certify (e.g., track.user.com)
+        
+    Returns:
+        200 OK: Domain is valid. Proceed with SSL. (It exists in my db and is allowed to be used for tracking.)
+        400 Bad Request: Domain is invalid/unknown. Deny SSL.
+    """
+    print("Received SSL certificate request from Caddy.")
+    # Caddy sends the domain as a query parameter: ?domain=example.com
+    domain = request.GET.get('domain')
+
+    if not domain:
+        return HttpResponse('Domain required', status=400)
+
+    # 1. Clean the domain input
+    domain = domain.lower().strip()
+
+    # 2. Allow your own System Domains (Critical!)
+    system_domains = getattr(settings, 'SYSTEM_DOMAINS', [])
+    if domain in system_domains:
+        return HttpResponse('OK')
+
+    # 3. Check the Database for User Domains
+    # Only allow if the user has ALREADY verified the CNAME record via DNS.
+    # We don't want to issue certs for domains we don't control yet.
+    exists = CustomUser.objects.filter(
+        tracking_custom_domain=domain, 
+        tracking_domain_verified=True
+    ).exists()
+
+    if exists:
+        return HttpResponse('OK')
+
+    # 4. Deny everything else
+    print(f"SSL Certificate request denied for unknown domain: {domain}")
+    return HttpResponse('Unauthorized', status=400)
+
+
+
+@login_required
+@require_POST
+def verify_tracking_dns(request):
+    user = request.user
+    domain = user.tracking_custom_domain
+
+    if not domain:
+        return JsonResponse({'success': False, 'error': 'No domain saved to verify.'})
+
+    # The target they must point to (Server)
+    REQUIRED_TARGET = "whitelabel.dispatchskool.com."
+    
+    try:
+        # Perform the DNS lookup
+        answers = dns.resolver.resolve(domain, 'CNAME')
+        
+        for rdata in answers:
+            # DNS targets usually end with a dot (e.g., target.com.)
+            target = rdata.target.to_text()
+            
+            # Compare (handling the potential missing/present trailing dot)
+            if target.rstrip('.') == REQUIRED_TARGET.rstrip('.'):
+                
+                # SUCCESS: Pointing to us
+                user.tracking_domain_verified = True
+                user.save(update_fields=['tracking_domain_verified'])
+                return JsonResponse({'success': True, 'message': 'Domain verified successfully!'})
+
+        # If we loop through and don't find the match
+        return JsonResponse({
+            'success': False, 
+            'error': f'CNAME record found, but it points to {target}, not {REQUIRED_TARGET}'
+        })
+
+    except dns.resolver.NoAnswer:
+        return JsonResponse({'success': False, 'error': 'No CNAME record found. Please add it in your DNS settings.'})
+        
+    except dns.resolver.NXDOMAIN:
+        return JsonResponse({'success': False, 'error': 'Domain does not exist.'})
+        
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': f'DNS Lookup failed: {str(e)}'})
 
 

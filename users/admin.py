@@ -54,7 +54,8 @@ class CustomUserAdmin(UserAdmin):
     fieldsets = (
         ("Personal Information", {"fields": ("username", "first_name", "last_name", "email", "phone_number", "referred_by")}),
         ("Company Details", {"fields": ("company_name", "website_link", "mc_number")}),
-        ("Subscription Info", {"fields": ("on_free_trial", )}),
+        ("Free Trial Info", {"fields": ("on_free_trial", "trial_started_at", )}),
+        ("Tracking Domain", {"fields": ("tracking_custom_domain", "tracking_domain_verified")}),
         ("Permissions", {"fields": ("is_active", "is_staff", "is_superuser", "groups", "user_permissions")}),
         ("Important Dates", {"fields": ("last_login", "date_joined")}),
     )
@@ -65,6 +66,7 @@ class CustomUserAdmin(UserAdmin):
             "fields": (
                 "username", "email", "first_name", "last_name", "phone_number", "referred_by",
                 "password1", "password2", "company_name", "website_link", "mc_number",
+                "tracking_custom_domain", "tracking_domain_verified",
                 "on_free_trial", "is_active", "is_staff", "is_superuser", "groups", "user_permissions"
             ),
         }),

@@ -1,4 +1,7 @@
 from django.shortcuts import render
+from django.core.cache import cache
+from django.http import HttpResponseNotFound
+from users.models import CustomUser
 from django.conf import settings
 from django.urls import reverse, NoReverseMatch # Import NoReverseMatch for robustness
 
@@ -43,3 +46,44 @@ class MaintenanceModeMiddleware:
         response = self.get_response(request)
         return response
     
+
+class CustomDomainTrackingMiddleware:
+    def __init__(self, get_response):
+        self.get_response = get_response
+        
+        # Define your primary domains that should ALWAYS work
+        self.system_domains = getattr(settings, 'SYSTEM_DOMAINS', settings.ALLOWED_HOSTS)
+
+    def __call__(self, request):
+        # request.get_host() returns 'domain.com:8000', we want just 'domain.com'
+        host = request.get_host().split(':')[0].lower()
+
+        # 2. Allow System Domains immediately (Fast Exit)
+        if host in self.system_domains:
+            return self.get_response(request)
+
+        # 3. Check Cache (The Speed Layer)
+        # We use a specific prefix to avoid collision with other keys
+        cache_key = f"valid_tracking_domain:{host}"
+        is_valid = cache.get(cache_key)
+
+        if is_valid:
+            return self.get_response(request)
+
+        # 4. Check Database (The Source of Truth)
+        # We only hit this if the domain is not in the cache
+        exists = CustomUser.objects.filter(
+            tracking_custom_domain=host, 
+            tracking_domain_verified=True
+        ).exists()
+
+        if exists:
+            # Save to cache for 2 hours
+            cache.set(cache_key, True, timeout=7200)
+            return self.get_response(request)
+
+        # 5. Security Block
+        # If the domain is pointing to us but we don't know it, block it.
+        print(f"Blocked request from unknown custom domain: {host}")
+        return HttpResponseNotFound("Not Found")
+

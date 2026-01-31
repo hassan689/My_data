@@ -9,3 +9,5 @@ google_secrets.py
 static/
 staticfiles/
 backups/
+Caddyfile
+caddy.exe

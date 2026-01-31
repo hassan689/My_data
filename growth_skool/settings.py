@@ -28,7 +28,17 @@ ENCRYPT_KEY = b'0T8rrQtvapiIr6znitchWIAkX-nZE8K3qLq2AGasHpM='
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+# In Production, this MUST be ['*'] to let custom domains hit the middleware
+ALLOWED_HOSTS = ['*']
+
+# New setting: The actual domains your app runs on
+SYSTEM_DOMAINS = [
+    'localhost',
+    '127.0.0.1',
+    'dispatchskool.com',
+    'whitelabel.dispatchskool.com',
+]
+
 AUTH_USER_MODEL = "users.CustomUser"
 
 
@@ -53,10 +63,7 @@ INSTALLED_APPS = [
     'drip_campaigns.apps.DripCampaignsConfig',
 
 		'widget_tweaks',
-		# 'django_q',
 		'django_ckeditor_5',
-    # 'ckeditor',
-    # 'ckeditor_uploader',
     'django_celery_beat',
     'django_celery_results'
 ]
@@ -138,6 +145,7 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 
     'main.middleware.MaintenanceModeMiddleware',
+    'main.middleware.CustomDomainTrackingMiddleware',
 ]
 
 # Uncomment the following code to enable email + OTP login functionality for future use. Not required now as. Business decision.

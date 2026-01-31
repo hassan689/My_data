@@ -62,6 +62,17 @@ class CustomUser(AbstractUser):
     groups = models.ManyToManyField("auth.Group", related_name="customuser_set", blank=True)
     user_permissions = models.ManyToManyField("auth.Permission", related_name="customuser_set", blank=True)
 
+    tracking_custom_domain = models.CharField(
+        max_length=255, 
+        unique=True, 
+        null=True, 
+        blank=True, 
+        help_text="Subdomain for email tracking (e.g., track.theircompany.com)"
+    )
+    tracking_domain_verified = models.BooleanField(
+        default=False,
+    )
+
     class Meta:
         # This creates the 'cheat sheet' for the database
         indexes = [
@@ -77,6 +88,12 @@ class CustomUser(AbstractUser):
             # If it WAS False and is NOW True
             if not old_instance.on_free_trial and self.on_free_trial:
                 self.trial_started_at = now()
+
+            # Logic 2: Reset verification if domain changes
+            # If the domain string has changed, we must force re-verification
+            if old_instance.tracking_custom_domain != self.tracking_custom_domain:
+                self.tracking_domain_verified = False
+
         elif self.on_free_trial: # If creating a new user with trial active
             self.trial_started_at = now()
             
@@ -105,10 +122,10 @@ class CustomUser(AbstractUser):
         
     def is_free_trial_expired(self):
         
-        """Check if 7 days have passed since the trial actually started."""
+        """Check if 10 days have passed since the trial actually started."""
         # Use the new field if it exists, otherwise fallback to date_joined
         start_date = self.trial_started_at or self.date_joined
-        return now() >= start_date + timedelta(days=7)
+        return now() >= start_date + timedelta(days=10)
 
     def __str__(self):
         return self.username

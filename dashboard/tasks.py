@@ -141,14 +141,26 @@ def send_single_email(self, campaign_record_id):
 
         personalized_subject = personalize_template(template_obj.subject, lead)
         personalized_body = personalize_template(template_obj.body, lead)
-        message_id = make_msgid(idstring=uuid.uuid4().hex, domain='dispatchskool.com')
-        DOMAIN = "https://dispatchskool.com"
-        personalized_body = sanitize_email_html(personalized_body, DOMAIN)
+        
+        # NEW: Dynamic Message-ID Domain ---
+        # If user has a verified domain, use it. Otherwise, fallback to system domain.
+        user = campaign.launched_by
+        msg_id_domain = 'dispatchskool.com' # To go as the msg id for the sent email
+        if user and user.tracking_custom_domain and user.tracking_domain_verified:
+            msg_id_domain = user.tracking_custom_domain
 
-        if campaign.track_campaign:
+        message_id = make_msgid(idstring=uuid.uuid4().hex, domain=msg_id_domain)
+        
+        # Sanitize using the correct domain context
+        # If verified, we sanitize relative links against their domain
+        sanitization_domain = f"https://{msg_id_domain}" 
+        personalized_body = sanitize_email_html(personalized_body, sanitization_domain)
+
+        # Only add pixel if campaign tracks AND user has a verified domain
+        if campaign.track_campaign and user and user.tracking_custom_domain and user.tracking_domain_verified:
             unique_id = uuid.uuid4()
             pixel_url = reverse('dashboard:track_open', kwargs={'unique_identifier': unique_id})
-            pixel_link = urljoin(settings.BASE_URL, pixel_url)
+            pixel_link = urljoin(f"https://{user.tracking_custom_domain}", pixel_url)
             
             try:
                 EmailOpen.objects.create(
@@ -478,15 +490,26 @@ def send_emails_batch(self, campaign_record_id, batch_size=10):
 
                 personalized_subject = personalize_template(template_obj.subject, lead)
                 personalized_body = personalize_template(template_obj.body, lead)
-                message_id = make_msgid(idstring=uuid.uuid4().hex, domain='dispatchskool.com')
-                DOMAIN = "https://dispatchskool.com"
-                personalized_body = sanitize_email_html(personalized_body, DOMAIN)
+                
+                # NEW: Dynamic Message-ID Domain ---
+                # If user has a verified domain, use it. Otherwise, fallback to system domain.
+                user = campaign_for_loop.launched_by
+                msg_id_domain = 'dispatchskool.com' # To go as the msg id for the sent email
+                if user and user.tracking_custom_domain and user.tracking_domain_verified:
+                    msg_id_domain = user.tracking_custom_domain
+
+                message_id = make_msgid(idstring=uuid.uuid4().hex, domain=msg_id_domain)
+                
+                # Sanitize using the correct domain context
+                # If verified, we sanitize relative links against their domain
+                sanitization_domain = f"https://{msg_id_domain}" 
+                personalized_body = sanitize_email_html(personalized_body, sanitization_domain)
                 
                 # Add tracking pixel if enabled
-                if campaign_for_loop.track_campaign:
+                if campaign_for_loop.track_campaign and user and user.tracking_custom_domain and user.tracking_domain_verified:
                     unique_id = uuid.uuid4()
                     pixel_url = reverse('dashboard:track_open', kwargs={'unique_identifier': unique_id})
-                    pixel_link = urljoin(settings.BASE_URL, pixel_url)
+                    pixel_link = urljoin(f"https://{user.tracking_custom_domain}", pixel_url)
                     
                     try:
                         EmailOpen.objects.create(

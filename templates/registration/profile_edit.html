@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+{% load static %}
+{% load widget_tweaks %}
+
+{% block 'title' %}Dispatch Skool - Edit Profile{% endblock %}
+
+{% block 'content' %}
+
+<div class="bg-primary pt-20 text-primary">
+    <section class="flex flex-col items-center text-center px-4 md:px-4 lg:px-5 py-6">
+        <span class="text-md font-medium bg-secondary bg-tertiary px-4 py-1 rounded-full">
+            Account Settings
+        </span>
+        <h1 class="text-3xl md:text-5xl font-bold text-primary leading-tight mt-4 py-2">
+            Manage Your Profile
+        </h1>
+        <p class="text-xl sm:text-2xl md:text-2xl max-w-2xl mt-4">
+            Update your personal details and configure your custom tracking domain.
+        </p>
+    </section>
+</div>
+
+<div class="flex items-center justify-center min-h-screen my-5 text-primary">
+    <div class="w-full max-w-2xl bg-primary shadow-lg rounded-lg p-6">
+    
+        <div class="pb-5 border-b border-gray-200 mb-6">
+            <h2 class="text-2xl md:text-3xl font-semibold mt-1 text-center mb-2">Profile Details</h2>
+            <p class="text-base md:text-xl text-center text-tertiary">Keep your contact info and company details up to date</p>
+        </div>
+
+        {% if messages %}
+            {% for message in messages %}
+                <div class="p-4 mb-6 rounded-lg border 
+                    {% if message.tags == 'success' %} bg-green-100 border-green-400 text-green-800 
+                    {% elif message.tags == 'error' %} bg-red-100 border-red-400 text-red-700
+                    {% elif message.tags == 'warning' %} bg-yellow-100 border-yellow-400 text-yellow-800
+                    {% endif %}">
+                    <p class="text-sm font-medium">{{ message }}</p>
+                </div>
+            {% endfor %}
+        {% endif %}
+
+        <form method="post" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {% csrf_token %}
+            
+            <div>
+                <label class="block font-medium mb-1">First Name</label>
+                {% render_field form.first_name class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none bg-secondary text-primary" placeholder="Enter first name" %}
+                {% if form.first_name.errors %}
+                    <p class="text-red-500 text-xs mt-1">{{ form.first_name.errors.0 }}</p>
+                {% endif %}
+            </div>
+            <div>
+                <label class="block font-medium mb-1">Last Name</label>
+                {% render_field form.last_name class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none bg-secondary text-primary" placeholder="Enter last name" %}
+                {% if form.last_name.errors %}
+                    <p class="text-red-500 text-xs mt-1">{{ form.last_name.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <div>
+                <label class="block font-medium mb-1">Email</label>
+                {% render_field form.email class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none bg-secondary text-primary" placeholder="Enter email" %}
+                {% if form.email.errors %}
+                    <p class="text-red-500 text-xs mt-1">{{ form.email.errors.0 }}</p>
+                {% endif %}
+            </div>
+            <div>
+                <label class="block font-medium mb-1">Phone Number</label>
+                {% render_field form.phone_number class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none bg-secondary text-primary" placeholder="Enter phone number" %}
+                {% if form.phone_number.errors %}
+                    <p class="text-red-500 text-xs mt-1">{{ form.phone_number.errors.0 }}</p>
+                {% endif %}
+            </div>
+    
+            <div class="md:col-span-2">
+                <label class="block font-medium mb-1">Company Name</label>
+                {% render_field form.company_name class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none bg-secondary text-primary" placeholder="Your company name" %}
+                {% if form.company_name.errors %}
+                    <p class="text-red-500 text-xs mt-1">{{ form.company_name.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <div class="md:col-span-2 p-4 border border-dashed border-gray-300 rounded-xl bg-tertiary">
+                <div class="flex justify-between items-center mb-2">
+                    <label class="block font-bold text-lg">Custom Tracking Domain</label>
+                    
+                    <div id="verification-badge">
+                        {% if tracking_domain %}
+                            {% if is_verified %}
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                    Verified
+                                </span>
+                            {% else %}
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                                    Unverified
+                                </span>
+                            {% endif %}
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <p class="text-sm text-tertiary mb-3">
+                    Enter a subdomain (e.g., <code class="font-bold">track.yourcompany.com</code>).
+                    <span class="font-bold">This improves email deliverability.</span>
+                </p>
+
+                <div class="flex gap-2">
+                    {% render_field form.tracking_custom_domain class="flex-grow border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none bg-secondary text-primary" placeholder="track.yourcompany.com" %}
+                    
+                    {% if tracking_domain and not is_verified %}
+                        <button type="button" id="verify-btn" onclick="verifyDNS()" class="btn-bg-primary text-inverted px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90 transition">
+                            Verify Now
+                        </button>
+                    {% endif %}
+                </div>
+                
+                {% if form.tracking_custom_domain.errors %}
+                    <p class="text-red-500 text-xs mt-1">{{ form.tracking_custom_domain.errors.0 }}</p>
+                {% endif %}
+
+                <div id="dns-status-msg" class="mt-3 hidden text-xs p-2 rounded border"></div>
+
+                {% if tracking_domain and not is_verified %}
+                <div class="mt-3 text-xs text-yellow-700 bg-yellow-50 p-2 rounded border border-yellow-200">
+                    <strong>Instructions:</strong> Go to your DNS provider (GoDaddy, Namecheap, etc.) and create a <strong>CNAME</strong> record:
+                    <ul class="list-disc ml-5 mt-1">
+                        <li>Host: <code>{{ tracking_domain|cut:".yourdomain.com" }}</code> (e.g., 'track')</li>
+                        <li>Value: <code>whitelabel.dispatchskool.com</code></li>
+                    </ul>
+                </div>
+                {% endif %}
+            </div>
+    
+            <div class="md:col-span-2 mt-4">
+                <button type="submit" class="w-full btn-bg-primary btn-bg-hover text-inverted font-medium py-3 rounded-lg shadow-md transition duration-150 ease-in-out">
+                    Save Changes
+                </button>
+            </div>
+            
+        </form>
+    </div>
+</div>
+
+<script>
+    function verifyDNS() {
+        const btn = document.getElementById('verify-btn');
+        const statusDiv = document.getElementById('dns-status-msg');
+        
+        // 1. Loading State
+        btn.disabled = true;
+        btn.innerHTML = 'Checking...';
+        btn.classList.add('opacity-50');
+        statusDiv.classList.add('hidden');
+
+        // 2. Perform Request
+        fetch("{% url 'users:verify_tracking_dns' %}", {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json'
+            },
+        })
+        .then(response => response.json())
+        .then(data => {
+            statusDiv.classList.remove('hidden');
+            
+            if (data.success) {
+                // Success UI
+                statusDiv.className = "mt-3 text-xs p-2 rounded border bg-green-100 border-green-400 text-green-800";
+                statusDiv.innerHTML = "<strong>Success!</strong> Domain verified. SSL will be issued shortly.";
+                
+                // Hide button and update badge
+                btn.style.display = 'none';
+                document.getElementById('verification-badge').innerHTML = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Verified</span>';
+            } else {
+                // Error UI
+                statusDiv.className = "mt-3 text-xs p-2 rounded border bg-red-100 border-red-400 text-red-800";
+                statusDiv.innerHTML = `<strong>Verification Failed:</strong> ${data.error}`;
+                
+                // Reset Button
+                btn.disabled = false;
+                btn.innerHTML = 'Verify Now';
+                btn.classList.remove('opacity-50');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            statusDiv.classList.remove('hidden');
+            statusDiv.className = "mt-3 text-xs p-2 rounded border bg-red-100 border-red-400 text-red-800";
+            statusDiv.innerHTML = "<strong>System Error:</strong> Could not connect to verification server.";
+            
+            btn.disabled = false;
+            btn.innerHTML = 'Verify Now';
+            btn.classList.remove('opacity-50');
+        });
+    }
+</script>
+
+{% endblock %}

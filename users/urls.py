@@ -6,6 +6,9 @@ app_name = 'users'
 
 urlpatterns = [
     path("signup/", signup_view, name="signup"),
+    path("profile/edit/", user_profile_view, name="user_profile_edit"),
+    path('verify-dns/', verify_tracking_dns, name='verify_tracking_dns'),
+
     # path("login/", email_login_view, name='login'),
     # path("login/verify/", otp_verification_view, name='otp_verify'),
 
