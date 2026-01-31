@@ -243,69 +243,62 @@
               
         
               <div class="overflow-x-auto">
-                <!-- Table Starts -->
-                <table class="w-full table-auto border border-gray-200 rounded-md overflow-hidden">
-
-                  <thead class="bg-hover-light text-secondary text-sm">
-
-                    <!-- Table Headers -->
-                    <tr>
-                      <th class="border-t border-b px-4 py-2 text-left">Email Accounts</th>
-                      <th class="border-t border-b px-4 py-2 text-left">Leads to Send</th>
-                    </tr>
-
-                  </thead>
-                
-                  <tbody class="text-sm text-primary">
-                    <!-- Select All Row -->
-                    <tr>
-                      <th colspan="2" class="px-4 py-2 text-left">
-                        <label class="inline-flex items-center space-x-2">
-                          <input
-                            type="checkbox"
-                            name="select_all"
-                            id="select_all_checkbox"
-                            class="mr-2 btn-border-hover checkbox-custom rounded-md hover:cursor-pointer"
-                            onclick="toggleAllAccounts(this)"
-                          >
-                          <span class="font-medium text-blue-600 hover:cursor-pointer">
-                            Select All Accounts and Auto-Distribute Leads 
-                            <span class="text-tertiary">(No need to enter leads for each account)</span>
-                          </span>
-                        </label>
-                      </th>
-                    </tr>
-                    {% for account in email_accounts %}
-                      <tr class="border-b">
-                        <td class="px-4 py-2">
-                          <label class="flex items-center space-x-2">
-                            <input
-                              type="checkbox"
-                              name="selected_accounts"
-                              value="{{ account.id }}"
-                              class="account-checkbox checkbox-custom mr-2 btn-border-hover rounded-md hover:cursor-pointer"
-                              id="checkbox_{{ account.id }}"
-                              onclick="toggleLeadInput({{ account.id }})"
-                            >
-                            <span class="hover:cursor-pointer">{{ account.email_address }}</span>
-                          </label>
-                        </td>
-                        <td class="px-4 py-2">
-                          <input
-                            type="number"
-                            name="emails_for_account_{{ account.id }}"
-                            class="w-full border bg-primary text-primary rounded-lg px-3 py-2 hidden"
-                            placeholder="Number of leads to assign to {{ account.email_address }}"
-                            min="1"
-                            id="lead_input_{{ account.id }}"
-                          >
-                        </td>
-                      </tr>
-                    {% endfor %}
-                  </tbody>
-                
+                <table class="w-full table-auto border border-gray-200 rounded-md overflow-hidden" id="distributionTable" data-total="{{ leads_count }}">
+                    <thead class="bg-hover-light text-secondary text-sm">
+                        <tr>
+                            <th class="border-t border-b px-4 py-2 text-left">Email Accounts</th>
+                            <th class="border-t border-b px-4 py-2 text-left">Leads to Send</th>
+                        </tr>
+                    </thead>
+                    <tbody class="text-sm text-primary">
+                        <tr>
+                            <th colspan="2" class="px-4 py-2 text-left border-b">
+                                <label class="inline-flex items-center space-x-2">
+                                    <input
+                                        type="checkbox"
+                                        name="select_all"
+                                        id="clutch_toggle"
+                                        class="mr-2 btn-border-hover checkbox-custom rounded-md hover:cursor-pointer"
+                                        onclick="toggleClutch(this)"
+                                    >
+                                    <span class="font-medium text-blue-600 hover:cursor-pointer">
+                                        Engage Auto-Distribution 
+                                        <span class="text-tertiary text-xs font-normal">(Syncs all {{ leads_count }} leads across selected accounts)</span>
+                                    </span>
+                                </label>
+                            </th>
+                        </tr>
+                        {% for account in email_accounts %}
+                        <tr class="border-b">
+                            <td class="px-4 py-2">
+                                <label class="flex items-center space-x-2">
+                                    <input
+                                        type="checkbox"
+                                        name="selected_accounts"
+                                        value="{{ account.id }}"
+                                        class="account-checkbox checkbox-custom mr-2 btn-border-hover rounded-md hover:cursor-pointer"
+                                        id="checkbox_{{ account.id }}"
+                                        onclick="handleAccountToggle('{{ account.id }}')"
+                                    >
+                                    <span class="hover:cursor-pointer">{{ account.email_address }}</span>
+                                </label>
+                            </td>
+                            <td class="px-4 py-2">
+                                <input
+                                    type="number"
+                                    name="emails_for_account_{{ account.id }}"
+                                    class="lead-input w-full border bg-gray-100 text-gray-400 rounded-lg px-3 py-2 cursor-not-allowed transition-colors"
+                                    placeholder="0"
+                                    min="0"
+                                    id="lead_input_{{ account.id }}"
+                                    oninput="handleManualEntry('{{ account.id }}')"
+                                    disabled
+                                >
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
                 </table>
-                
               </div>
         
             </div>
@@ -534,7 +527,7 @@
   </script>
   {% endcomment %}
 
-  <script>
+  <!-- <script>
     function toggleLeadInput(accountId, forceChecked = null) {
       var checkbox = document.getElementById('checkbox_' + accountId);
       var leadInput = document.getElementById('lead_input_' + accountId);
@@ -567,6 +560,108 @@
           toggleLeadInput(checkbox.value, false);
         }
       });
+    }
+  </script> -->
+
+  <script>
+    const table = document.getElementById('distributionTable');
+    const TOTAL_LEADS = parseInt(table.getAttribute('data-total')) || 0;
+    let isUpdating = false;
+
+    /**
+     * Engine: Distributes total leads into count buckets as integers.
+     */
+    function getDistribution(total, count) {
+        if (count <= 0) return [];
+        const base = Math.floor(total / count);
+        let remainder = total % count;
+        return Array.from({ length: count }, () => {
+            const val = base + (remainder > 0 ? 1 : 0);
+            remainder--;
+            return val;
+        });
+    }
+
+    /**
+     * Transmission: Only runs if the Clutch (Auto-Distribute) is engaged.
+     */
+    function runDistribution(excludeId = null) {
+        if (isUpdating) return;
+        
+        const clutchEngaged = document.getElementById('clutch_toggle').checked;
+        if (!clutchEngaged) return; // Engine is disconnected
+
+        isUpdating = true;
+
+        const activeCbs = Array.from(document.querySelectorAll('.account-checkbox:checked'));
+        if (activeCbs.length === 0) {
+            isUpdating = false;
+            return;
+        }
+
+        let totalToDistribute = TOTAL_LEADS;
+        let bucketsToFill = activeCbs;
+
+        // If a user manually adjusted a box while Auto is ON, lock that value and split the rest
+        if (excludeId) {
+            const changedInput = document.getElementById('lead_input_' + excludeId);
+            let val = Math.min(Math.max(0, parseInt(changedInput.value) || 0), TOTAL_LEADS);
+            changedInput.value = val;
+            
+            totalToDistribute -= val;
+            bucketsToFill = activeCbs.filter(cb => cb.value !== excludeId);
+        }
+
+        const values = getDistribution(Math.max(0, totalToDistribute), bucketsToFill.length);
+
+        bucketsToFill.forEach((cb, i) => {
+            const input = document.getElementById('lead_input_' + cb.value);
+            input.value = values[i];
+        });
+
+        isUpdating = false;
+    }
+
+    /**
+     * Mechanic: Physically locks/unlocks inputs and resets values.
+     */
+    function updateInputLockState(accountId, isChecked) {
+        const input = document.getElementById('lead_input_' + accountId);
+        if (isChecked) {
+            input.disabled = false;
+            input.classList.remove('bg-gray-100', 'text-gray-400', 'cursor-not-allowed');
+            input.classList.add('bg-primary', 'text-primary'); // Assumes these classes exist in your Tailwind config
+        } else {
+            input.disabled = true;
+            input.value = 0;
+            input.classList.add('bg-gray-100', 'text-gray-400', 'cursor-not-allowed');
+            input.classList.remove('bg-primary', 'text-primary');
+        }
+    }
+
+    // Handles the "Select All / Auto-Distribute" toggle
+    function toggleClutch(master) {
+        const checkboxes = document.querySelectorAll('.account-checkbox');
+        checkboxes.forEach(cb => {
+            cb.checked = master.checked;
+            updateInputLockState(cb.value, cb.checked);
+        });
+        
+        if (master.checked) {
+            runDistribution();
+        }
+    }
+
+    // Handles individual checkbox clicks
+    function handleAccountToggle(accountId) {
+        const cb = document.getElementById('checkbox_' + accountId);
+        updateInputLockState(accountId, cb.checked);
+        runDistribution();
+    }
+
+    // Handles typing in the box
+    function handleManualEntry(accountId) {
+        runDistribution(accountId);
     }
   </script>
 
