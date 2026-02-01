@@ -56,6 +56,11 @@ class DateTimePickerInput(DateTimeInput):
 class CampaignTemplateForm(forms.ModelForm):
     # We include 'id' to ensure updates work correctly
     id = forms.IntegerField(widget=forms.HiddenInput, required=False)
+    subject = forms.CharField(
+        max_length=255,
+        required=True,
+        widget=forms.TextInput(attrs={'placeholder': 'Hello [Legal Name] - [MC Number] - Some Big Offer'})
+    )
     
     class Meta:
         model = CampaignTemplate

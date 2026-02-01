@@ -18,6 +18,17 @@
     })();
   </script>
 
+  <style>
+    /* This targets the CKEditor content area specifically */
+    .ck-editor__editable_inline {
+        min-height: 384px !important; /* Matches Tailwind h-96 */
+    }
+    /* Optional: Ensure the container doesn't feel cramped */
+    .ck-editor {
+        margin-bottom: 1rem;
+    }
+  </style>
+
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title>{% block 'title' %}{% endblock %}</title>
@@ -31,6 +42,7 @@
   <link href="https://cdn.jsdelivr.net/npm/@yaireo/tagify/dist/tagify.css" rel="stylesheet" type="text/css" />
   <!-- Tagify JS -->
   <script src="https://cdn.jsdelivr.net/npm/@yaireo/tagify"></script>
+  <script src="https://cdn.ckeditor.com/ckeditor5/34.0.0/classic/ckeditor.js"></script>
 
 	{% block 'head' %}{% endblock %}
 

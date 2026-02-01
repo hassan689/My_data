@@ -484,14 +484,25 @@
 
                         <div class="mt-4">
                             <div class="flex justify-between items-center mb-1">
-                                <label class="block text-sm font-medium text-secondary">Email Body (HTML)</label>
-                                <button type="button" onclick="openPreview(this)" class="text-blue-500 hover:underline text-xs font-bold">
-                                    👁️ Preview Template
-                                </button>
+                                <div class="flex items-center gap-3">
+                                    <label class="block text-sm font-medium text-secondary">Email Body</label>
+                                    <label class="inline-flex items-center cursor-pointer gap-3">
+                                      <input type="checkbox" class="sr-only peer editor-toggle" checked onchange="toggleEditor(this)">
+
+                                      <div class="relative w-11 h-6 bg-gray-700 rounded-full peer peer-checked:bg-blue-600 transition-colors duration-200">
+                                        <div class="absolute top-[2px] start-[2px] bg-white border-gray-300 border rounded-full h-5 w-5 transition-all duration-200 peer-checked:translate-x-full"></div>
+                                      </div>
+
+                                      <span class="text-xs font-medium text-secondary leading-none">
+                                        Switch to HTML Mode
+                                      </span>
+                                    </label>
+
+                                </div>
+                                <button type="button" onclick="openPreview(this)" class="text-blue-500 hover:underline text-xs font-bold">👁️ Preview Step</button>
                             </div>
                             <div class="mt-1 w-full border rounded-lg overflow-hidden">
-                                {{ form.body }}
-                            </div>
+                                {{ form.body }} </div>
                         </div>
 
                         <div class="flex items-center gap-4 mt-4">
@@ -873,34 +884,46 @@
 
   <template id="empty-form-template">
     <div class="template-form p-6 bg-secondary rounded-lg shadow-md mb-6 border border-gray-700">
-        
-        <h2 class="template-counter text-xl font-semibold text-secondary mb-4">Template</h2>
-        
-        {{ template_formset.empty_form.id }}
+      <h2 class="template-counter text-xl font-semibold text-secondary mb-4">Template</h2>
 
-        <div class="mt-4">
-            <label class="block text-sm font-medium text-secondary mb-1">Email Subject</label>
-            {{ template_formset.empty_form.subject|add_class:"w-full p-3 border focus:ring-gray-500 focus:border-gray-500 rounded-lg outline-none text-primary bg-primary" }}
+      {{ template_formset.empty_form.id }}
+
+      <div class="mt-4">
+        <label class="block text-sm font-medium text-secondary mb-1">Email Subject</label>
+        {{ template_formset.empty_form.subject|add_class:"w-2/3 p-3 border focus:ring-gray-500 focus:border-gray-500 rounded-lg outline-none text-primary bg-primary" }}
+      </div>
+
+      <div class="mt-4">
+        <div class="flex justify-between items-center mb-1">
+          <div class="flex items-center gap-3">
+            <label class="block text-sm font-medium text-secondary">Email Body</label>
+            <label class="inline-flex items-center cursor-pointer gap-3">
+              <input type="checkbox" class="sr-only peer editor-toggle" checked onchange="toggleEditor(this)">
+              <div class="relative w-11 h-6 bg-gray-700 rounded-full peer peer-checked:bg-blue-600 transition-colors duration-200">
+                <div class="absolute top-[2px] start-[2px] bg-white border-gray-300 border rounded-full h-5 w-5 transition-all duration-200 peer-checked:translate-x-full"></div>
+              </div>
+              <span class="text-xs font-medium text-secondary leading-none">
+                Switch to HTML Mode
+              </span>
+            </label>
+          </div>
+
+          <button type="button" onclick="openPreview(this)" class="text-blue-500 text-xs font-bold">
+            👁️ Preview
+          </button>
         </div>
 
-        <div class="mt-4">
-            <div class="flex justify-between items-center mb-1">
-                <label class="block text-sm font-medium text-secondary">Email Body</label>
-                <button type="button" onclick="openPreview(this)" class="text-blue-500 hover:underline text-xs font-bold">
-                    👁️ Preview Template
-                </button>
-            </div>
-            <div class="mt-1 w-full border rounded-lg overflow-hidden">
-                {{ template_formset.empty_form.body }}
-            </div>
+        <div class="mt-1 w-full border rounded-lg overflow-hidden">
+          {{ template_formset.empty_form.body }}
         </div>
+      </div>
 
-        <div class="flex items-center gap-4 mt-4 form-deletable-area">
-            {{ template_formset.empty_form.DELETE|add_class:"hidden" }}
-            <button type="button" class="remove-template-btn text-red-500 hover:text-red-400 font-medium text-sm">
-                Remove this Template
-            </button>
-        </div>
+      <div class="flex items-center gap-4 mt-4">
+        {{ template_formset.empty_form.DELETE|add_class:"hidden" }}
+        <button type="button" class="remove-template-btn text-red-500 text-sm">
+          Remove this Template
+        </button>
+      </div>
     </div>
   </template>
 
@@ -1007,10 +1030,73 @@
   </script> -->
 
   <script>
+    // Global object to track CKEditor instances per form
+    const editorInstances = {};
+
+    /**
+     * Helper to initialize CKEditor on a specific textarea
+     */
+    function initEditor(textarea) {
+        const textareaId = textarea.name;
+        if (editorInstances[textareaId]) return; // Avoid double initialization
+
+        ClassicEditor
+            .create(textarea, {
+                // YOUR CUSTOM TOOLBAR ITEMS
+                toolbar: {
+                    items: [
+                        "heading", "|", "bold", "italic", "underline", "strikethrough",
+                        "highlight", "|", "link", "uploadImage", "blockQuote", "|",
+                        "bulletedList", "numberedList", "todoList", "outdent", "indent", "|",
+                        "fontSize", "fontFamily", "fontColor", "fontBackgroundColor",
+                        "removeFormat", "insertTable", "undo", "redo"
+                    ],
+                    shouldNotGroupWhenFull: true
+                },
+                // FONT COLOR CONFIG
+                fontColor: {
+                    colors: [
+                        { color: 'hsl(207, 90%, 54%)', label: 'Blue' },
+                        // Add more colors here to match your customColorPalette
+                    ]
+                },
+                // IMAGE CONFIG
+                image: {
+                    toolbar: [
+                        "imageTextAlternative", "|",
+                        "imageStyle:alignLeft", "imageStyle:block", "imageStyle:alignRight"
+                    ]
+                },
+                // SIMPLE UPLOAD ADAPTER (Requires CSRF token for Django)
+                simpleUpload: {
+                    uploadUrl: '/ckeditor5/image_upload/', 
+                    headers: {
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    }
+                }
+            })
+            .then(editor => {
+                editorInstances[textareaId] = editor;
+                editor.model.document.on('change:data', () => {
+                    textarea.value = editor.getData();
+                });
+            })
+            .catch(error => {
+                console.warn("Toolbar error: Some plugins might be missing in your build.");
+                console.error(error);
+            });
+    }
+
     document.addEventListener('DOMContentLoaded', function() {
         const container = document.getElementById('template-forms-container');
         const addBtn = document.getElementById('add-template-btn');
-        const totalForms = document.querySelector('input[name="templates-TOTAL_FORMS"]');
+        const totalForms = document.querySelector('input[name$="-TOTAL_FORMS"]');
+
+        // --- AUTO-INIT EXISTING FORMS ---
+        // Find all body textareas and start them in Rich Text mode
+        document.querySelectorAll('.template-form textarea[name$="-body"]').forEach(textarea => {
+            initEditor(textarea);
+        });
 
         function updateCounters() {
             const visible = container.querySelectorAll('.template-form:not([style*="display: none"])');
@@ -1020,25 +1106,43 @@
             });
         }
 
+        // --- 1. Add Template ---
         addBtn.addEventListener('click', function() {
             const count = parseInt(totalForms.value);
             const tmpl = document.getElementById('empty-form-template');
+            
             let html = tmpl.innerHTML.replace(/__prefix__/g, count);
             
             const div = document.createElement('div');
             div.innerHTML = html;
-            container.appendChild(div.firstElementChild);
+            const newForm = div.firstElementChild;
+            
+            container.appendChild(newForm);
+
+            // AUTO-INIT the new textarea immediately
+            const newTextarea = newForm.querySelector('textarea[name$="-body"]');
+            initEditor(newTextarea);
             
             totalForms.value = count + 1;
             updateCounters();
         });
 
+        // --- 2. Remove Template (with Editor Cleanup) ---
         container.addEventListener('click', function(e) {
             if (e.target.classList.contains('remove-template-btn')) {
                 const wrapper = e.target.closest('.template-form');
-                const del = wrapper.querySelector('input[name$="-DELETE"]');
-                if (del) {
-                    del.checked = true;
+                const textarea = wrapper.querySelector('textarea');
+                const textareaId = textarea.name;
+                const delCheckbox = wrapper.querySelector('input[name$="-DELETE"]');
+
+                // Cleanup instance to prevent memory leaks
+                if (editorInstances[textareaId]) {
+                    editorInstances[textareaId].destroy()
+                        .then(() => delete editorInstances[textareaId]);
+                }
+
+                if (delCheckbox) {
+                    delCheckbox.checked = true;
                     wrapper.style.display = 'none';
                 } else {
                     wrapper.remove();
@@ -1049,34 +1153,55 @@
         });
     });
 
+    // --- 3. Preview Logic ---
     function openPreview(btn) {
-        // Find the parent wrapper for this specific template
         const formWrapper = btn.closest('.template-form');
-        
-        // Select the subject and body inside THIS wrapper
         const subjectInput = formWrapper.querySelector('input[name$="-subject"]');
         const bodyTextarea = formWrapper.querySelector('textarea[name$="-body"]');
 
         const subject = subjectInput ? subjectInput.value : "No Subject";
-        let body = bodyTextarea ? bodyTextarea.value : "";
+        let body = "";
 
-        // Set modal content
+        // Pull from CKEditor instance if active, otherwise fallback to textarea
+        const textareaId = bodyTextarea.name;
+        if (editorInstances[textareaId]) {
+            body = editorInstances[textareaId].getData();
+        } else {
+            body = bodyTextarea.value;
+        }
+
         document.getElementById('modalSubject').innerText = subject || "No Subject";
         
-        // Simple newline fix for raw text
         if (body && !body.includes('</')) {
             body = body.replace(/\n/g, '<br>');
         }
 
         const frame = document.getElementById('previewFrame');
         frame.srcdoc = body || "<p style='color:gray;text-align:center;padding-top:50px;'>Empty body...</p>";
-        
-        // Show the modal
         document.getElementById('previewModal').style.display = 'flex';
     }
 
     function closePreview() {
         document.getElementById('previewModal').style.display = 'none';
+    }
+
+    // --- 4. Toggle Logic ---
+    function toggleEditor(checkbox) {
+        const wrapper = checkbox.closest('.template-form');
+        const textarea = wrapper.querySelector('textarea');
+        const textareaId = textarea.name;
+
+        if (checkbox.checked) {
+            initEditor(textarea);
+        } else {
+            if (editorInstances[textareaId]) {
+                editorInstances[textareaId].destroy()
+                    .then(() => {
+                        delete editorInstances[textareaId];
+                        textarea.style.display = 'block';
+                    });
+            }
+        }
     }
   </script>
 
