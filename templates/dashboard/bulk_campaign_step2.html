@@ -5,8 +5,6 @@
 {% block 'title' %}Dispatch Skool - Bulk Campaign{% endblock %}
 
 {% block 'head' %}
-    {{ form.media }}
-    {{ template_formset.media }}
     <script>
         document.addEventListener('DOMContentLoaded', function () {
             const form = document.querySelector('form');
@@ -473,55 +471,37 @@
               </div>
 
               <div id="template-forms-container">
-                  {% for form in template_formset %}
-                      <div class="template-form p-6 bg-secondary rounded-lg shadow-md mb-6 border border-gray-700">
-                          
-                          <h2 class="template-counter text-xl font-semibold text-secondary mb-4">Template {{ forloop.counter }}</h2>
-                          
-                          {{ form.id }}
+                {% for form in template_formset %}
+                    <div class="template-form p-6 bg-secondary rounded-lg shadow-md mb-6 border border-gray-700">
+                        <h2 class="template-counter text-xl font-semibold text-secondary mb-4">Template {{ forloop.counter }}</h2>
+                        
+                        {{ form.id }}
 
-                          <div class="mt-4">
-                              <label class="block text-sm font-medium text-secondary mb-1">Email Subject</label>
-                              {{ form.subject|add_class:"w-full p-3 border focus:ring-gray-500 focus:border-gray-500 rounded-lg outline-none text-primary bg-primary" }}
+                        <div class="mt-4">
+                            <label class="block text-sm font-medium text-secondary mb-1">Email Subject</label>
+                            {{ form.subject|add_class:"w-2/3 p-3 border focus:ring-gray-500 focus:border-gray-500 rounded-lg outline-none text-primary bg-primary" }}
+                        </div>
 
-                              {% comment %}
-                              <div class="flex items-center space-x-2">
-                                {{ form.track_campaign|add_class:"sr-only toggle-input" }}
-                                
-                                <label for="{{ form.track_campaign.id_for_label }}" class="toggle-label"></label>
-                                <span class="text-base text-primary">Track Open Rate</span>
-                              </div>
-                              {% endcomment %}
+                        <div class="mt-4">
+                            <div class="flex justify-between items-center mb-1">
+                                <label class="block text-sm font-medium text-secondary">Email Body (HTML)</label>
+                                <button type="button" onclick="openPreview(this)" class="text-blue-500 hover:underline text-xs font-bold">
+                                    👁️ Preview Template
+                                </button>
+                            </div>
+                            <div class="mt-1 w-full border rounded-lg overflow-hidden">
+                                {{ form.body }}
+                            </div>
+                        </div>
 
-                              {% if form.subject.errors %}
-                                  <div class="text-red-500 text-sm mt-1">{{ form.subject.errors.0 }}</div>
-                              {% endif %}
-                          </div>
-
-                          <div class="mt-4">
-                              <label class="block text-sm font-medium text-secondary">Email Body</label>
-                              <div class="mt-1 w-full border rounded-lg">
-                                  {{ form.body }}
-                              </div>
-                              {% if form.body.errors %}
-                                  <div class="text-red-500 text-sm mt-1">{{ form.body.errors.0 }}</div>
-                              {% endif %}
-                          </div>
-
-                          <div class="flex items-center gap-4 mt-4 form-deletable-area">
-                              {% if form.instance.id %}
-                                  <div class="flex items-center space-x-2">
-                                      {{ form.DELETE }}
-                                      <label for="{{ form.DELETE.id_for_label }}" class="text-red-500 cursor-pointer hover:underline">Delete this Template</label>
-                                  </div>
-                              {% endif %}
-                              
-                              <button type="button" class="remove-template-btn text-red-500 hover:text-red-400 font-medium">
-                                  Remove this Template
-                              </button>
-                          </div>
-                      </div>
-                  {% endfor %}
+                        <div class="flex items-center gap-4 mt-4">
+                            <div class="hidden">{{ form.DELETE }}</div>
+                            <button type="button" class="remove-template-btn text-red-500 hover:text-red-400 font-medium text-sm">
+                                Remove this Template
+                            </button>
+                        </div>
+                    </div>
+                {% endfor %}
               </div>
 
               <div class="mt-6">
@@ -892,39 +872,39 @@
 
 
   <template id="empty-form-template">
-      <div class="template-form p-6 bg-secondary rounded-lg shadow-md mb-6 border border-gray-700">
-          
-          <h2 class="template-counter text-xl font-semibold text-secondary mb-4">Template</h2>
-          
-          {{ template_formset.empty_form.id }}
+    <div class="template-form p-6 bg-secondary rounded-lg shadow-md mb-6 border border-gray-700">
+        
+        <h2 class="template-counter text-xl font-semibold text-secondary mb-4">Template</h2>
+        
+        {{ template_formset.empty_form.id }}
 
-          <div class="mb-4">
-              <label class="block text-sm font-medium text-secondary mb-1">Variation Name (Internal)</label>
-              {{ template_formset.empty_form.name|add_class:"w-full p-3 border focus:ring-gray-500 focus:border-gray-500 rounded-lg outline-none text-primary bg-primary" }}
-          </div>
+        <div class="mt-4">
+            <label class="block text-sm font-medium text-secondary mb-1">Email Subject</label>
+            {{ template_formset.empty_form.subject|add_class:"w-full p-3 border focus:ring-gray-500 focus:border-gray-500 rounded-lg outline-none text-primary bg-primary" }}
+        </div>
 
-          <div class="mt-4">
-              <label class="block text-sm font-medium text-secondary mb-1">Email Subject</label>
-              {{ template_formset.empty_form.subject|add_class:"w-full p-3 border focus:ring-gray-500 focus:border-gray-500 rounded-lg outline-none text-primary bg-primary" }}
-          </div>
+        <div class="mt-4">
+            <div class="flex justify-between items-center mb-1">
+                <label class="block text-sm font-medium text-secondary">Email Body</label>
+                <button type="button" onclick="openPreview(this)" class="text-blue-500 hover:underline text-xs font-bold">
+                    👁️ Preview Template
+                </button>
+            </div>
+            <div class="mt-1 w-full border rounded-lg overflow-hidden">
+                {{ template_formset.empty_form.body }}
+            </div>
+        </div>
 
-          <div class="mt-4">
-              <label class="block text-sm font-medium text-secondary">Email Body</label>
-              <div class="mt-1 w-full border rounded-lg">
-                  {{ template_formset.empty_form.body }}
-              </div>
-          </div>
-
-          <div class="flex items-center gap-4 mt-4 form-deletable-area">
-              {{ template_formset.empty_form.DELETE|add_class:"hidden" }}
-              <button type="button" class="remove-template-btn text-red-500 hover:text-red-400 font-medium">
-                  Remove this Template
-              </button>
-          </div>
-      </div>
+        <div class="flex items-center gap-4 mt-4 form-deletable-area">
+            {{ template_formset.empty_form.DELETE|add_class:"hidden" }}
+            <button type="button" class="remove-template-btn text-red-500 hover:text-red-400 font-medium text-sm">
+                Remove this Template
+            </button>
+        </div>
+    </div>
   </template>
 
-  <script>
+  <!-- <script>
     
     document.addEventListener('DOMContentLoaded', function () {
       const addBtn = document.getElementById('add-template-btn');
@@ -1024,6 +1004,93 @@
       updateTemplateCounters();
   });
 
+  </script> -->
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const container = document.getElementById('template-forms-container');
+        const addBtn = document.getElementById('add-template-btn');
+        const totalForms = document.querySelector('input[name="templates-TOTAL_FORMS"]');
+
+        function updateCounters() {
+            const visible = container.querySelectorAll('.template-form:not([style*="display: none"])');
+            visible.forEach((f, i) => {
+                const h = f.querySelector('.template-counter');
+                if (h) h.textContent = `Template ${i + 1}`;
+            });
+        }
+
+        addBtn.addEventListener('click', function() {
+            const count = parseInt(totalForms.value);
+            const tmpl = document.getElementById('empty-form-template');
+            let html = tmpl.innerHTML.replace(/__prefix__/g, count);
+            
+            const div = document.createElement('div');
+            div.innerHTML = html;
+            container.appendChild(div.firstElementChild);
+            
+            totalForms.value = count + 1;
+            updateCounters();
+        });
+
+        container.addEventListener('click', function(e) {
+            if (e.target.classList.contains('remove-template-btn')) {
+                const wrapper = e.target.closest('.template-form');
+                const del = wrapper.querySelector('input[name$="-DELETE"]');
+                if (del) {
+                    del.checked = true;
+                    wrapper.style.display = 'none';
+                } else {
+                    wrapper.remove();
+                    totalForms.value = parseInt(totalForms.value) - 1;
+                }
+                updateCounters();
+            }
+        });
+    });
+
+    function openPreview(btn) {
+        // Find the parent wrapper for this specific template
+        const formWrapper = btn.closest('.template-form');
+        
+        // Select the subject and body inside THIS wrapper
+        const subjectInput = formWrapper.querySelector('input[name$="-subject"]');
+        const bodyTextarea = formWrapper.querySelector('textarea[name$="-body"]');
+
+        const subject = subjectInput ? subjectInput.value : "No Subject";
+        let body = bodyTextarea ? bodyTextarea.value : "";
+
+        // Set modal content
+        document.getElementById('modalSubject').innerText = subject || "No Subject";
+        
+        // Simple newline fix for raw text
+        if (body && !body.includes('</')) {
+            body = body.replace(/\n/g, '<br>');
+        }
+
+        const frame = document.getElementById('previewFrame');
+        frame.srcdoc = body || "<p style='color:gray;text-align:center;padding-top:50px;'>Empty body...</p>";
+        
+        // Show the modal
+        document.getElementById('previewModal').style.display = 'flex';
+    }
+
+    function closePreview() {
+        document.getElementById('previewModal').style.display = 'none';
+    }
   </script>
+
+  <div id="previewModal" class="fixed inset-0 z-[100] flex items-center justify-center p-4" style="display: none;">
+    <div class="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onclick="closePreview()"></div>
+    <div class="bg-white w-full max-w-4xl h-[90vh] rounded-2xl z-10 overflow-hidden flex flex-col shadow-2xl">
+        <div class="border-b p-3 flex items-center justify-between bg-slate-50">
+            <div id="modalSubject" class="text-sm font-semibold text-slate-700 truncate px-4">Subject</div>
+            <button onclick="closePreview()" class="text-slate-400 hover:text-black text-2xl px-2">&times;</button>
+        </div>
+        <div class="flex-1 bg-white">
+            <iframe id="previewFrame" class="w-full h-full border-none"></iframe>
+        </div>
+    </div>
+  </div>
 
 {% endblock %}

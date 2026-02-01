@@ -5,6 +5,7 @@ from dashboard.models import GmailToken, CampaignRecord, EmailOpen, Verification
 from django.utils import timezone
 from django.conf import settings
 from django.utils.timezone import timedelta
+from django.utils.html import strip_tags
 from django.urls import reverse
 from django.utils.encoding import force_str
 from django.db import transaction
@@ -175,13 +176,19 @@ def send_single_email(self, campaign_record_id):
             except Exception as e:
                 print(f"Failed to create EmailOpen log: {e}")
             
+            # tracking_pixel = f'<img src="{pixel_link}" width="1" height="1" style="display:none;" alt="">'
+            # personalized_body += tracking_pixel
+
             tracking_pixel = f'<img src="{pixel_link}" width="1" height="1" style="display:none;" alt="">'
-            personalized_body += tracking_pixel
+            if "</body>" in personalized_body:
+                personalized_body = personalized_body.replace("</body>", f"{tracking_pixel}</body>")
+            else:
+                personalized_body += tracking_pixel
 
         # 7. --- Send Email ---
         msg = EmailMultiAlternatives(
             subject=personalized_subject,
-            body=personalized_body, # Fallback body (plain text)
+            body=strip_tags(personalized_body), # Fallback body (plain text)
             from_email=email_account.email_address,
             to=[lead['Email']],
             connection=connection
@@ -521,15 +528,22 @@ def send_emails_batch(self, campaign_record_id, batch_size=10):
                             legal_name=lead.get('Legal Name', ''),
                             launched_by=campaign_for_loop.launched_by
                         )
+                        # tracking_pixel = f'<img src="{pixel_link}" width="1" height="1" style="display:none;" alt="">'
+                        # personalized_body += tracking_pixel
+
                         tracking_pixel = f'<img src="{pixel_link}" width="1" height="1" style="display:none;" alt="">'
-                        personalized_body += tracking_pixel
+                        if "</body>" in personalized_body:
+                            personalized_body = personalized_body.replace("</body>", f"{tracking_pixel}</body>")
+                        else:
+                            personalized_body += tracking_pixel
+
                     except Exception as e:
                         print(f"Failed to create EmailOpen log: {e}")
                 
                 # --- 4. SEND EMAIL ---
                 msg = EmailMultiAlternatives(
                     subject=personalized_subject,
-                    body=personalized_body, # Will be replaced by HTML
+                    body=strip_tags(personalized_body), # Will be replaced by HTML
                     from_email=email_account.email_address,
                     to=[lead['Email']],
                     connection=connection

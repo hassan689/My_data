@@ -4,19 +4,7 @@
 {% load custom_filters %}
 {% block 'title' %}Dispatch Skool - Drip Campaign{% endblock %}
 
-{% block 'head' %}
-  {# Ensure CKEditor widget media is output. If a single `form` exists use it; otherwise use the first form in `formset`. #}
-  {% if form %}
-    {{ form.media }}
-  {% else %}
-    {% for f in formset %}
-      {% if forloop.first %}
-        {{ f.media }}
-      {% endif %}
-    {% endfor %}
-  {% endif %}
-
-{% endblock %}
+{% block 'head' %}{% endblock %}
 
 {% load widget_tweaks %}
 
@@ -153,84 +141,38 @@
           <!-- Campaign Message Box -->
           <div class="p-6 bg-primary rounded-lg shadow-md">
               
-              <!-- 
-                This container will hold all our forms.
-                This is what the JS will append new forms to.
-              -->
               <div id="template-forms-container">
-                
-                {% for form in formset %}
+                  {% for form in formset %}
                   <div class="template-form p-6 bg-secondary rounded-lg shadow-md mb-6 border border-gray-700">
-                    <!-- Added a class here for JS to find -->
-                    <h2 class="template-day-counter text-xl font-semibold text-secondary">Day {{ forloop.counter }}</h2>
-                    
-                    <!-- This hidden field is used by the formset to identify each form -->
-                    {{ form.id }}
+                      <h2 class="template-counter text-xl font-semibold text-secondary mb-4">Day {{ forloop.counter }}</h2>
+                      {{ form.id }}
 
-                    <div class="mt-4">
-                      <label for="{{ form.subject.id_for_label }}" class="block text-sm font-medium text-secondary mb-1">Email Subject</label>
-                      <div class="flex items-center gap-4">
-                        {{ form.subject|add_class:"w-2/3 p-3 border focus:ring-gray-500 focus:border-gray-500 rounded-lg outline-none text-primary bg-primary" }}
-
-                        {% comment %}
-                        <div class="flex items-center space-x-2">
-                          {{ form.track_template|add_class:"sr-only toggle-input" }}
-                          
-                          <label for="{{ form.track_template.id_for_label }}" class="toggle-label"></label>
-                          <span class="text-base text-primary">Track Open Rate</span>
-                        </div>
-                        {% endcomment %}
-
+                      <div class="mt-4">
+                          <label class="block text-sm font-medium text-secondary mb-1">Email Subject</label>
+                          {{ form.subject|add_class:"w-2/3 p-3 border focus:ring-gray-500 focus:border-gray-500 rounded-lg outline-none text-primary bg-primary" }}
                       </div>
-                      {% if form.subject.errors %}
-                        <div class="text-red-500 text-sm mt-1">{{ form.subject.errors|first }}</div>
-                      {% endif %}
-                    </div>
 
-                    <div class="mt-4">
-                      <label for="{{ form.body.id_for_label }}" class="block text-sm font-medium text-secondary">Email Body</label>
-                      <div class="mt-1 w-full border rounded-lg">
-                          <!-- 
-                            This renders the CKEditor textarea AND its init script.
-                            This is why the dynamic adding works.
-                          -->
-                          {{ form.body }}
+                      <div class="mt-4">
+                          <div class="flex justify-between items-center mb-1">
+                              <label class="block text-sm font-medium text-secondary">Email Body (HTML)</label>
+                              <button type="button" onclick="openPreview(this)" class="text-blue-500 hover:underline text-xs font-bold">
+                                  👁️ Preview Step
+                              </button>
+                          </div>
+                          <div class="mt-1 w-full border rounded-lg overflow-hidden">
+                              {{ form.body }}
+                          </div>
                       </div>
-                      {% if form.body.errors %}
-                        <div class="text-red-500 text-sm mt-1">{{ form.body.errors|first }}</div>
-                      {% endif %}
-                    </div>
 
-                    <!-- 
-                      This area holds the delete checkbox for existing forms
-                      AND the remove button for dynamically added forms.
-                    -->
-                    <div class="flex items-center gap-4 mt-4 form-deletable-area">
-                      {% if form.instance.id %}
-                        <!-- This form is saved in the DB, show "Delete" checkbox -->
-                        <div class="flex items-center space-x-2">
-                          {{ form.DELETE }} <!-- This renders the hidden checkbox -->
-                          <label for="{{ form.DELETE.id_for_label }}" class="text-red-500 cursor-pointer hover:underline">Delete this Day's Template</label>
-                        </div>
-                      {% endif %}
-                      
-                      <!-- 
-                        A "Remove" button will be added here by JS for *new* forms.
-                        We can also add a visible "Remove" button for *existing* forms
-                        that just checks the box.
-                      -->
-                      {% if form.instance.id %}
-                        <!-- This is a *visible* button that just checks the hidden box -->
-                        <button type="button" class="remove-template-btn text-red-500 hover:text-red-400 font-medium">
-                          (Remove)
-                        </button>
-                      {% endif %}
-                    </div>
-
+                      <div class="flex items-center gap-4 mt-4">
+                          <div class="hidden">{{ form.DELETE }}</div>
+                          <button type="button" class="remove-template-btn text-red-500 hover:text-red-400 font-medium text-sm">
+                              Remove this Step
+                          </button>
+                      </div>
                   </div>
-                {% endfor %}
-
-              </div> <!-- End #template-forms-container -->
+                  {% endfor %}
+              </div>
 
               <!-- "Add Another Step" Button -->
               <div class="mt-6">
@@ -283,60 +225,35 @@
     -->
     <template id="empty-form-template">
       <div class="template-form p-6 bg-secondary rounded-lg shadow-md mb-6 border border-gray-700">
-        
-        <!-- JS will update this text -->
-        <h2 class="template-day-counter text-xl font-semibold text-secondary">Day</h2>
-        
-        <!-- 
-          This renders the hidden ID tag for the new form
-          e.g. <input type="hidden" name="templates-__prefix__-id" id="id_templates-__prefix__-id">
-        -->
-        {{ formset.empty_form.id }}
+          <h2 class="template-counter text-xl font-semibold text-secondary mb-4">Day</h2>
+          
+          {{ formset.empty_form.id }}
 
-        <div class="mt-4">
-          <label for="{{ formset.empty_form.subject.id_for_label }}" class="block text-sm font-medium text-secondary mb-1">Email Subject</label>
-          <div class="flex items-center gap-4">
-            {{ formset.empty_form.subject|add_class:"w-2/3 p-3 border focus:ring-gray-500 focus:border-gray-500 rounded-lg outline-none text-primary bg-primary" }}
-
-            {% comment %}
-            <div class="flex items-center space-x-2">
-              {{ formset.empty_form.track_template|add_class:"sr-only toggle-input" }}
-              <label for="{{ formset.empty_form.track_template.id_for_label }}" class="toggle-label"></label>
-              <span class="text-base text-primary">Track Open Rate</span>
-            </div>
-            {% endcomment %}
-            
+          <div class="mt-4">
+              <label class="block text-sm font-medium text-secondary mb-1">Email Subject</label>
+              {{ formset.empty_form.subject|add_class:"w-2/3 p-3 border focus:ring-gray-500 focus:border-gray-500 rounded-lg outline-none text-primary bg-primary" }}
           </div>
-        </div>
 
-        <div class="mt-4">
-          <label for="{{ formset.empty_form.body.id_for_label }}" class="block text-sm font-medium text-secondary">Email Body</label>
-          <div class="mt-1 w-full border rounded-lg">
-              <!-- 
-                This is the magic part. It renders the textarea AND the CKEditor init script
-                with the __prefix__ placeholder.
-              -->
-              {{ formset.empty_form.body }}
+          <div class="mt-4">
+              <div class="flex justify-between items-center mb-1">
+                  <label class="block text-sm font-medium text-secondary">Email Body (HTML)</label>
+                  <button type="button" onclick="openPreview(this)" class="text-blue-500 hover:underline text-xs font-bold">
+                      👁️ Preview Step
+                  </button>
+              </div>
+              <div class="mt-1 w-full border rounded-lg overflow-hidden">
+                  {{ formset.empty_form.body }}
+              </div>
           </div>
-        </div>
 
-        <div class="flex items-center gap-4 mt-4 form-deletable-area">
-          <!-- 
-            This renders the hidden DELETE checkbox for the new form.
-            e.g. <input type="checkbox" name="templates-__prefix__-DELETE" id="id_templates-__prefix__-DELETE" class="... d-none">
-          -->
-          {{ formset.empty_form.DELETE|add_class:"hidden" }}
-
-          <!-- 
-            This button is visible and will check the hidden box above.
-          -->
-          <button type="button" class="remove-template-btn text-red-500 hover:text-red-400 font-medium">
-            Remove Template
-          </button>
-        </div>
-
+          <div class="flex items-center gap-4 mt-4">
+              <div class="hidden">{{ formset.empty_form.DELETE }}</div>
+              <button type="button" class="remove-template-btn text-red-500 hover:text-red-400 font-medium text-sm">
+                  Remove this Step
+              </button>
+          </div>
       </div>
-    </template>
+  </template>
 
 	{% else %}
 
@@ -352,7 +269,7 @@
   =======================================================================
 -->
 
-<script>
+<!-- <script>
   document.addEventListener('DOMContentLoaded', function () {
     const addBtn = document.getElementById('add-template-btn');
     const formsContainer = document.getElementById('template-forms-container');
@@ -449,7 +366,88 @@
     // Run the counter once on page load to number existing forms
     updateDayCounters();
 });
-</script>
+</script> -->
 
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const container = document.getElementById('template-forms-container');
+        const addBtn = document.getElementById('add-template-btn');
+        
+        // Auto-detect prefix: checks for 'form-TOTAL_FORMS' (drip) or 'templates-TOTAL_FORMS' (campaign)
+        const totalForms = document.querySelector('input[name$="-TOTAL_FORMS"]');
+        const prefix = totalForms.name.split('-')[0]; 
+
+        function updateDayCounters() {
+            const visible = container.querySelectorAll('.template-form:not([style*="display: none"])');
+            visible.forEach((f, i) => {
+                const h = f.querySelector('.template-counter');
+                if (h) h.textContent = `Day ${i + 1}`;
+            });
+        }
+
+        addBtn.addEventListener('click', function() {
+            const count = parseInt(totalForms.value);
+            const tmpl = document.getElementById('empty-form-template');
+            
+            // Use the detected prefix to replace __prefix__
+            let html = tmpl.innerHTML.replace(/__prefix__/g, count);
+            
+            const div = document.createElement('div');
+            div.innerHTML = html;
+            container.appendChild(div.firstElementChild);
+            
+            totalForms.value = count + 1;
+            updateDayCounters();
+        });
+
+        container.addEventListener('click', function(e) {
+            if (e.target.classList.contains('remove-template-btn')) {
+                const wrapper = e.target.closest('.template-form');
+                const del = wrapper.querySelector('input[name$="-DELETE"]');
+                if (del) {
+                    del.checked = true;
+                    wrapper.style.display = 'none';
+                } else {
+                    wrapper.remove();
+                    totalForms.value = parseInt(totalForms.value) - 1;
+                }
+                updateDayCounters();
+            }
+        });
+    });
+
+    // Preview Logic remains the same
+    function openPreview(btn) {
+        const wrapper = btn.closest('.template-form');
+        const subject = wrapper.querySelector('input[name$="-subject"]').value;
+        let body = wrapper.querySelector('textarea[name$="-body"]').value;
+        
+        document.getElementById('modalSubject').innerText = subject || "Step Preview";
+        const frame = document.getElementById('previewFrame');
+        
+        if (body && !body.includes('</')) body = body.replace(/\n/g, '<br>');
+        
+        frame.srcdoc = body || "<p style='color:gray;text-align:center;margin-top:50px;'>No HTML content yet.</p>";
+        document.getElementById('previewModal').style.display = 'flex';
+    }
+
+    function closePreview() {
+        document.getElementById('previewModal').style.display = 'none';
+    }
+
+  </script>
+
+  <div id="previewModal" class="fixed inset-0 z-[100] flex items-center justify-center p-4" style="display: none;">
+    <div class="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onclick="closePreview()"></div>
+    <div class="bg-white w-full max-w-4xl h-[90vh] rounded-2xl z-10 overflow-hidden flex flex-col shadow-2xl">
+        <div class="border-b p-3 flex items-center justify-between bg-slate-50">
+            <div id="modalSubject" class="text-sm font-semibold text-slate-700 truncate px-4">Subject</div>
+            <button onclick="closePreview()" class="text-slate-400 hover:text-black text-2xl px-2">&times;</button>
+        </div>
+        <div class="flex-1 bg-white">
+            <iframe id="previewFrame" class="w-full h-full border-none"></iframe>
+        </div>
+    </div>
+  </div>
 
 {% endblock %}

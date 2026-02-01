@@ -3,12 +3,10 @@ import re
 from django.utils import timezone
 from dashboard.models import CampaignTemplate
 from users.models import EmailAccount
-from django_ckeditor_5.widgets import CKEditor5Widget
 from django.forms.widgets import DateTimeInput
 from datetime import timezone as dt_timezone
 from django.forms import modelformset_factory
 import pytz
-# from ckeditor_uploader.widgets import CKEditorUploadingWidget 
 
 class EmailAccountForm(forms.ModelForm):
     decrypted_password = forms.CharField(
@@ -63,9 +61,11 @@ class CampaignTemplateForm(forms.ModelForm):
         model = CampaignTemplate
         fields = ['subject', 'body']
         widgets = {
-            'subject': forms.TextInput(attrs={'placeholder': 'Hello [Legal Name] - [MC Number] - Some Big Offer', 'class': 'w-full p-3 border rounded-lg bg-primary text-primary'}),
-            'body': CKEditor5Widget(config_name='default'),
-        }
+              'body': forms.Textarea(attrs={
+                  'class': 'w-full h-96 p-5 bg-slate-900 text-blue-400 rounded-xl font-mono text-sm outline-none border-4 border-slate-800',
+                  'placeholder': 'Paste your professional HTML here...'
+              }),
+          }
 
 # The Factory
 TemplateFormSet = modelformset_factory(

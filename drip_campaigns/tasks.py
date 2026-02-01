@@ -13,6 +13,7 @@ from .utilities import reschedule_or_finalize, normalize_provider, send_campaign
 from django.core.mail import EmailMultiAlternatives, send_mail
 from django.db import transaction
 from django.utils import timezone
+from django.utils.html import strip_tags
 from django.utils.encoding import force_str
 from django.core.cache import cache
 from django.conf import settings
@@ -457,13 +458,19 @@ def send_single_email(self, campaign_id, account_info_id, template_id, lead_inde
             pixel_url = reverse('drip_campaigns:track_drip', kwargs={'unique_identifier': unique_id})
             pixel_link = urljoin(f"https://{user.tracking_custom_domain}", pixel_url)
             
+            # tracking_pixel = f'<img src="{pixel_link}" width="1" height="1" style="display:none;" alt="">'
+            # personalized_body += tracking_pixel
+
             tracking_pixel = f'<img src="{pixel_link}" width="1" height="1" style="display:none;" alt="">'
-            personalized_body += tracking_pixel
+            if "</body>" in personalized_body:
+                personalized_body = personalized_body.replace("</body>", f"{tracking_pixel}</body>")
+            else:
+                personalized_body += tracking_pixel
 
         # --- Send Email ---
         msg = EmailMultiAlternatives(
             subject=personalized_subject,
-            body=personalized_body,
+            body=strip_tags(personalized_body),
             from_email=email_account.email_address,
             to=[lead['Email']],
             connection=connection
@@ -750,13 +757,19 @@ def send_batch_emails(self, campaign_id, account_info_id, template_id, start_ind
                     pixel_url = reverse('drip_campaigns:track_drip', kwargs={'unique_identifier': unique_id})
                     pixel_link = urljoin(f"https://{user.tracking_custom_domain}", pixel_url)
                     
+                    # tracking_pixel = f'<img src="{pixel_link}" width="1" height="1" style="display:none;" alt="">'
+                    # personalized_body += tracking_pixel
+
                     tracking_pixel = f'<img src="{pixel_link}" width="1" height="1" style="display:none;" alt="">'
-                    personalized_body += tracking_pixel
+                    if "</body>" in personalized_body:
+                        personalized_body = personalized_body.replace("</body>", f"{tracking_pixel}</body>")
+                    else:
+                        personalized_body += tracking_pixel
 
                 # --- Send Email ---
                 msg = EmailMultiAlternatives(
                     subject=personalized_subject,
-                    body=personalized_body,
+                    body=strip_tags(personalized_body),
                     from_email=email_account.email_address,
                     to=[lead['Email']],
                     connection=connection

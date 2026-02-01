@@ -7,9 +7,6 @@
 {% block 'title' %}Dispatch Skool - Update Drip Campaign{% endblock %}
 
 {% block 'head' %}
-    {# Use the media from both the form and the formset #}
-    {{ campaign_form.media }}
-    {{ template_formset.media }}
 
     <script>
         document.addEventListener('DOMContentLoaded', function () {
@@ -223,62 +220,39 @@
               <div class="p-6 bg-primary rounded-lg shadow-md">
                   
                   <div id="template-forms-container">
-
-                    <h2 class="text-2xl font-semibold text-secondary mt-3 mb-6">Templates for Each Day</h2>
-                    
                     {% for form in template_formset %}
-                      <div class="template-form p-6 bg-secondary rounded-lg shadow-md mb-6 border border-gray-700">
-                        <h2 class="template-day-counter text-xl font-semibold text-secondary">Day {{ forloop.counter }}</h2>
+                    <div class="template-form p-6 bg-secondary rounded-lg shadow-md mb-6 border border-gray-700">
+                        <h2 class="template-counter text-xl font-semibold text-secondary mb-4">Day {{ forloop.counter }}</h2>
                         {{ form.id }}
 
                         <div class="mt-4">
-                          <label for="{{ form.subject.id_for_label }}" class="block text-sm font-medium text-secondary mb-1">Email Subject</label>
-                          <div class="flex items-center gap-4">
+                            <label class="block text-sm font-medium text-secondary mb-1">Email Subject</label>
                             {{ form.subject|add_class:"w-2/3 p-3 border focus:ring-gray-500 focus:border-gray-500 rounded-lg outline-none text-primary bg-primary" }}
-
-                            {% comment %}
-                            <div class="flex items-center space-x-2">
-                              {{ form.track_template|add_class:"sr-only toggle-input" }}
-                              <label for="{{ form.track_template.id_for_label }}" class="toggle-label"></label>
-                              <span class="text-base text-primary">Track Open Rate</span>
-                            </div>
-                            {% endcomment %}
-
-                          </div>
-                          {% if form.subject.errors %}
-                            <div class="text-red-500 text-sm mt-1">{{ form.subject.errors|first }}</div>
-                          {% endif %}
                         </div>
 
                         <div class="mt-4">
-                          <label for="{{ form.body.id_for_label }}" class="block text-sm font-medium text-secondary">Email Body</label>
-                          <div class="mt-1 w-full border rounded-lg">
-                              {{ form.body }}
-                          </div>
-                          {% if form.body.errors %}
-                            <div class="text-red-500 text-sm mt-1">{{ form.body.errors|first }}</div>
-                          {% endif %}
+                            <div class="flex justify-between items-center mb-1">
+                                <label class="block text-sm font-medium text-secondary">Email Body (HTML)</label>
+                                <button type="button" onclick="openPreview(this)" class="text-blue-500 hover:underline text-xs font-bold">
+                                    👁️ Preview Step
+                                </button>
+                            </div>
+                            <div class="mt-1 w-full border rounded-lg overflow-hidden">
+                                {{ form.body }}
+                            </div>
                         </div>
 
-                        <div class="flex items-center gap-4 mt-4 form-deletable-area">
-  
-                          {% if form.instance.id %}
-                            <div class="flex items-center space-x-2" style="display: none;">
-                              {{ form.DELETE }}
-                              <label for="{{ form.DELETE.id_for_label }}">Delete</label>
-                            </div>
-
-                            <button type="button" class="remove-template-btn text-red-500 hover:text-red-400 font-medium">
-                              Remove Template
+                        <div class="flex items-center gap-4 mt-4">
+                            <div class="hidden">{{ form.DELETE }}</div>
+                            <button type="button" class="remove-template-btn text-red-500 hover:text-red-400 font-medium text-sm">
+                                Remove this Step
                             </button>
-                          
-                          {% endif %}
-                          
-                          </div>
-                      </div>
+                        </div>
+                    </div>
                     {% endfor %}
-
-                  </div> <div class="mt-6">
+                </div>
+                  
+                  <div class="mt-6">
                     <button type="button" id="add-template-btn" class="btn-bg-primary btn-bg-hover btn-text font-semibold py-3 px-6 rounded-xl shadow-lg text-base">
                       ➕ Add Another Day's Template
                     </button>
@@ -302,45 +276,30 @@
         </div>
 
     </form>
+    
     <template id="empty-form-template">
       <div class="template-form p-6 bg-secondary rounded-lg shadow-md mb-6 border border-gray-700">
-        
-        <h2 class="template-day-counter text-xl font-semibold text-secondary">Day</h2>
-        
-        {{ template_formset.empty_form.id }}
-
-        <div class="mt-4">
-          <label for="{{ template_formset.empty_form.subject.id_for_label }}" class="block text-sm font-medium text-secondary mb-1">Email Subject</label>
-          <div class="flex items-center gap-4">
-            {{ template_formset.empty_form.subject|add_class:"w-2/3 p-3 border focus:ring-gray-500 focus:border-gray-500 rounded-lg outline-none text-primary bg-primary" }}
-
-            {% comment %}
-            <div class="flex items-center space-x-2">
-              {{ template_formset.empty_form.track_template|add_class:"sr-only toggle-input" }}
-              <label for="{{ template_formset.empty_form.track_template.id_for_label }}" class="toggle-label"></label>
-              <span class="text-base text-primary">Track Open Rate</span>
-            </div>
-            {% endcomment %}
-
+          <h2 class="template-counter text-xl font-semibold text-secondary mb-4">Day</h2>
+          {{ template_formset.empty_form.id }}
+          <div class="mt-4">
+              <label class="block text-sm font-medium text-secondary mb-1">Email Subject</label>
+              {{ template_formset.empty_form.subject }}
           </div>
-        </div>
-
-        <div class="mt-4">
-          <label for="{{ template_formset.empty_form.body.id_for_label }}" class="block text-sm font-medium text-secondary">Email Body</label>
-          <div class="mt-1 w-full border rounded-lg">
-              {{ template_formset.empty_form.body }}
+          <div class="mt-4">
+              <div class="flex justify-between items-center mb-1">
+                  <label class="block text-sm font-medium text-secondary">Email Body (HTML)</label>
+                  <button type="button" onclick="openPreview(this)" class="text-blue-500 hover:underline text-xs font-bold">👁️ Preview Step</button>
+              </div>
+              <div class="mt-1 w-full border rounded-lg overflow-hidden">
+                  {{ template_formset.empty_form.body }}
+              </div>
           </div>
-        </div>
-
-        <div class="flex items-center gap-4 mt-4 form-deletable-area">
-          {{ template_formset.empty_form.DELETE|add_class:"hidden" }}
-          <button type="button" class="remove-template-btn text-red-500 hover:text-red-400 font-medium">
-            Remove Template
-          </button>
-        </div>
-
+          <div class="flex items-center gap-4 mt-4">
+              <div class="hidden">{{ template_formset.empty_form.DELETE }}</div>
+              <button type="button" class="remove-template-btn text-red-500 hover:text-red-400 font-medium text-sm">Remove this Step</button>
+          </div>
       </div>
-    </template>
+  </template>
 
   {% else %}
       {% include 'price_base.html' %}
@@ -349,7 +308,7 @@
 </div>
 
 
-<script>
+<!-- <script>
   document.addEventListener('DOMContentLoaded', function () {
     const addBtn = document.getElementById('add-template-btn');
     const formsContainer = document.getElementById('template-forms-container');
@@ -447,8 +406,86 @@
     // Run the counter once on page load to number existing forms
     updateDayCounters();
 });
-</script>
+</script> -->
 
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const container = document.getElementById('template-forms-container');
+        const addBtn = document.getElementById('add-template-btn');
+        
+        // Detect prefix from management form (e.g., 'templates-TOTAL_FORMS')
+        const totalFormsInput = document.querySelector('input[name$="-TOTAL_FORMS"]');
+        const prefix = totalFormsInput ? totalFormsInput.name.split('-')[0] : 'templates';
+
+        function updateDayCounters() {
+            const visible = container.querySelectorAll('.template-form:not([style*="display: none"])');
+            visible.forEach((f, i) => {
+                const h = f.querySelector('.template-counter');
+                if (h) h.textContent = `Day ${i + 1}`;
+            });
+        }
+
+        addBtn.addEventListener('click', function() {
+            const count = parseInt(totalFormsInput.value);
+            const tmpl = document.getElementById('empty-form-template');
+            let html = tmpl.innerHTML.replace(/__prefix__/g, count);
+            
+            const div = document.createElement('div');
+            div.innerHTML = html;
+            container.appendChild(div.firstElementChild);
+            
+            totalFormsInput.value = count + 1;
+            updateDayCounters();
+        });
+
+        container.addEventListener('click', function(e) {
+            if (e.target.classList.contains('remove-template-btn')) {
+                const wrapper = e.target.closest('.template-form');
+                const del = wrapper.querySelector('input[name$="-DELETE"]');
+                if (del) {
+                    del.checked = true;
+                    wrapper.style.display = 'none';
+                } else {
+                    wrapper.remove();
+                    totalFormsInput.value = parseInt(totalFormsInput.value) - 1;
+                }
+                updateDayCounters();
+            }
+        });
+    });
+
+    // Preview Modal Logic
+    function openPreview(btn) {
+        const wrapper = btn.closest('.template-form');
+        const subject = wrapper.querySelector('input[name$=\"-subject\"]').value;
+        let body = wrapper.querySelector('textarea[name$=\"-body\"]').value;
+        
+        document.getElementById('modalSubject').innerText = subject || "Step Preview";
+        const frame = document.getElementById('previewFrame');
+        
+        if (body && !body.includes('</')) body = body.replace(/\n/g, '<br>');
+        
+        frame.srcdoc = body || "<p style='color:gray;text-align:center;margin-top:50px;'>No HTML content yet.</p>";
+        document.getElementById('previewModal').style.display = 'flex';
+    }
+
+    function closePreview() {
+      document.getElementById('previewModal').style.display = 'none';
+  }
+  </script>
+
+  <div id="previewModal" class="fixed inset-0 z-[100] flex items-center justify-center p-4" style="display: none;">
+    <div class="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onclick="closePreview()"></div>
+    <div class="bg-white w-full max-w-4xl h-[90vh] rounded-2xl z-10 overflow-hidden flex flex-col shadow-2xl">
+        <div class="border-b p-3 flex items-center justify-between bg-slate-50">
+            <div id="modalSubject" class="text-sm font-semibold text-slate-700 truncate px-4">Subject</div>
+            <button onclick="closePreview()" class="text-slate-400 hover:text-black text-2xl px-2">&times;</button>
+        </div>
+        <div class="flex-1 bg-white">
+            <iframe id="previewFrame" class="w-full h-full border-none"></iframe>
+        </div>
+    </div>
+  </div>
 
 <!-- Tagify Script -->
 <script>

@@ -1,7 +1,6 @@
 from django import forms
 import json
 from .models import DripTemplate, DripCampaign
-from django_ckeditor_5.widgets import CKEditor5Widget
 
 
 class DripTemplateModelForm(forms.ModelForm):
@@ -12,8 +11,11 @@ class DripTemplateModelForm(forms.ModelForm):
         widget=forms.TextInput(attrs={'placeholder': 'Hello [Legal Name] - [MC Number] - Some Big Offer'})
     )
     body = forms.CharField(
-        widget=CKEditor5Widget(config_name='default'),
-        required=True
+        required=True,
+        widget=forms.Textarea(attrs={
+            'class': 'w-full h-96 p-5 bg-slate-900 text-blue-400 rounded-xl font-mono text-sm outline-none border-4 border-slate-800',
+            'placeholder': 'Paste your professional HTML here...'
+        })
     )
     track_template = forms.BooleanField(
         required=False,
@@ -23,7 +25,6 @@ class DripTemplateModelForm(forms.ModelForm):
     class Meta:
         model = DripTemplate
         fields = ['subject', 'body', 'track_template']
-
 
 
 class RemovedMCNumbersForm(forms.ModelForm):

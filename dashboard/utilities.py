@@ -474,82 +474,35 @@ def get_email_connection(email_account, decrypted_password):
 
 
 def sanitize_email_html(html_content, base_url, max_email_width=600):
-    """
-    1. Converts relative image URLs to absolute URLs.
-    2. Keeps the exact pixel width/height set by CKEditor on the <img> tag.
-    """
-    # Assuming BeautifulSoup is imported correctly
     soup = BeautifulSoup(html_content, 'html.parser')
 
-    # 1. Fix Images and enforce original dimensions
     for img in soup.find_all('img'):
+        # 1. Absolute URL fix (Keep)
         src = img.get('src')
-        
-        # Preserve original dimensions from the <img> tag
-        original_width = img.get('width')
-        original_height = img.get('height')
-
         if src and src.startswith('/media/'):
-            # Make URL absolute
             img['src'] = base_url + src
 
-        # --- REVISED LOGIC STARTS HERE ---
-        
-        # Get the parent <figure> tag (CKEditor puts width:XX% here)
-        figure = img.find_parent('figure')
-        
-        # 1. Check for CKEditor percentage width on the <figure>
-        # This part is now primarily for removing the <figure> style, but 
-        # it *can* still calculate the pixel width if needed.
-        intended_width_px = None
-        if figure and 'style' in figure.attrs:
-            style = figure['style']
-            match = re.search(r'width:(\d+\.?\d*)%', style)
-            
-            # If a percentage is found, calculate the intended width (optional, 
-            # but good for robust handling).
-            if match:
-                percentage = float(match.group(1))
-                intended_width_px = round(percentage / 100 * max_email_width)
-            
-            # Always remove the unreliable style from the <figure> tag
-            figure.attrs.pop('style', None)
-
-        # 2. **Apply the intended/original width.**
-        # Prioritize the width directly on the <img> tag (what CKEditor saved)
-        # If CKEditor saved a pixel width, use it. If not, use the max width.
-        
-        if original_width and original_width.isdigit():
-            # Use the exact width saved by CKEditor (e.g., 568 or 305)
-            img['width'] = original_width
-        elif intended_width_px:
-            # Fallback to calculated pixel width from a percentage
-            img['width'] = str(intended_width_px)
-        else:
-            # Fallback to full email width
+        # 2. Smart Width Handling
+        # If the user explicitly provided a width in HTML, respect it.
+        # Only fallback to max_email_width if no width is present at all.
+        if not img.get('width'):
             img['width'] = str(max_email_width)
-            
-        # Also re-apply the original height if it was present, or use 'auto'
-        if original_height and original_height.isdigit():
-            img['height'] = original_height
-        else:
             img['height'] = "auto"
-            
-        # Always remove other unreliable styles from the img tag
-        if 'style' in img.attrs:
-            del img.attrs['style']
-        
-        # --- REVISED LOGIC ENDS HERE ---
 
-    # 3. Fix other relative hrefs
+        # 3. Style Preservation
+        # Instead of deleting 'style', we only want to ensure 
+        # images don't exceed the container width in responsive clients.
+        existing_style = img.get('style', '')
+        if 'max-width' not in existing_style.lower():
+            img['style'] = f"{existing_style}; max-width: 100%; height: auto;".strip(';')
+
+    # 4. Fix Link Hrefs
     for tag in soup.find_all(href=True):
         href = tag.get('href')
         if href and href.startswith('/media/'):
             tag['href'] = base_url + href
             
-    cleaned_html = str(soup)
-    wrapped_html = f'<div style="margin:0;padding:0;">{cleaned_html}</div>'
-    return wrapped_html
+    return str(soup)
 
 
 EMAIL_TASK_TIME_LIMIT = 600
