@@ -234,73 +234,90 @@
         <div class="container mx-auto px-4 max-w-6xl mb-20">
           <div class="bg-primary border btn-border-hover rounded-lg shadow-md">
             <div class="p-6">
-              <h2 class="text-xl font-semibold mb-4 flex items-center justify-between">
-                <span class="text-secondary">Select Email Accounts and Assign Lead Counts</span>
-                <span id="lead-summary" class="text-red-600 text-sm font-medium ml-4 whitespace-nowrap">
-                  Make sure that the number of leads you assign here are equal to the leads you submitted earlier! 
-                </span>
+              <h2 class="text-xl font-semibold mb-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <span class="text-secondary">Select Email Accounts</span>
+                
+                <div id="distribution-status" class="flex items-center gap-3 px-4 py-2 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800 transition-colors duration-300">
+                  <i class="fa-solid fa-circle-info"></i>
+                  <span id="status-text">Auto-distributing {{ leads_count }} leads</span>
+                </div>
               </h2>
-              
-        
+
               <div class="overflow-x-auto">
                 <table class="w-full table-auto border border-gray-200 rounded-md overflow-hidden" id="distributionTable" data-total="{{ leads_count }}">
                     <thead class="bg-hover-light text-secondary text-sm">
                         <tr>
-                            <th class="border-t border-b px-4 py-2 text-left">Email Accounts</th>
-                            <th class="border-t border-b px-4 py-2 text-left">Leads to Send</th>
-                        </tr>
-                    </thead>
-                    <tbody class="text-sm text-primary">
-                        <tr>
-                            <th colspan="2" class="px-4 py-2 text-left border-b">
-                                <label class="inline-flex items-center space-x-2">
+                            <th class="border-t border-b px-4 py-3 text-left w-1/2">
+                                <label class="inline-flex items-center space-x-2 cursor-pointer">
                                     <input
                                         type="checkbox"
-                                        name="select_all"
-                                        id="clutch_toggle"
-                                        class="mr-2 btn-border-hover checkbox-custom rounded-md hover:cursor-pointer"
-                                        onclick="toggleClutch(this)"
+                                        id="master-checkbox"
+                                        class="checkbox-custom rounded-md w-5 h-5 text-blue-600 focus:ring-blue-500 border-gray-300"
+                                        onclick="toggleAllAccounts(this)"
                                     >
-                                    <span class="font-medium text-blue-600 hover:cursor-pointer">
-                                        Engage Auto-Distribution 
-                                        <span class="text-tertiary text-xs font-normal">(Syncs all {{ leads_count }} leads across selected accounts)</span>
-                                    </span>
+                                    <span class="font-bold text-primary">Select All Accounts</span>
                                 </label>
                             </th>
+                            <th class="border-t border-b px-4 py-3 text-left w-1/2">
+                                Leads Allocation <span class="text-xs font-normal text-tertiary ml-1">(Type to lock value)</span>
+                            </th>
                         </tr>
+                    </thead>
+                    <tbody class="text-sm text-primary divide-y divide-gray-100">
                         {% for account in email_accounts %}
-                        <tr class="border-b">
-                            <td class="px-4 py-2">
-                                <label class="flex items-center space-x-2">
+                        <tr class="group hover:bg-gray-50 transition-colors duration-150">
+                            <td class="px-4 py-3">
+                                <label class="flex items-center space-x-3 cursor-pointer w-full">
                                     <input
                                         type="checkbox"
                                         name="selected_accounts"
                                         value="{{ account.id }}"
-                                        class="account-checkbox checkbox-custom mr-2 btn-border-hover rounded-md hover:cursor-pointer"
+                                        class="account-checkbox checkbox-custom w-5 h-5 rounded-md text-blue-600 border-gray-300 focus:ring-blue-500 transition duration-150 ease-in-out"
                                         id="checkbox_{{ account.id }}"
-                                        onclick="handleAccountToggle('{{ account.id }}')"
+                                        onchange="handleCheckboxChange('{{ account.id }}')"
                                     >
-                                    <span class="hover:cursor-pointer">{{ account.email_address }}</span>
+                                    <div class="flex flex-col">
+                                        <span class="font-medium text-secondary group-hover:text-blue-600 transition-colors">{{ account.email_address }}</span>
+                                    </div>
                                 </label>
                             </td>
-                            <td class="px-4 py-2">
-                                <input
-                                    type="number"
-                                    name="emails_for_account_{{ account.id }}"
-                                    class="lead-input w-full border bg-gray-100 text-gray-400 rounded-lg px-3 py-2 cursor-not-allowed transition-colors"
-                                    placeholder="0"
-                                    min="0"
-                                    id="lead_input_{{ account.id }}"
-                                    oninput="handleManualEntry('{{ account.id }}')"
-                                    disabled
-                                >
+
+                            <td class="px-4 py-3">
+                                <div class="relative flex items-center max-w-[200px]">
+                                    <button 
+                                        type="button" 
+                                        id="lock_btn_{{ account.id }}"
+                                        onclick="toggleLock('{{ account.id }}')"
+                                        class="absolute left-0 z-10 p-2 text-gray-400 hover:text-blue-600 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                                        disabled
+                                        title="Click to Unlock (Auto-Distribute)"
+                                    >
+                                        <i class="fa-solid fa-lock-open" id="icon_open_{{ account.id }}"></i>
+                                        <i class="fa-solid fa-lock hidden" id="icon_closed_{{ account.id }}"></i>
+                                    </button>
+
+                                    <input
+                                        type="number"
+                                        name="emails_for_account_{{ account.id }}"
+                                        class="lead-input w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
+                                        placeholder="0"
+                                        min="0"
+                                        id="lead_input_{{ account.id }}"
+                                        oninput="handleUserTyping('{{ account.id }}')"
+                                        disabled
+                                    >
+                                    
+                                    <span id="badge_{{ account.id }}" class="absolute right-3 text-xs font-bold text-blue-500 pointer-events-none opacity-0 transition-opacity">
+                                        AUTO
+                                    </span>
+                                </div>
                             </td>
                         </tr>
                         {% endfor %}
                     </tbody>
                 </table>
               </div>
-        
+
             </div>
           </div>
         </div>
@@ -564,105 +581,251 @@
   </script> -->
 
   <script>
-    const table = document.getElementById('distributionTable');
-    const TOTAL_LEADS = parseInt(table.getAttribute('data-total')) || 0;
-    let isUpdating = false;
-
     /**
-     * Engine: Distributes total leads into count buckets as integers.
+     * STATE MANAGEMENT
+     * We track which accounts are "Locked" (manual override).
+     * All other checked accounts are considered "Auto" (Unlocked).
      */
-    function getDistribution(total, count) {
-        if (count <= 0) return [];
-        const base = Math.floor(total / count);
-        let remainder = total % count;
-        return Array.from({ length: count }, () => {
-            const val = base + (remainder > 0 ? 1 : 0);
-            remainder--;
-            return val;
-        });
+    const TOTAL_LEADS = parseInt(document.getElementById('distributionTable').getAttribute('data-total')) || 0;
+    let lockedAccountIds = new Set(); 
+    
+    // --- UI HELPERS ---
+
+    const statusBox = document.getElementById('distribution-status');
+    const statusText = document.getElementById('status-text');
+
+    function setStatus(type, message) {
+        statusText.textContent = message;
+        statusBox.className = 'flex items-center gap-3 px-4 py-2 rounded-lg text-sm transition-colors duration-300 border ';
+        
+        if (type === 'success' || type === 'auto') {
+            statusBox.classList.add('bg-blue-50', 'text-blue-800', 'border-blue-200');
+            statusBox.innerHTML = `<i class="fa-solid fa-circle-check"></i> <span>${message}</span>`;
+        } else if (type === 'warning') {
+            statusBox.classList.add('bg-yellow-50', 'text-yellow-800', 'border-yellow-200');
+            statusBox.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> <span>${message}</span>`;
+        } else if (type === 'error') {
+            statusBox.classList.add('bg-red-50', 'text-red-800', 'border-red-200');
+            statusBox.innerHTML = `<i class="fa-solid fa-circle-xmark"></i> <span>${message}</span>`;
+        }
     }
 
-    /**
-     * Transmission: Only runs if the Clutch (Auto-Distribute) is engaged.
-     */
-    function runDistribution(excludeId = null) {
-        if (isUpdating) return;
+    function updateRowUI(accountId, isChecked, isLocked) {
+        const input = document.getElementById(`lead_input_${accountId}`);
+        const btn = document.getElementById(`lock_btn_${accountId}`);
+        const iconOpen = document.getElementById(`icon_open_${accountId}`);
+        const iconClosed = document.getElementById(`icon_closed_${accountId}`);
+        const badge = document.getElementById(`badge_${accountId}`);
+
+        if (!isChecked) {
+            // Disabled State
+            input.disabled = true;
+            input.value = '';
+            input.classList.add('bg-gray-100', 'cursor-not-allowed');
+            input.classList.remove('bg-white', 'bg-blue-50'); // Remove auto/lock colors
+            btn.disabled = true;
+            btn.classList.add('text-gray-300');
+            iconOpen.classList.remove('hidden');
+            iconClosed.classList.add('hidden');
+            badge.style.opacity = '0';
+        } else {
+            // Enabled State
+            input.disabled = false;
+            btn.disabled = false;
+            btn.classList.remove('text-gray-300');
+            input.classList.remove('bg-gray-100', 'cursor-not-allowed');
+
+            if (isLocked) {
+                // Locked (Manual)
+                input.classList.add('bg-white', 'font-bold', 'text-gray-900');
+                input.classList.remove('bg-blue-50', 'text-blue-800');
+                iconOpen.classList.add('hidden');
+                iconClosed.classList.remove('hidden');
+                btn.classList.add('text-gray-600');
+                badge.style.opacity = '0'; // Hide AUTO badge
+            } else {
+                // Unlocked (Auto)
+                input.classList.add('bg-blue-50', 'text-blue-800');
+                input.classList.remove('bg-white', 'font-bold', 'text-gray-900');
+                iconOpen.classList.remove('hidden');
+                iconClosed.classList.add('hidden');
+                btn.classList.remove('text-gray-600');
+                badge.style.opacity = '1'; // Show AUTO badge
+            }
+        }
+    }
+
+    // --- CORE LOGIC ---
+
+    function getSelectedAccounts() {
+        return Array.from(document.querySelectorAll('.account-checkbox:checked')).map(cb => cb.value);
+    }
+
+    function calculateDistribution() {
+        const selectedIds = getSelectedAccounts();
         
-        const clutchEngaged = document.getElementById('clutch_toggle').checked;
-        if (!clutchEngaged) return; // Engine is disconnected
+        // 1. Calculate Locked Sum
+        let lockedSum = 0;
+        let activeLockedCount = 0;
+        
+        selectedIds.forEach(id => {
+            if (lockedAccountIds.has(id)) {
+                const val = parseInt(document.getElementById(`lead_input_${id}`).value) || 0;
+                lockedSum += val;
+                activeLockedCount++;
+            }
+        });
 
-        isUpdating = true;
+        // 2. Determine Pool for Auto-Distribution
+        const remainingPool = TOTAL_LEADS - lockedSum;
+        
+        // 3. Identify Auto (Unlocked) Accounts
+        const autoAccountIds = selectedIds.filter(id => !lockedAccountIds.has(id));
+        const autoCount = autoAccountIds.length;
 
-        const activeCbs = Array.from(document.querySelectorAll('.account-checkbox:checked'));
-        if (activeCbs.length === 0) {
-            isUpdating = false;
+        // --- ERROR / WARNING HANDLING ---
+
+        if (selectedIds.length === 0) {
+            setStatus('warning', 'Please select at least one email account.');
             return;
         }
 
-        let totalToDistribute = TOTAL_LEADS;
-        let bucketsToFill = activeCbs;
-
-        // If a user manually adjusted a box while Auto is ON, lock that value and split the rest
-        if (excludeId) {
-            const changedInput = document.getElementById('lead_input_' + excludeId);
-            let val = Math.min(Math.max(0, parseInt(changedInput.value) || 0), TOTAL_LEADS);
-            changedInput.value = val;
-            
-            totalToDistribute -= val;
-            bucketsToFill = activeCbs.filter(cb => cb.value !== excludeId);
+        if (remainingPool < 0) {
+            setStatus('error', `Over-allocated! You have assigned ${lockedSum} leads, but only have ${TOTAL_LEADS}. Unlock an account or reduce values.`);
+            // Set all auto accounts to 0 to prevent confusion
+            autoAccountIds.forEach(id => {
+                document.getElementById(`lead_input_${id}`).value = 0;
+                updateRowUI(id, true, false);
+            });
+            return;
         }
 
-        const values = getDistribution(Math.max(0, totalToDistribute), bucketsToFill.length);
+        if (autoCount === 0 && remainingPool > 0) {
+            setStatus('warning', `Allocated ${lockedSum}/${TOTAL_LEADS}. ${remainingPool} leads unassigned. Please unlock an account to absorb them.`);
+            return;
+        }
 
-        bucketsToFill.forEach((cb, i) => {
-            const input = document.getElementById('lead_input_' + cb.value);
-            input.value = values[i];
+        if (autoCount === 0 && remainingPool === 0) {
+            setStatus('success', `Perfectly allocated ${TOTAL_LEADS} leads manually.`);
+            return;
+        }
+
+        // --- DISTRIBUTION ---
+
+        // Distribute integers
+        const base = Math.floor(remainingPool / autoCount);
+        let remainder = remainingPool % autoCount;
+
+        autoAccountIds.forEach(id => {
+            let val = base;
+            if (remainder > 0) {
+                val += 1;
+                remainder--;
+            }
+            
+            document.getElementById(`lead_input_${id}`).value = val;
+            
+            // Visual update ensures correct colors (Auto vs Locked)
+            updateRowUI(id, true, false);
         });
 
-        isUpdating = false;
+        // Update Locked Rows UI (just to ensure colors are right)
+        selectedIds.forEach(id => {
+            if (lockedAccountIds.has(id)) {
+                updateRowUI(id, true, true);
+            }
+        });
+
+        setStatus('auto', `Auto-distributing ${remainingPool} leads across ${autoCount} accounts.`);
+    }
+
+
+    // --- EVENT HANDLERS ---
+
+    /**
+     * Triggered when a checkbox is toggled.
+     * If unchecked: Remove from locked set, clear value.
+     * If checked: Add to calculation (default Unlocked/Auto).
+     */
+    function handleCheckboxChange(accountId) {
+        const cb = document.getElementById(`checkbox_${accountId}`);
+        if (!cb.checked) {
+            lockedAccountIds.delete(accountId); // Forget lock if disabled
+        }
+        // Force update of this specific row's UI state immediately
+        updateRowUI(accountId, cb.checked, false);
+        
+        calculateDistribution();
     }
 
     /**
-     * Mechanic: Physically locks/unlocks inputs and resets values.
+     * Triggered when Master "Select All" is clicked.
      */
-    function updateInputLockState(accountId, isChecked) {
-        const input = document.getElementById('lead_input_' + accountId);
-        if (isChecked) {
-            input.disabled = false;
-            input.classList.remove('bg-gray-100', 'text-gray-400', 'cursor-not-allowed');
-            input.classList.add('bg-primary', 'text-primary'); // Assumes these classes exist in your Tailwind config
-        } else {
-            input.disabled = true;
-            input.value = 0;
-            input.classList.add('bg-gray-100', 'text-gray-400', 'cursor-not-allowed');
-            input.classList.remove('bg-primary', 'text-primary');
-        }
-    }
-
-    // Handles the "Select All / Auto-Distribute" toggle
-    function toggleClutch(master) {
-        const checkboxes = document.querySelectorAll('.account-checkbox');
-        checkboxes.forEach(cb => {
-            cb.checked = master.checked;
-            updateInputLockState(cb.value, cb.checked);
+    function toggleAllAccounts(masterCb) {
+        const allCbs = document.querySelectorAll('.account-checkbox');
+        allCbs.forEach(cb => {
+            cb.checked = masterCb.checked;
+            if (!cb.checked) {
+                lockedAccountIds.delete(cb.value);
+            }
+            // Reset visuals
+            updateRowUI(cb.value, cb.checked, false); 
         });
         
-        if (master.checked) {
-            runDistribution();
+        // If checking all, we can optionally clear all locks to give a fresh "All Auto" start
+        // or preserve locks. For "Select All", a fresh start usually feels better.
+        if (masterCb.checked) {
+            lockedAccountIds.clear();
         }
+
+        calculateDistribution();
     }
 
-    // Handles individual checkbox clicks
-    function handleAccountToggle(accountId) {
-        const cb = document.getElementById('checkbox_' + accountId);
-        updateInputLockState(accountId, cb.checked);
-        runDistribution();
+    /**
+     * Triggered when user Types in an input box.
+     * Action: Locks this specific account and redistributes the rest.
+     */
+    function handleUserTyping(accountId) {
+        // 1. Mark as locked
+        lockedAccountIds.add(accountId);
+        
+        // 2. Visually update this row to show it's locked
+        updateRowUI(accountId, true, true);
+
+        // 3. Run math for everyone else
+        calculateDistribution();
     }
 
-    // Handles typing in the box
-    function handleManualEntry(accountId) {
-        runDistribution(accountId);
+    /**
+     * Triggered when the Lock/Unlock Icon is clicked.
+     * Toggle the lock state.
+     */
+    function toggleLock(accountId) {
+        const input = document.getElementById(`lead_input_${accountId}`);
+        
+        if (lockedAccountIds.has(accountId)) {
+            // UNLOCK ACTION: User wants this field to go back to Auto
+            lockedAccountIds.delete(accountId);
+            // Visuals handled by calculateDistribution -> updateRowUI
+        } else {
+            // LOCK ACTION: User wants to freeze current value
+            // (Though usually they'd type to lock, clicking the lock icon can also freeze current value)
+            lockedAccountIds.add(accountId);
+        }
+        
+        calculateDistribution();
     }
+
+    // Initialize on load (in case of browser refresh keeping checkboxes checked)
+    document.addEventListener('DOMContentLoaded', () => {
+        const selected = getSelectedAccounts();
+        selected.forEach(id => {
+            // Assume unlocked on load unless we want to persist state (complex)
+            updateRowUI(id, true, false); 
+        });
+        if(selected.length > 0) calculateDistribution();
+    });
+
   </script>
 
 {% endblock %}
