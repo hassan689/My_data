@@ -49,7 +49,6 @@ def campaign(request, email_account_id):
     template_formset = TemplateFormSet(queryset=CampaignTemplate.objects.none(), prefix='templates')
 
     if request.method == 'POST':
-        is_ajax = request.headers.get('x-requested-with') == 'XMLHttpRequest'
         post_data = request.POST.copy()
         files_data = request.FILES
 
@@ -119,8 +118,6 @@ def campaign(request, email_account_id):
             if not leads:
                 message = "❌ No valid leads found."
                 messages.error(request, message)
-                if is_ajax:
-                    return JsonResponse({'success': False, 'message': message}, status=400)
                 return redirect('dashboard:index')
 
             # Remove duplicate emails
@@ -188,31 +185,15 @@ def campaign(request, email_account_id):
                         
                         success_message = f"✅ Success! Emails are being sent for {email_account.email_address}."
 
-                if is_ajax:
-                    return JsonResponse({
-                        'success': True,
-                        'message': success_message,
-                        'redirect_url': str(redirect('dashboard:index').url),
-                        'debug': debug_info
-                    })
-
                 messages.success(request, success_message)
                 return redirect('dashboard:index')
 
             except Exception as e:
                 print(f"Error creating campaign: {e}")
-                if is_ajax:
-                    return JsonResponse({'success': False, 'message': f"Error: {str(e)}"}, status=500)
                 messages.error(request, "An error occurred while creating the campaign.")
 
         # Invalid form
         print("🛑 Form is invalid:", form.errors, template_formset.errors)
-        if is_ajax:
-            return JsonResponse({
-                'success': False,
-                'message': "Form is invalid.",
-                'errors': {**form.errors, **template_formset.errors}
-            }, status=400)
         return redirect('dashboard:index')
 
     return render(request, 'dashboard/campaign.html', {
