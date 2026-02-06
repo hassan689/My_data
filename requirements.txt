@@ -20,3 +20,4 @@ google-auth-httplib2==0.2.0
 google-auth-oauthlib==1.2.2
 beautifulsoup4==4.14.2
 dnspython==2.8.0
+thefuzz==0.22.1

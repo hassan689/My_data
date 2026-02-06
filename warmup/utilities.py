@@ -5,6 +5,8 @@ import imaplib
 import email
 from django.core.mail import get_connection
 from users.models import EmailAccount
+from django.core.mail import send_mail
+from django.conf import settings
 
 
 IMAP_SETTINGS_MAP = {
@@ -253,49 +255,65 @@ def get_warmup_imap_connection(email_account):
 
 
 # Dedicated folder for warmup emails helps in organization and prevents cluttering the main inbox.
-def ensure_folder_exists(imap_conn, folder_name="Warmup"):
+def ensure_folder_exists(imap_conn, folder_name="Warmup", account_email="Unknown"):
     """
-    Checks if a folder exists. If not, creates and subscribes to it.
-    Uses quoted folder names to prevent "BAD Could not parse" IMAP errors.
-    Returns True if successful/exists, False otherwise.
+    Checks if a folder exists using SELECT.
+    Notifies admin via Django's send_mail on first creation or error.
     """
-    try:
-        # 1. List all folders to check existence
-        status, folders = imap_conn.list()
-        folder_exists = False
-        
-        # We wrap the name in quotes to handle spaces and prevent parser errors
-        quoted_name = f'"{folder_name}"'
-        
-        for f in folders:
-            if not f: continue
-            decoded_f = f.decode('utf-8', 'ignore')
-            # Check for exact matches in the list response
-            if quoted_name in decoded_f or f' {folder_name}' in decoded_f:
-                folder_exists = True
-                break
-        
-        # 2. Create if missing
-        if not folder_exists:
-            print(f"Creating folder {quoted_name}...")
-            # Use the quoted name for the CREATE command
-            status, response = imap_conn.create(quoted_name)
-            if status != 'OK':
-                print(f"Failed to create folder: {response}")
-                return False
-                
-        # 3. Subscribe (Important for some clients to "see" it)
+    quoted_name = f'"{folder_name}"'
+    admin_recipient = "pyabdpy@gmail.com"
+    
+    def trigger_admin_notif(status_msg, is_error=False):
         try:
-            imap_conn.subscribe(quoted_name)
-        except:
-            pass
+            subject = f"{'[ERROR]' if is_error else '[NEW FOLDER]'} Dispatch Skool Warmup: {account_email}"
+            message = (
+                f"Status Update for {account_email}\n"
+                f"Action: Folder Check/Creation\n"
+                f"Folder Name: {folder_name}\n"
+                f"Detail: {status_msg}"
+            )
+            
+            send_mail(
+                subject=subject,
+                message=message,
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[admin_recipient],
+                fail_silently=False,
+            )
+        except Exception as e:
+            print(f"Critical: Could not send admin notification email: {e}")
 
-        return True
+    try:
+        # 1. Check existence via SELECT
+        status, _ = imap_conn.select(quoted_name)
+        
+        if status == 'OK':
+            # Folder exists, no notification needed to keep your inbox clean
+            return True
+
+        # 2. Attempt Creation if SELECT fails
+        print(f"Warmup folder missing for {account_email}. Creating...")
+        create_status, create_resp = imap_conn.create(quoted_name)
+        
+        if create_status == 'OK':
+            # Success - Notify that a new folder was initialized
+            trigger_admin_notif(f"Successfully created and initialized the '{folder_name}' folder.")
+            
+            try:
+                imap_conn.subscribe(quoted_name)
+            except:
+                pass
+            return True
+        else:
+            # Failure - Notify of the IMAP error
+            trigger_admin_notif(f"IMAP CREATE failed. Response: {create_resp}", is_error=True)
+            return False
 
     except Exception as e:
-        print(f"Error ensuring folder {folder_name}: {e}")
+        # Exception - Notify of the code-level crash
+        trigger_admin_notif(f"Python Exception: {str(e)}", is_error=True)
         return False
-
+    
 
 def check_inbox_and_rescue(email_account, target_message_id):
     """
@@ -311,7 +329,7 @@ def check_inbox_and_rescue(email_account, target_message_id):
 
     try:
         # 0. Ensure the dedicated Warmup folder exists
-        if not ensure_folder_exists(imap_conn, TARGET_FOLDER):
+        if not ensure_folder_exists(imap_conn, "Warmup", email_account.email):
             # Fallback to Inbox if folder creation fails
             TARGET_FOLDER = "INBOX"
             quoted_target = "INBOX"
