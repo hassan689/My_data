@@ -14,6 +14,9 @@ from celery.exceptions import SoftTimeLimitExceeded
 from .utilities import *
 from email.utils import make_msgid
 import uuid
+import requests
+from django.db.models import Q
+from .utilities import process_audit_results, generate_spintax_body, generate_spintax_subject
 
 
 @app.task(name="warmup.tasks.send_warmup_step", soft_time_limit=600, time_limit=700)
@@ -105,14 +108,20 @@ def send_warmup_step(campaign_id, step_number):
                         if not subject_raw.lower().startswith("re:"):
                             personalized_subject = f"Re: {subject_raw}"
                         else:
-                            personalized_subject = subject_raw
+                            personalized_subject = generate_spintax_subject(
+                                recipient_first_name=recipient_account.user.first_name,
+                                sender_company_name=getattr(sender_account.user, "company_name", "Dispatch Skool")
+                            )
                         
                         # Generate body and append quote
-                        fresh_body = generate_gibberish_body(recipient_account.user.first_name, getattr(sender_account.user, "company_name", "ABC Transports LLC"))
+                        fresh_body = generate_spintax_body(recipient_account.user.first_name, getattr(recipient_account.user, "company_name", "ABC Transports LLC"))
                         personalized_body = f"{fresh_body}\n\nOn {last_msg.sent_at.strftime('%a, %b %d, %Y')}, {recipient_account.email_address} wrote:\n> {quoted_body.replace(chr(10), chr(10)+'> ')}"
                     else:
-                        personalized_subject = generate_gibberish_subject()
-                        personalized_body = generate_gibberish_body(recipient_account.user.first_name, getattr(sender_account.user, "company_name", "ABC Transports LLC"))
+                        personalized_subject = generate_spintax_subject(
+                            recipient_first_name=recipient_account.user.first_name,
+                            sender_company_name=getattr(sender_account.user, "company_name", "ABC Transports")
+                        )
+                        personalized_body = generate_spintax_body(recipient_account.user.first_name, getattr(recipient_account.user, "company_name", "ABC Transports LLC"))
 
                     # --- SENDING ---
                     main_msg = EmailMultiAlternatives(
@@ -203,8 +212,11 @@ def send_warmup_step(campaign_id, step_number):
 
                 elif "codec can't encode character" in str(e): 
                     # Simplify fallback for encoding errors (non-threaded)
-                    personalized_subject = generate_gibberish_subject()
-                    personalized_body = generate_gibberish_body(recipient_account.user.first_name, getattr(sender_account.user, "company_name", "ABC Transports LLC"))
+                    personalized_subject = generate_spintax_subject(
+                        recipient_first_name=recipient_account.user.first_name,
+                        sender_company_name=getattr(sender_account.user, "company_name", "ABC Transports")
+                    )
+                    personalized_body = generate_spintax_body(recipient_account.user.first_name, getattr(sender_account.user, "company_name", "ABC Transports LLC"))
                     main_msg = EmailMultiAlternatives(subject=personalized_subject, body=personalized_body, from_email=sender_account.email_address, to=[recipient_account.email_address], connection=connection)
                     main_msg.encoding = 'utf-8'
                     try:
@@ -319,13 +331,19 @@ def send_warmup_step(campaign_id, step_number):
                         if not subject_raw.lower().startswith("re:"):
                             personalized_subject = f"Re: {subject_raw}"
                         else:
-                            personalized_subject = subject_raw
+                            personalized_subject = generate_spintax_subject(
+                                recipient_first_name=recipient_account.user.first_name,
+                                sender_company_name=getattr(sender_account.user, "company_name", "Dispatch Skool")
+                            )
                         
-                        fresh_body = generate_gibberish_body(recipient_account.user.first_name, getattr(sender_account.user, "company_name", "ABC Transports LLC"))
+                        fresh_body = generate_spintax_body(recipient_account.user.first_name, getattr(recipient_account.user, "company_name", "ABC Transports LLC"))
                         personalized_body = f"{fresh_body}\n\nOn {last_msg.sent_at.strftime('%a, %b %d, %Y')}, {recipient_account.email_address} wrote:\n> {quoted_body.replace(chr(10), chr(10)+'> ')}"
                     else:
-                        personalized_subject = generate_gibberish_subject()
-                        personalized_body = generate_gibberish_body(recipient_account.user.first_name, getattr(sender_account.user, "company_name", "ABC Transports LLC"))
+                        personalized_subject = generate_spintax_subject(
+                            recipient_first_name=recipient_account.user.first_name,
+                            sender_company_name=getattr(sender_account.user, "company_name", "ABC Transports")
+                        )
+                        personalized_body = generate_spintax_body(recipient_account.user.first_name, getattr(recipient_account.user, "company_name", "ABC Transports LLC"))
                     
                     # --- SENDING ---
                     main_msg = EmailMultiAlternatives(
@@ -465,7 +483,7 @@ def process_warmup_convo_beats():
     campaigns_to_process = WarmupCampaign.objects.filter(
         status='Active',
         next_action_at__lte=now_utc
-    ).select_related('sender_account', 'template_set')  # Optimize the query
+    )
 
     if not campaigns_to_process.exists():
         print("No warmup campaigns found to process.")
@@ -491,4 +509,106 @@ def clear_old_warmup_messages():
     cutoff_date = timezone.now() - timedelta(days=7)
     WarmupMessage.objects.filter(sent_at__lt=cutoff_date).delete()
 
+
+# A robust Celery task using your Mails.so API to proactively blacklist bad accounts.
+
+AUDIT_API_SUBMIT_URL = 'https://api.mails.so/v1/batch'
+AUDIT_CHUNK_SIZE = 500
+AUDIT_POLL_INTERVAL = 60
+AUDIT_HARD_DEADLINE = 300
+
+
+@app.task(name="warmup.tasks.audit_warmup_targets")
+def audit_warmup_targets():
+    """
+    Beat Task: Runs periodically (e.g., 4 times a day).
+    Identifies all 'active' email accounts currently enabled for warmup
+    and dispatches them to Mails.so to verify deliverability.
+    """
+    # Filter: Accounts that are marked for warmup, not yet blacklisted,
+    # belonging to users who have an Active Subscription OR are on a Free Trial.
+    candidates = EmailAccount.objects.filter(
+        Q(user__subscription__status='active') | Q(user__on_free_trial=True),
+        is_warmup_target=True,
+        black_list=False
+    ).distinct().values_list('email_address', flat=True)
+
+    candidate_list = list(candidates)
+    
+    if not candidate_list:
+        print("No warmup candidates found to audit.")
+        return
+
+    print(f"Auditing {len(candidate_list)} warmup accounts via Mails.so...")
+
+    # Chunking
+    for i in range(0, len(candidate_list), AUDIT_CHUNK_SIZE):
+        chunk = candidate_list[i:i + AUDIT_CHUNK_SIZE]
+        # Dispatch worker task for this chunk
+        verify_warmup_batch.delay(chunk, time.time())
+
+
+@app.task(bind=True, max_retries=10, name="warmup.tasks.verify_warmup_batch")
+def verify_warmup_batch(self, email_list, start_time, job_id=None, processed_map=None):
+    """
+    Worker Task: Submits a chunk of emails to Mails.so, polls for results,
+    and updates the EmailAccount model directly.
+    """
+    elapsed = time.time() - start_time
+    processed_map = processed_map or {}
+    API_KEY = getattr(settings, 'MAILS_SO_API_KEY', '')
+    headers = {'Content-Type': 'application/json', 'x-mails-api-key': API_KEY}
+
+    # 1. HARD STOP
+    if elapsed >= AUDIT_HARD_DEADLINE:
+        print(f"Audit batch timed out. Processed {len(processed_map)}/{len(email_list)}")
+        process_audit_results(processed_map)
+        return
+
+    # 2. SUBMISSION PHASE
+    if not job_id:
+        pending_emails = [
+            e.strip().lower() for e in email_list 
+            if e.strip().lower() not in processed_map
+        ]
+        
+        if not pending_emails:
+            process_audit_results(processed_map)
+            return
+
+        try:
+            resp = requests.post(AUDIT_API_SUBMIT_URL, headers=headers, json={'emails': pending_emails}, timeout=30)
+            if resp.status_code in (200, 201, 202):
+                job_id = resp.json().get('id')
+            else:
+                raise self.retry(countdown=AUDIT_POLL_INTERVAL, kwargs={'job_id': None, 'processed_map': processed_map})
+        except Exception as e:
+            print(f"API Submission Error: {e}")
+            raise self.retry(countdown=AUDIT_POLL_INTERVAL, kwargs={'job_id': None, 'processed_map': processed_map})
+
+    # 3. POLLING PHASE
+    try:
+        poll_resp = requests.get(f"{AUDIT_API_SUBMIT_URL}/{job_id}", headers=headers, timeout=30)
+        
+        if poll_resp.status_code == 200:
+            data = poll_resp.json()
+            
+            # Update local map
+            for r in data.get('emails', []):
+                email = str(r.get('email', '')).lower()
+                processed_map[email] = r
+
+            # Check completion
+            if data.get('status') == 'completed' and len(processed_map) >= len(email_list):
+                process_audit_results(processed_map)
+                return
+
+        # Soft Deadline Chase
+        if elapsed >= (AUDIT_HARD_DEADLINE - 120) and len(processed_map) < len(email_list):
+            job_id = None # Force resubmission of missing ones
+
+    except Exception:
+        pass 
+
+    raise self.retry(countdown=AUDIT_POLL_INTERVAL, kwargs={'job_id': job_id, 'processed_map': processed_map})
 

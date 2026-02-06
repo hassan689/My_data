@@ -9,17 +9,56 @@ import random
 
 
 def refresh_targets(campaign):
-
-    # Step 1: Get sender and its user
+    """
+    Refreshes the target list for a campaign.
+    Priority 1: 'Idle' accounts (Not currently a target in any ACTIVE campaign).
+    Priority 2: 'Busy' accounts (Already targeted, used as fill-in).
+    """
+    target_count = 5
     sender_account = campaign.sender_account
     sender_user = sender_account.user
 
-    # Step 2: Get all email account instances that are eligible for warmup, excluding sender
-    eligible_email_accounts = EmailAccount.objects.filter(black_list=False, is_warmup_target=True).exclude(user=sender_user)
+    # 1. Base Pool: Eligible accounts, excluding the sender's own user
+    # We exclude the sender_user entirely to prevent self-warming loops within one user account
+    base_qs = EmailAccount.objects.filter(
+        black_list=False, 
+        is_warmup_target=True
+    ).exclude(user=sender_user)
 
-    # Step 3: Randomly pick up to 5
-    selected_accounts = random.sample(list(eligible_email_accounts), min(5, eligible_email_accounts.count()))
+    # 2. Priority Pool: Find accounts that are NOT in any 'Active' campaign right now
+    # We use the related_name 'target_of_warmup_campaigns' to check status
+    idle_accounts_qs = base_qs.exclude(target_of_warmup_campaigns__status='Active')
+    idle_accounts = list(idle_accounts_qs)
 
+    selected_accounts = []
+
+    # 3. Selection Logic
+    if len(idle_accounts) >= target_count:
+        # Ideal: We have enough idle accounts to fill the slots
+        selected_accounts = random.sample(idle_accounts, target_count)
+    else:
+        # Scarcity: Take all idle accounts, then fill the remainder with busy ones
+        selected_accounts = idle_accounts[:] # Take them all
+        needed = target_count - len(selected_accounts)
+        
+        if needed > 0:
+            
+            # Get IDs of accounts we already selected to exclude them
+            selected_ids = [acc.id for acc in selected_accounts]
+            
+            busy_accounts_qs = base_qs.filter(
+                target_of_warmup_campaigns__status='Active'
+            ).exclude(id__in=selected_ids).distinct()
+            
+            busy_accounts = list(busy_accounts_qs)
+
+            # Fill the rest
+            if len(busy_accounts) >= needed:
+                selected_accounts.extend(random.sample(busy_accounts, needed))
+            else:
+                # If we still don't have enough, just take what exists
+                selected_accounts.extend(busy_accounts)
+    
     return selected_accounts
 
 
@@ -76,6 +115,7 @@ def start_warmup_view(request, email_account_id):
     except WarmupTemplateSet.DoesNotExist:
         messages.error(request, "Default warmup template set not found.")
         return redirect('dashboard:index')
+
 
 def stop_warmup_view(request, email_account_id):
     sender_account = get_object_or_404(EmailAccount, id=email_account_id)

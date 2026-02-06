@@ -16,83 +16,149 @@ IMAP_SETTINGS_MAP = {
     'namecheap': {'host': 'imap.privateemail.com', 'port': 993},
 }
 
-# A large list of common words to generate unique content on the fly.
-WORD_LIST = [
-    "hello", "hi", "hey", "greetings", "dear", "thanks", "appreciate",
-    "email", "message", "note", "reply", "response", "subject", "body",
-    "quick", "fast", "brief", "short", "long", "detailed", "insightful",
-    "question", "query", "inquiry", "thought", "idea", "opinion", "perspective",
-    "topic", "subject", "matter", "area", "field", "domain", "niche",
-    "conversation", "chat", "talk", "discussion", "dialogue", "correspondence",
-    "hope", "wish", "expect", "assume", "believe", "know", "think",
-    "good", "great", "nice", "excellent", "fine", "well", "okay",
-    "day", "week", "month", "year", "time", "moment", "while",
-    "you", "i", "we", "they", "he", "she", "it", "this", "that",
-    "connect", "reach", "get", "find", "link", "join", "meet",
-    "share", "provide", "give", "offer", "send", "receive", "exchange",
-    "business", "company", "project", "work", "task", "job", "role",
-    "account", "profile", "contact", "person", "individual", "professional",
-    "process", "strategy", "approach", "method", "procedure", "plan", "way",
-    "follow-up", "circling", "revisiting", "coming back to", "checking in on",
-    "something", "anything", "everything", "nothing",
-    "about", "regarding", "concerning", "on", "in", "with", "for",
-    "from", "to", "at", "by", "like", "as", "than", "so", "but",
-    "because", "since", "while", "when", "where", "what", "who", "which",
-    "and", "or", "nor", "but", "yet", "so", "for", "nor",
-    "can", "could", "will", "would", "should", "must", "might", "may",
-    "have", "has", "had", "is", "am", "are", "was", "were", "be",
-    "do", "did", "does", "done", "make", "made", "making", "take", "took",
-    "look", "see", "find", "get", "go", "went", "going", "come", "came",
-    "your", "my", "our", "their", "his", "her", "its",
-    "profile", "inbox", "link", "system", "platform", "software",
-    "wondering", "curious", "interested", "looking", "thinking", "focused",
-    "outreach", "note", "message", "touchpoint",
-    "how", "what", "where", "when", "why", "who",
-    "specific", "particular", "certain", "exact", "distinct",
-    "details", "information", "data", "facts", "figures",
-    "best", "better", "greatest", "most", "least", "worst",
-    "way", "method", "manner", "fashion", "style",
-    "new", "old", "recent", "past", "future", "current",
-    "another", "other", "different", "similar",
-    "final", "last", "concluding", "ending", "ultimate",
-    "a", "an", "the", "some", "any", "no", "all",
-]
+# A professional master template with placeholders for injection
+WARMUP_SPINTAX_TEMPLATE = """
+{Hi|Hello|Hey} {recipient_name},
 
-def generate_gibberish_subject():
-    """Generates a random, gibberish subject line."""
-    subject_words = random.sample(WORD_LIST, random.randint(3, 6))
-    return " ".join([word.capitalize() for word in subject_words])
+{I hope this email finds you well.|I hope you are having a {great|productive} week.|Trust you're doing well.}
 
-def generate_gibberish_body(recipient_first_name, sender_company_name):
-    """Generates a random, gibberish body paragraph."""
-    sentences = []
-    num_sentences = random.randint(2, 4)
-    for _ in range(num_sentences):
-        sentence_words = random.sample(WORD_LIST, random.randint(4, 10))
-        # Ensure a capital letter at the start and a period at the end
-        sentence = " ".join(sentence_words).capitalize() + "."
-        sentences.append(sentence)
+{I wanted to|Just wanted to} {reach out|connect|touch base} {briefly|quickly} regarding {our previous discussion|a potential partnership|some updates on our end|the business landscape}. {We have been|My team has been} {working on|reviewing} {some new strategies|internal processes|the latest market trends} and {I thought|I figured} it might be {relevant|of interest|useful} to {you|your team}.
 
-    # Inject personalization in a random sentence
-    personalization_phrase = f"Hello {recipient_first_name}, I saw your company {sender_company_name} was doing well."
-    sentences.insert(random.randint(0, len(sentences)), personalization_phrase)
+{Are you available|Do you have time} for a {quick|brief} {call|chat|discussion} {sometime soon|this week|next week}? {I'd love to|It would be great to} {hear your thoughts|get your input|catch up}.
+
+{Best|Regards|Cheers|Talk soon},
+{sender_company} Team
+"""
+
+WARMUP_SUBJECT_TEMPLATE = "{" \
+                          "{Quick|Brief} {question|inquiry|query} for {you|{recipient_name}}" \
+                          "|{Connecting|Touching base|Checking in} regarding {business|{sender_company}|potential partnership}" \
+                          "|{Thoughts|Feedback} on {this|latest updates|our proposal}?" \
+                          "|{Meeting|Call} {request|invitation}: {Next week|This week}?" \
+                          "|{Important|Update}: {Regarding your account|Project details|Next steps}" \
+                          "|{Hello|Hi} {recipient_name}, {quick question|got a minute?}" \
+                          "}"
+
+def spin_text(text):
+    """
+    Parses Spintax format: {Option A|Option B|Option C}
+    Supports nested spintax: {Hi|Hello {friend|colleague}}
+    """
+    # Regex to find the innermost set of braces: { ... } containing no other { }
+    pattern = re.compile(r'\{([^{}]+)\}')
     
-    return " ".join(sentences)
+    while True:
+        match = pattern.search(text)
+        if not match:
+            break
+            
+        # The full match is "{A|B}". Group 1 is "A|B"
+        full_match = match.group(0)
+        content = match.group(1)
+        
+        choices = content.split('|')
+        selected = random.choice(choices)
+        
+        # Replace ONLY the first occurrence of this specific match
+        text = text.replace(full_match, selected, 1)
+        
+    return text
+
+
+def generate_spintax_body(recipient_first_name, sender_company_name):
+    """
+    Generates a coherent, unique email body using Spintax.
+    """
+    # 1. Get the master template
+    raw_text = WARMUP_SPINTAX_TEMPLATE
+    
+    # 2. Inject Variables BEFORE spinning (so they don't break the syntax)
+    # We use explicit replace or f-string logic
+    raw_text = raw_text.replace("{recipient_name}", recipient_first_name or "there")
+    raw_text = raw_text.replace("{sender_company}", sender_company_name or "Company")
+
+    # 3. Spin it
+    final_body = spin_text(raw_text)
+    
+    return final_body
+
+
+def generate_spintax_subject(recipient_first_name=None, sender_company_name=None):
+    """
+    Generates a realistic B2B subject line using Spintax.
+    """
+    raw_text = WARMUP_SUBJECT_TEMPLATE
+    
+    # Inject variables if they exist, otherwise fallback to generic terms
+    # using 'title()' for names looks more professional in subjects
+    r_name = recipient_first_name.title() if recipient_first_name else "there"
+    s_company = sender_company_name if sender_company_name else "our project"
+
+    # Clean injection
+    raw_text = raw_text.replace("{recipient_name}", r_name)
+    raw_text = raw_text.replace("{sender_company}", s_company)
+    
+    # Spin
+    return spin_text(raw_text)
+
+
 
 def refresh_targets(campaign):
-    
-    # Step 1: Get sender and its user
+    """
+    Refreshes the target list for a campaign.
+    Priority 1: 'Idle' accounts (Not currently a target in any ACTIVE campaign).
+    Priority 2: 'Busy' accounts (Already targeted, used as fill-in).
+    """
+    target_count = 5
     sender_account = campaign.sender_account
     sender_user = sender_account.user
 
-    # Step 2: Get all email account instances that are eligible for warmup, excluding sender
-    eligible_email_accounts = EmailAccount.objects.filter(black_list=False, is_warmup_target=True).exclude(user=sender_user)
+    # 1. Base Pool: Eligible accounts, excluding the sender's own user
+    # We exclude the sender_user entirely to prevent self-warming loops within one user's account
+    base_qs = EmailAccount.objects.filter(
+        black_list=False, 
+        is_warmup_target=True
+    ).exclude(user=sender_user)
 
-    # Step 3: Randomly pick up to 5
-    selected_accounts = random.sample(list(eligible_email_accounts), min(5, eligible_email_accounts.count()))
+    # 2. Priority Pool: Find accounts that are NOT in any 'Active' campaign right now
+    # We use the related_name 'target_of_warmup_campaigns' to check status
+    idle_accounts_qs = base_qs.exclude(target_of_warmup_campaigns__status='Active')
+    idle_accounts = list(idle_accounts_qs)
 
+    selected_accounts = []
+
+    # 3. Selection Logic
+    if len(idle_accounts) >= target_count:
+        # Ideal: We have enough idle accounts to fill the slots
+        selected_accounts = random.sample(idle_accounts, target_count)
+    else:
+        # Scarcity: Take all idle accounts, then fill the remainder with busy ones
+        selected_accounts = idle_accounts[:] # Take them all
+        needed = target_count - len(selected_accounts)
+        
+        if needed > 0:
+            
+            # Get IDs of accounts we already selected to exclude them
+            selected_ids = [acc.id for acc in selected_accounts]
+            
+            busy_accounts_qs = base_qs.filter(
+                target_of_warmup_campaigns__status='Active'
+            ).exclude(id__in=selected_ids).distinct()
+            
+            busy_accounts = list(busy_accounts_qs)
+
+            # Fill the rest
+            if len(busy_accounts) >= needed:
+                selected_accounts.extend(random.sample(busy_accounts, needed))
+            else:
+                # If we still don't have enough, just take what exists
+                selected_accounts.extend(busy_accounts)
+
+    # 4. Save and Return
     if selected_accounts:
         campaign.target_accounts.set(selected_accounts)
+    
+    return selected_accounts
 
 
 def personalize_template(template, lead):
@@ -186,101 +252,216 @@ def get_warmup_imap_connection(email_account):
         return None
 
 
+# Dedicated folder for warmup emails helps in organization and prevents cluttering the main inbox.
+def ensure_folder_exists(imap_conn, folder_name="Warmup"):
+    """
+    Checks if a folder exists. If not, creates and subscribes to it.
+    Uses quoted folder names to prevent "BAD Could not parse" IMAP errors.
+    Returns True if successful/exists, False otherwise.
+    """
+    try:
+        # 1. List all folders to check existence
+        status, folders = imap_conn.list()
+        folder_exists = False
+        
+        # We wrap the name in quotes to handle spaces and prevent parser errors
+        quoted_name = f'"{folder_name}"'
+        
+        for f in folders:
+            if not f: continue
+            decoded_f = f.decode('utf-8', 'ignore')
+            # Check for exact matches in the list response
+            if quoted_name in decoded_f or f' {folder_name}' in decoded_f:
+                folder_exists = True
+                break
+        
+        # 2. Create if missing
+        if not folder_exists:
+            print(f"Creating folder {quoted_name}...")
+            # Use the quoted name for the CREATE command
+            status, response = imap_conn.create(quoted_name)
+            if status != 'OK':
+                print(f"Failed to create folder: {response}")
+                return False
+                
+        # 3. Subscribe (Important for some clients to "see" it)
+        try:
+            imap_conn.subscribe(quoted_name)
+        except:
+            pass
+
+        return True
+
+    except Exception as e:
+        print(f"Error ensuring folder {folder_name}: {e}")
+        return False
+
+
 def check_inbox_and_rescue(email_account, target_message_id):
     """
-    1. Connects via IMAP.
-    2. Searches INBOX for the target_message_id.
-    3. If not found, searches SPAM/JUNK folders.
-    4. If found in SPAM, moves it to INBOX.
-    5. Returns the email body (text) for quoting, or None if not found.
+    Finds a message by ID. Moves it to the 'Warmup' folder if found in Inbox or Spam.
+    Returns the message body.
     """
+    TARGET_FOLDER = "Warmup"
+    quoted_target = f'"{TARGET_FOLDER}"'
+    
     imap_conn = get_warmup_imap_connection(email_account)
     if not imap_conn:
         return None
 
     try:
-        # 1. Search INBOX
-        imap_conn.select("INBOX")
-        # Search for Header Message-ID (RFC 822)
+        # 0. Ensure the dedicated Warmup folder exists
+        if not ensure_folder_exists(imap_conn, TARGET_FOLDER):
+            # Fallback to Inbox if folder creation fails
+            TARGET_FOLDER = "INBOX"
+            quoted_target = "INBOX"
+
+        # 1. Search the target 'Warmup' folder first
+        imap_conn.select(quoted_target) 
         status, messages = imap_conn.search(None, f'(HEADER Message-ID "{target_message_id}")')
-        
         email_ids = messages[0].split()
         
-        # 2. If not in Inbox, search Spam
+        # 2. If not found, Search INBOX (Declutter logic)
         if not email_ids:
-            spam_folders = ["Spam", "Junk", "Junk Email", "[Gmail]/Spam", "Bulk"]
-            found_in_spam = False
+            imap_conn.select("INBOX")
+            status, messages = imap_conn.search(None, f'(HEADER Message-ID "{target_message_id}")')
+            inbox_ids = messages[0].split()
+            
+            if inbox_ids:
+                # Found in Inbox -> Move to Warmup
+                msg_num = inbox_ids[0]
+                copy_res = imap_conn.copy(msg_num, quoted_target)
+                
+                if copy_res[0] == 'OK':
+                    # Flag for deletion and purge from Inbox
+                    imap_conn.store(msg_num, '+FLAGS', '\\Deleted')
+                    imap_conn.expunge()
+                    
+                    # Switch to Warmup to fetch the content
+                    imap_conn.select(quoted_target)
+                    status, messages = imap_conn.search(None, f'(HEADER Message-ID "{target_message_id}")')
+                    email_ids = messages[0].split()
+
+        # 3. If still not found, Search common Spam folders (Rescue logic)
+        if not email_ids:
+            spam_folders = ["Spam", "Junk", "Junk Email", "[Gmail]/Spam", "Bulk", "Spambox"]
             
             for folder in spam_folders:
                 try:
-                    status, _ = imap_conn.select(folder)
-                    if status != 'OK':
-                        continue
+                    # Select folder, quoting only if it contains spaces
+                    folder_selector = f'"{folder}"' if " " in folder else folder
+                    status, _ = imap_conn.select(folder_selector)
+                    if status != 'OK': continue
                         
                     status, messages = imap_conn.search(None, f'(HEADER Message-ID "{target_message_id}")')
-                    email_ids = messages[0].split()
+                    spam_msg_ids = messages[0].split()
                     
-                    if email_ids:
-                        print(f"Found Message-ID {target_message_id} in {folder}. Moving to INBOX.")
-                        # Move to Inbox
-                        msg_num = email_ids[0]
-                        # Copy to Inbox
-                        copy_res = imap_conn.copy(msg_num, "INBOX")
+                    if spam_msg_ids:
+                        print(f"Rescue: Found {target_message_id} in {folder}. Moving to {TARGET_FOLDER}.")
+                        msg_num = spam_msg_ids[0]
+                        
+                        # Copy to Warmup folder
+                        copy_res = imap_conn.copy(msg_num, quoted_target)
+                        
                         if copy_res[0] == 'OK':
-                            # Mark as Deleted in Spam so it's effectively a "Move"
+                            # Force permanent removal from Spam
                             imap_conn.store(msg_num, '+FLAGS', '\\Deleted')
-                            imap_conn.expunge()
-                            found_in_spam = True
+                            imap_conn.expunge() 
                             
-                            # Switch back to Inbox to fetch the content
-                            imap_conn.select("INBOX")
-                            # Search again in Inbox to get the new ID
+                            # Final selection to retrieve ID from the Warmup folder
+                            imap_conn.select(quoted_target)
                             status, messages = imap_conn.search(None, f'(HEADER Message-ID "{target_message_id}")')
                             email_ids = messages[0].split()
                         break
-                except Exception as e:
+                except:
                     continue
             
-            if not email_ids:
-                return None # Truly lost
+        if not email_ids:
+            return None # Message not found in any folder
 
-        # 3. Fetch Content (for Quoting)
+        # 4. Fetch and Parse Content
         latest_email_id = email_ids[-1]
         status, msg_data = imap_conn.fetch(latest_email_id, "(RFC822)")
         
-        if status != 'OK' or not msg_data or not msg_data[0] or len(msg_data[0]) < 2:
+        if status != 'OK' or not msg_data or not msg_data[0]:
             return None
 
         raw_email = msg_data[0][1]
         msg = email.message_from_bytes(raw_email)
         
-        # Extract plain text body
         body_content = ""
         if msg.is_multipart():
             for part in msg.walk():
-                content_type = part.get_content_type()
-                content_disposition = part.get("Content-Disposition")
-                if content_type == "text/plain" and "attachment" not in str(content_disposition):
+                # Focus only on the plain text body, skipping attachments
+                if part.get_content_type() == "text/plain" and "attachment" not in str(part.get("Content-Disposition")):
                     try:
-                        body_content = part.get_payload(decode=True).decode()
+                        body_content = part.get_payload(decode=True).decode(errors='replace')
+                        break
                     except:
                         pass
-                    break # Found the text part
         else:
             try:
-                body_content = msg.get_payload(decode=True).decode()
+                body_content = msg.get_payload(decode=True).decode(errors='replace')
             except:
                 pass
 
         return body_content
 
     except Exception as e:
-        print(f"Error in check_inbox_and_rescue: {e}")
+        print(f"Error in rescue function: {e}")
         return None
     finally:
+        # Guarantee connection closure to keep provider happy
         try:
             imap_conn.close()
             imap_conn.logout()
         except:
             pass
+
+
+def process_audit_results(results_map):
+    """
+    Parses API results. If an account is 'undeliverable' or has a low score:
+    1. Mark it as blacklisted.
+    2. Stop its own campaigns.
+    3. Remove it from everyone else's target lists immediately.
+    """
+    blacklisted_count = 0
+    
+    for email, data in results_map.items():
+        status = str(data.get('status', '')).lower()
+        score = data.get('score', 0)
+        
+        # Strict Rule: Undeliverable OR Score <= 40
+        if status == 'undeliverable' or score <= 40:
+            try:
+                # Lock the row to prevent race conditions
+                account = EmailAccount.objects.select_related('user').get(email_address__iexact=email)
+                
+                if not account.black_list:
+                    print(f"Blacklisting {email} | Status: {status}, Score: {score}")
+                    
+                    # 1. Update Flags
+                    account.black_list = True
+                    account.is_warmup_target = False
+                    account.save(update_fields=['black_list', 'is_warmup_target'])
+                    
+                    # 2. Stop this account's OWN campaigns
+                    account.warmup_campaigns.filter(status='Active').update(status='Complete')
+
+                    # 3. Remove this account from OTHER campaigns
+                    target_campaigns = account.target_of_warmup_campaigns.all()
+                    
+                    if target_campaigns.exists():
+                        print(f"Removing {email} from {target_campaigns.count()} external campaigns.")
+                        for campaign in target_campaigns:
+                            campaign.target_accounts.remove(account)
+
+                    blacklisted_count += 1
+
+            except EmailAccount.DoesNotExist:
+                continue
+
+    if blacklisted_count > 0:
+        print(f"Audit Complete: Cleaned up {blacklisted_count} accounts.")
 
