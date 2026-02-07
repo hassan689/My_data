@@ -489,25 +489,40 @@
 
                         <div class="mt-4">
                             <label class="block text-sm font-medium text-secondary mb-1">Email Subject</label>
-                            {{ form.subject|add_class:"w-2/3 p-3 border focus:ring-gray-500 focus:border-gray-500 rounded-lg outline-none text-primary bg-primary" }}
+                            <div class="flex items-center gap-4">
+                                <div class="flex-grow">
+                                    {{ form.subject|add_class:"w-full p-3 border focus:ring-gray-500 focus:border-gray-500 rounded-lg outline-none text-primary bg-primary" }}
+                                </div>
+                                
+                                <div class="flex items-center shrink-0 relative group cursor-help">
+                                    {{ form.track_template }}
+                                    <label for="{{ form.track_template.id_for_label }}" class="select-none ms-2 text-sm font-medium text-secondary cursor-pointer">
+                                        Track Open rate
+                                    </label>
+
+                                    <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-64 p-2 bg-gray-800 text-white text-xs text-center rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-10">
+                                        Requires a verified Custom Tracking Domain in your Email Account or User Profile.
+                                        <div class="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-800"></div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
                         <div class="mt-4">
                             <div class="flex justify-between items-center mb-1">
                                 <div class="flex items-center gap-3">
                                     <label class="block text-sm font-medium text-secondary">Email Body</label>
-                                    <label class="inline-flex items-center cursor-pointer gap-3">
-                                      <input type="checkbox" class="sr-only peer editor-toggle" onchange="toggleEditor(this)">
-
-                                      <div class="relative w-11 h-6 bg-gray-700 rounded-full peer peer-checked:bg-blue-600 transition-colors duration-200">
-                                        <div class="absolute top-[2px] start-[2px] bg-white border-gray-300 border rounded-full h-5 w-5 transition-all duration-200 peer-checked:translate-x-full"></div>
-                                      </div>
-
-                                      <span class="text-xs font-medium text-secondary leading-none">
-                                        Switch to HTML Mode
-                                      </span>
-                                    </label>
-
+                                    <div class="flex items-center">
+                                        <input 
+                                            id="html_mode_{{ form.prefix }}" 
+                                            type="checkbox" 
+                                            class="w-4 h-4 text-blue-600 border-gray-600 rounded bg-gray-700 focus:ring-2 focus:ring-blue-500 editor-toggle" 
+                                            onchange="toggleEditor(this)"
+                                        >
+                                        <label for="html_mode_{{ form.prefix }}" class="select-none ms-2 text-xs font-medium text-secondary cursor-pointer">
+                                            Switch to HTML Mode
+                                        </label>
+                                    </div>
                                 </div>
                                 <button type="button" onclick="openPreview(this)" class="text-blue-500 hover:underline text-xs font-bold">👁️ Preview Step</button>
                             </div>
@@ -754,23 +769,41 @@
       {{ template_formset.empty_form.id }}
 
       <div class="mt-4">
-        <label class="block text-sm font-medium text-secondary mb-1">Email Subject</label>
-        {{ template_formset.empty_form.subject|add_class:"w-2/3 p-3 border focus:ring-gray-500 focus:border-gray-500 rounded-lg outline-none text-primary bg-primary" }}
+          <label class="block text-sm font-medium text-secondary mb-1">Email Subject</label>
+          <div class="flex items-center gap-4">
+              <div class="flex-grow">
+                  {{ template_formset.empty_form.subject|add_class:"w-full p-3 border focus:ring-gray-500 focus:border-gray-500 rounded-lg outline-none text-primary bg-primary" }}
+              </div>
+
+              <div class="flex items-center shrink-0 relative group cursor-help">
+                  {{ template_formset.empty_form.track_template }}
+                  <label for="{{ template_formset.empty_form.track_template.id_for_label }}" class="select-none ms-2 text-sm font-medium text-secondary cursor-pointer">
+                      Track Open Rate
+                  </label>
+
+                  <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-64 p-2 bg-gray-800 text-white text-xs text-center rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-10">
+                      Requires a verified Custom Tracking Domain in your Email Account or User Profile.
+                      <div class="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-800"></div>
+                  </div>
+              </div>
+          </div>
       </div>
 
       <div class="mt-4">
         <div class="flex justify-between items-center mb-1">
           <div class="flex items-center gap-3">
-            <label class="block text-sm font-medium text-secondary">Email Body</label>
-            <label class="inline-flex items-center cursor-pointer gap-3">
-              <input type="checkbox" class="sr-only peer editor-toggle" onchange="toggleEditor(this)">
-              <div class="relative w-11 h-6 bg-gray-700 rounded-full peer peer-checked:bg-blue-600 transition-colors duration-200">
-                <div class="absolute top-[2px] start-[2px] bg-white border-gray-300 border rounded-full h-5 w-5 transition-all duration-200 peer-checked:translate-x-full"></div>
+              <label class="block text-sm font-medium text-secondary">Email Body</label>
+              <div class="flex items-center">
+                  <input 
+                      id="html_mode___prefix__" 
+                      type="checkbox" 
+                      class="w-4 h-4 text-blue-600 border-gray-600 rounded bg-gray-700 focus:ring-2 focus:ring-blue-500 editor-toggle" 
+                      onchange="toggleEditor(this)"
+                  >
+                  <label for="html_mode___prefix__" class="select-none ms-2 text-xs font-medium text-secondary cursor-pointer">
+                      Switch to HTML Mode
+                  </label>
               </div>
-              <span class="text-xs font-medium text-secondary leading-none">
-                Switch to HTML Mode
-              </span>
-            </label>
           </div>
 
           <button type="button" onclick="openPreview(this)" class="text-blue-500 text-xs font-bold">
@@ -791,109 +824,6 @@
       </div>
     </div>
   </template>
-
-
-  <!-- <script>
-    
-    document.addEventListener('DOMContentLoaded', function () {
-      const addBtn = document.getElementById('add-template-btn');
-      const formsContainer = document.getElementById('template-forms-container');
-      const template = document.getElementById('empty-form-template');
-      
-      // Prefix must match the one used in your Django View (e.g., prefix='templates')
-      const totalFormsInput = document.querySelector('input[name="templates-TOTAL_FORMS"]');
-
-      if (!addBtn || !formsContainer || !template || !totalFormsInput) {
-          console.warn('Formset JS: Missing one or more required elements.');
-          return;
-      }
-
-      /**
-       * Updates the visible numbering (Template 1, Template 2, etc.)
-       */
-      function updateTemplateCounters() {
-          const visibleForms = formsContainer.querySelectorAll('.template-form:not([style*="display: none"])');
-          visibleForms.forEach((form, index) => {
-              const counter = form.querySelector('.template-counter');
-              if (counter) {
-                  counter.textContent = `Template ${index + 1}`;
-              }
-          });
-      }
-
-      /**
-       * Manually initializes CKEditor for a specific textarea.
-       * Django-CKEditor usually stores config in a global 'CKEDITOR_CONFIGS'.
-       */
-      function initCKEditorOnForm(formElement) {
-          const textareas = formElement.querySelectorAll('textarea');
-          textareas.forEach(textarea => {
-              // Ensure CKEDITOR exists and this specific ID isn't already initialized
-              if (window.CKEDITOR && !CKEDITOR.instances[textarea.id]) {
-                  // We use the 'default' config. If you have a custom one, 
-                  // change 'default' to your config name from settings.py.
-                  const config = window.CKEDITOR_CONFIGS ? window.CKEDITOR_CONFIGS['default'] : {};
-                  CKEDITOR.replace(textarea.id, config);
-              }
-          });
-      }
-
-      // --- 1. Add Template ---
-      addBtn.addEventListener('click', function() {
-          let currentFormCount = parseInt(totalFormsInput.value, 10);
-          let newFormHtml = template.innerHTML;
-
-          // Replace __prefix__ with the current index to ensure unique IDs
-          newFormHtml = newFormHtml.replace(/__prefix__/g, currentFormCount);
-
-          const newFormWrapper = document.createElement('div');
-          newFormWrapper.innerHTML = newFormHtml;
-          const newFormElement = newFormWrapper.firstElementChild;
-          
-          formsContainer.appendChild(newFormElement);
-
-          // Update management form count
-          totalFormsInput.value = currentFormCount + 1;
-          
-          // Initialize CKEditor on the new fields
-          initCKEditorOnForm(newFormElement);
-          
-          updateTemplateCounters();
-      });
-
-      // --- 2. Remove Template ---
-      formsContainer.addEventListener('click', function(e) {
-          // Check if the clicked element has the 'remove-template-btn' class
-          if (e.target && e.target.classList.contains('remove-template-btn')) {
-              e.preventDefault();
-
-              // Find the closest parent form wrapper (ensure this class exists on your div)
-              const formWrapper = e.target.closest('.template-form');
-              if (!formWrapper) return;
-
-              // 1. Handle Django deletion for existing records
-              const deleteCheckbox = formWrapper.querySelector('input[type="checkbox"][name$="-DELETE"]');
-              if (deleteCheckbox) {
-                  deleteCheckbox.checked = true;
-              }
-
-              // 2. Cleanup CKEditor to prevent JS errors on submit
-              const textarea = formWrapper.querySelector('textarea');
-              if (textarea && window.CKEDITOR && CKEDITOR.instances[textarea.id]) {
-                  CKEDITOR.instances[textarea.id].destroy();
-              }
-
-              // 3. Hide the element and update counters
-              formWrapper.style.display = 'none';
-              updateTemplateCounters();
-          }
-      });
-
-      // Initial run for any forms already on the page
-      updateTemplateCounters();
-  });
-
-  </script> -->
 
   
   <script>

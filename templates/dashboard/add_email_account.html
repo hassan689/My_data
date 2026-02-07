@@ -313,6 +313,7 @@
 		</div>
 	</div>
 
+  {% if email_account and email_account.id %}
   <script>
     function verifyDNS() {
         const btn = document.getElementById('verify-btn');
@@ -367,6 +368,7 @@
         });
     }
   </script>
+  {% endif %}
 
 	{% else %}
 

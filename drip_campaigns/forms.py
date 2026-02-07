@@ -19,8 +19,10 @@ class DripTemplateModelForm(forms.ModelForm):
     )
     track_template = forms.BooleanField(
         required=False,
-        label="Track Email Opens",
-        widget=forms.CheckboxInput()
+        label="Track Open Rate",
+        widget=forms.CheckboxInput(attrs={
+            'class': 'w-4 h-4 text-green-600 bg-gray-700 border-gray-600 rounded focus:ring-green-500 focus:ring-2'
+        })
     )
     class Meta:
         model = DripTemplate

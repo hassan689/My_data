@@ -36,33 +36,39 @@
       <table class="w-full min-w-[600px] border-collapse overflow-x-auto text-primary">
         <thead>
             <tr class="bg-secondary">
-                <th class="text-left p-3">Email Account</th>
                 <th class="text-left p-3">Subject Line</th>
                 <th class="text-left p-3">Launch Date & Time</th>
                 <th class="text-left p-3">Open Rate</th>
-                <th class="text-left p-3">Action</th>
             </tr>
         </thead>
-        <tbody>
-          {% for campaign in page_obj %}
-          <tr class="border-b bg-hover-light">
-              <td class="p-3">{{ campaign.sender_account.email_address }}</td>
-              <td class="p-3">{{ campaign.subject }}</td>
-              <td class="p-3">{{ campaign.launch_time }}</td>
-              <td class="p-3">{{ campaign.open_rate }}/{{ campaign.total_recipients }}</td>
-              <td class="p-3">
-                  <a href="{% url 'dashboard:delete_campaign' campaign.id %}" 
-                    class="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 text-center">
-                    Delete
-                  </a>
-              </td>
-          </tr>
-          {% endfor %}
-        </tbody>
+        <tbody class="divide-y divide-secondary">
+            {% for item in page_obj %}
+                <tr class="hover:bg-secondary/50 transition-colors">
+                    <td class="p-3">
+                        <span class="text-[10px] uppercase font-bold {% if item.record_type == 'Bulk' %}text-blue-500{% else %}text-purple-500{% endif %}">
+                            {{ item.record_type }}{% if item.record_type == 'Drip' %} - Step {{ item.step_number }}{% endif %}
+                        </span>
+                        <div class="text-primary font-medium">{{ item.subject|default:"(No Subject)"|truncatechars:50 }}</div>
+                    </td>
 
+                    <td class="p-3 text-secondary text-sm">
+                        {% if item.record_type == 'Bulk' %}
+                            {{ item.campaigns.first.launch_time|date:"M d, Y | H:i" }}
+                        {% else %}
+                            {{ item.campaign.created_at|date:"M d, Y | H:i" }}
+                        {% endif %}
+                    </td>
+
+                    <td class="p-3">
+                        <span class="text-green-400 font-bold text-lg">{{ item.open_rate }}</span>
+                        <span class="text-[10px] text-secondary uppercase">Opens</span>
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
         <tfoot>
           <tr class="border-t bg-secondary">
-              <td colspan="5" class="p-3 text-secondary font-bold">Total Campaign Records: {{ page_obj|length }}</td>
+              <td colspan="3" class="p-3 text-secondary font-bold">Total Campaign Records: {{ page_obj|length }}</td>
           </tr>
         </tfoot>
       </table>

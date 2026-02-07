@@ -156,9 +156,10 @@ def send_single_email(self, campaign_record_id):
         # If verified, we sanitize relative links against their domain
         sanitization_domain = f"https://{msg_id_domain}" 
         personalized_body = sanitize_email_html(personalized_body, sanitization_domain)
+        should_track = template_obj.track_template or campaign.track_campaign
 
         # Only add pixel if campaign tracks AND user has a verified domain
-        if campaign.track_campaign and tracking_domain:
+        if should_track and tracking_domain:
             unique_id = uuid.uuid4()
             pixel_url = reverse('dashboard:track_open', kwargs={'unique_identifier': unique_id})
             pixel_link = urljoin(f"https://{tracking_domain}", pixel_url)
@@ -497,6 +498,7 @@ def send_emails_batch(self, campaign_record_id, batch_size=10):
 
                 personalized_subject = personalize_template(template_obj.subject, lead)
                 personalized_body = personalize_template(template_obj.body, lead)
+                should_track = template_obj.track_template or campaign.track_campaign
                 
                 # NEW: Dynamic Message-ID Domain ---
                 # If user has a verified domain, use it. Otherwise, fallback to system domain.
@@ -511,7 +513,7 @@ def send_emails_batch(self, campaign_record_id, batch_size=10):
                 personalized_body = sanitize_email_html(personalized_body, sanitization_domain)
                 
                 # Add tracking pixel if enabled
-                if campaign_for_loop.track_campaign and tracking_domain:
+                if should_track and tracking_domain:
                     unique_id = uuid.uuid4()
                     pixel_url = reverse('dashboard:track_open', kwargs={'unique_identifier': unique_id})
                     pixel_link = urljoin(f"https://{tracking_domain}", pixel_url)

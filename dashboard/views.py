@@ -7,13 +7,13 @@ from django.core.paginator import Paginator
 from users.models import EmailAccount, AccountGroup
 from leads_data.models import DailySheet
 from .models import GmailToken, CampaignRecord, EmailOpen, VerificationBatch, VerificationUsage, CampaignTemplate
-from drip_campaigns.models import EmailAccountAndLeads
+from drip_campaigns.models import DripTemplate, EmailAccountAndLeads
 from warmup.models import WarmupCampaign
 from drip_campaigns.models import SentDripEmail
 from .forms import EmailAccountForm, CampaignForm, BulkCampaignForm, TemplateFormSet, VerificationUploadForm
 from .tasks import send_emails_chunk_celery_task, send_account_attach_notif_email, verify_email_task
 from .utilities import *
-from django.db.models import F, Value, OuterRef, Subquery, Prefetch
+from django.db.models import F, Value, OuterRef, Subquery, Prefetch, CharField
 from django.db.models.functions import Coalesce
 
 from django.contrib import messages
@@ -30,6 +30,7 @@ from google_secrets import *
 from urllib.parse import quote_plus
 
 import requests
+from itertools import chain
 import pytz
 import dns.resolver
 import os
@@ -69,6 +70,12 @@ def campaign(request, email_account_id):
         template_formset = TemplateFormSet(post_data, prefix='templates')
 
         if form.is_valid() and template_formset.is_valid():
+
+            # Determine if the campaign as a whole should be marked as "tracking active"
+            # We check if at least one template has tracking enabled, and if so, we mark the entire campaign as tracking enabled. 
+            # This way, in the email sending logic, we can just check the campaign's track_campaign field to decide whether 
+            # to generate tracking pixels and links.
+            is_tracking_enabled = any(f.cleaned_data.get('track_template') for f in template_formset.forms if f.cleaned_data)
             
             # --- 1. Extract Main Form Data (Subject/Body removed) ---
             file_upload = form.cleaned_data['file_upload']
@@ -81,7 +88,6 @@ def campaign(request, email_account_id):
             
             scheduled_launch_datetime = form.cleaned_data.get('schedule_launch_datetime')
             skip_mc_numbers = form.cleaned_data.get("skip_mc_numbers")
-            track_campaign = form.cleaned_data.get('track_campaign')
 
             # Filters
             power_units_comparison = form.cleaned_data.get('power_units_comparison')
@@ -156,7 +162,7 @@ def campaign(request, email_account_id):
                         'total_recipients': len(leads),
                         'sent_count': 0,
                         'lead_source': 'Excel' if file_upload else 'DB',
-                        'track_campaign': track_campaign
+                        'track_campaign': is_tracking_enabled
                     }
 
                     if scheduled_launch_datetime:
@@ -589,6 +595,8 @@ def bulk_campaign_step2(request, campaign_key):
             })
 
         if form.is_valid() and template_formset.is_valid():
+            
+            is_tracking_enabled = any(f.cleaned_data.get('track_template') for f in template_formset.forms if f.cleaned_data)
 
             leads = refetched_leads
             email_subject = form.cleaned_data.get('email_subject')
@@ -701,7 +709,7 @@ def bulk_campaign_step2(request, campaign_key):
                                 'total_recipients': len(assigned_leads),
                                 'sent_count': 0,
                                 'lead_source': lead_source,
-                                'track_campaign': track_campaign
+                                'track_campaign': is_tracking_enabled
                             }
 
                             if scheduled_launch_datetime:
@@ -829,6 +837,7 @@ def track_open(request, unique_identifier):
             email_log = (
                 EmailOpen.objects
                 .select_for_update()
+                .select_related('campaign', 'template')
                 .get(unique_identifier=unique_identifier)
             )
 
@@ -845,11 +854,18 @@ def track_open(request, unique_identifier):
             # 3. RECORD THE OPEN
             # Idempotency check: Only count if not already opened
             if not email_log.is_opened:
+                # 1. Update Global Campaign Stats
                 campaign = email_log.campaign
-                
                 campaign.open_rate = F('open_rate') + 1
                 campaign.save(update_fields=['open_rate'])
 
+                # 2. Update Specific Template Stats (A/B Testing)
+                if email_log.template:
+                    template = email_log.template
+                    template.open_rate = F('open_rate') + 1
+                    template.save(update_fields=['open_rate'])
+
+                # 3. Mark the log as opened
                 email_log.is_opened = True
                 email_log.save(update_fields=['is_opened'])
 
@@ -866,24 +882,37 @@ def track_open(request, unique_identifier):
 
 @login_required
 def campaign_records(request):
+    # 1. Fetch Bulk Templates
+    bulk_templates = CampaignTemplate.objects.filter(
+        owner=request.user,
+        track_template=True
+    ).prefetch_related('campaigns').annotate(
+        record_type=Value('Bulk', output_field=CharField())
+    )
     
-    # Filter campaigns for the current user with a 'launched' status
-    campaign_list = CampaignRecord.objects.filter(
-        launched_by=request.user,
-        track_campaign=True
-    ).order_by('-launch_time')
-    
-    # Paginate the results, 20 cords per page
-    paginator = Paginator(campaign_list, 20)
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
-    
-    context = {
-        'page_obj': page_obj
-    }
-    
-    return render(request, 'dashboard/campaign_records.html', context)
+    # 2. Fetch Drip Variations
+    drip_templates = DripTemplate.objects.filter(
+        campaign__launched_by=request.user,
+        track_template=True
+    ).select_related('campaign').annotate(
+        record_type=Value('Drip', output_field=CharField(max_length=10))
+    )
 
+    # 3. Combine and Sort by most recent
+    combined_list = sorted(
+        chain(bulk_templates, drip_templates),
+        key=lambda instance: (
+            instance.created_at if hasattr(instance, 'created_at') and instance.created_at 
+            else getattr(instance.campaign, 'created_at', timezone.now()) if hasattr(instance, 'campaign')
+            else timezone.now()
+        ),
+        reverse=True
+    )
+
+    paginator = Paginator(combined_list, 20)
+    page_obj = paginator.get_page(request.GET.get('page'))
+
+    return render(request, 'dashboard/campaign_records.html', {'page_obj': page_obj})
 
 class Echo:
     """An object that implements just the write method of the file-like interface."""
@@ -1301,7 +1330,13 @@ def add_email_account(request):
                 for error in errors:
                     messages.error(request, f"{field.capitalize()}: {error}")
 
-    return render(request, "dashboard/add_email_account.html", {"form": form})
+    context = {
+        "form": form,
+        "email_account": None,
+        "is_verified": False,
+        "tracking_domain": None
+    }
+    return render(request, "dashboard/add_email_account.html", context)
 
 
 # Update Email Account
@@ -1328,12 +1363,13 @@ def email_account_update(request, id):
     else:
         form = EmailAccountForm(instance=email_account)
     
-    return render(request, "dashboard/add_email_account.html", {
+    context = {
         "form": form, 
         "email_account": email_account, 
         "is_verified": email_account.tracking_domain_verified,
         "tracking_domain": email_account.tracking_custom_domain 
-    })
+    }
+    return render(request, "dashboard/add_email_account.html", context)
 
 
 @login_required

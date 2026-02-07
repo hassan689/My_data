@@ -227,30 +227,46 @@
 
                         <div class="mt-4">
                             <label class="block text-sm font-medium text-secondary mb-1">Email Subject</label>
-                            {{ form.subject|add_class:"w-2/3 p-3 border focus:ring-gray-500 focus:border-gray-500 rounded-lg outline-none text-primary bg-primary" }}
+                            <div class="flex items-center gap-4">
+                                <div class="flex-grow">
+                                    {{ form.subject|add_class:"w-full p-3 border focus:ring-gray-500 focus:border-gray-500 rounded-lg outline-none text-primary bg-primary" }}
+                                </div>
+
+                                <div class="flex items-center shrink-0 relative group cursor-help">
+                                    {{ form.track_template }}
+                                    <label for="{{ form.track_template.id_for_label }}" class="select-none ms-2 text-sm font-medium text-secondary cursor-pointer">
+                                        Track Open Rate
+                                    </label>
+
+                                    <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-64 p-2 bg-gray-800 text-white text-xs text-center rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-10">
+                                        Requires a verified Custom Tracking Domain in your Email Account or User Profile.
+                                        <div class="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-800"></div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
                         <div class="mt-4">
                             <div class="flex justify-between items-center mb-1">
                                 <div class="flex items-center gap-3">
                                     <label class="block text-sm font-medium text-secondary">Email Body</label>
-                                    <label class="inline-flex items-center cursor-pointer gap-3">
-                                      <input type="checkbox" class="sr-only peer editor-toggle" onchange="toggleEditor(this)">
-
-                                      <div class="relative w-11 h-6 bg-gray-700 rounded-full peer peer-checked:bg-blue-600 transition-colors duration-200">
-                                        <div class="absolute top-[2px] start-[2px] bg-white border-gray-300 border rounded-full h-5 w-5 transition-all duration-200 peer-checked:translate-x-full"></div>
-                                      </div>
-
-                                      <span class="text-xs font-medium text-secondary leading-none">
-                                        Switch to HTML Mode
-                                      </span>
-                                    </label>
-
+                                    <div class="flex items-center">
+                                        <input 
+                                            id="html_mode_{{ form.prefix }}" 
+                                            type="checkbox" 
+                                            class="w-4 h-4 text-blue-600 border-gray-600 rounded bg-gray-700 focus:ring-2 focus:ring-blue-500 editor-toggle" 
+                                            onchange="toggleEditor(this)"
+                                        >
+                                        <label for="html_mode_{{ form.prefix }}" class="select-none ms-2 text-xs font-medium text-secondary cursor-pointer">
+                                            Switch to HTML Mode
+                                        </label>
+                                    </div>
                                 </div>
                                 <button type="button" onclick="openPreview(this)" class="text-blue-500 hover:underline text-xs font-bold">👁️ Preview Step</button>
                             </div>
                             <div class="mt-1 w-full border rounded-lg overflow-hidden">
-                                {{ form.body }} </div>
+                                {{ form.body }}
+                            </div>
                         </div>
 
                         <div class="flex items-center gap-4 mt-4">
@@ -261,7 +277,7 @@
                         </div>
                     </div>
                     {% endfor %}
-                </div>
+                  </div>
                   
                   <div class="mt-6">
                     <button type="button" id="add-template-btn" class="btn-bg-primary btn-bg-hover btn-text font-semibold py-3 px-6 rounded-xl shadow-lg text-base">
@@ -289,48 +305,59 @@
     </form>
     
     <template id="empty-form-template">
-      <div class="template-form p-6 bg-secondary rounded-lg shadow-md mb-6 border border-gray-700">
-        <h2 class="template-counter text-xl font-semibold text-secondary mb-4">Template</h2>
+        <div class="template-form p-6 bg-secondary rounded-lg shadow-md mb-6 border border-gray-700">
+            <h2 class="template-counter text-xl font-semibold text-secondary mb-4">Day</h2>
+            {{ template_formset.empty_form.id }}
 
-        {{ template_formset.empty_form.id }}
-
-        <div class="mt-4">
-          <label class="block text-sm font-medium text-secondary mb-1">Email Subject</label>
-          {{ template_formset.empty_form.subject|add_class:"w-2/3 p-3 border focus:ring-gray-500 focus:border-gray-500 rounded-lg outline-none text-primary bg-primary" }}
-        </div>
-
-        <div class="mt-4">
-          <div class="flex justify-between items-center mb-1">
-            <div class="flex items-center gap-3">
-              <label class="block text-sm font-medium text-secondary">Email Body</label>
-              <label class="inline-flex items-center cursor-pointer gap-3">
-                <input type="checkbox" class="sr-only peer editor-toggle" onchange="toggleEditor(this)">
-                <div class="relative w-11 h-6 bg-gray-700 rounded-full peer peer-checked:bg-blue-600 transition-colors duration-200">
-                  <div class="absolute top-[2px] start-[2px] bg-white border-gray-300 border rounded-full h-5 w-5 transition-all duration-200 peer-checked:translate-x-full"></div>
+            <div class="mt-4">
+                <label class="block text-sm font-medium text-secondary mb-1">Email Subject</label>
+                <div class="flex items-center gap-4">
+                    <div class="flex-grow">
+                        {{ template_formset.empty_form.subject|add_class:"w-full p-3 border focus:ring-gray-500 focus:border-gray-500 rounded-lg outline-none text-primary bg-primary" }}
+                    </div>
+                    <div class="flex items-center shrink-0 relative group cursor-help">
+                        {{ template_formset.empty_form.track_template }}
+                        <label for="{{ template_formset.empty_form.track_template.id_for_label }}" class="select-none ms-2 text-sm font-medium text-secondary cursor-pointer">
+                            Track Open Rate
+                        </label>
+                        <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-64 p-2 bg-gray-800 text-white text-xs text-center rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-10">
+                            Requires a verified Custom Tracking Domain in your Email Account or User Profile.
+                            <div class="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-800"></div>
+                        </div>
+                    </div>
                 </div>
-                <span class="text-xs font-medium text-secondary leading-none">
-                  Switch to HTML Mode
-                </span>
-              </label>
             </div>
 
-            <button type="button" onclick="openPreview(this)" class="text-blue-500 text-xs font-bold">
-              👁️ Preview
-            </button>
-          </div>
+            <div class="mt-4">
+                <div class="flex justify-between items-center mb-1">
+                    <div class="flex items-center gap-3">
+                        <label class="block text-sm font-medium text-secondary">Email Body</label>
+                        <div class="flex items-center">
+                            <input 
+                                id="html_mode___prefix__" 
+                                type="checkbox" 
+                                class="w-4 h-4 text-blue-600 border-gray-600 rounded bg-gray-700 focus:ring-2 focus:ring-blue-500 editor-toggle" 
+                                onchange="toggleEditor(this)"
+                            >
+                            <label for="html_mode___prefix__" class="select-none ms-2 text-xs font-medium text-secondary cursor-pointer">
+                                Switch to HTML Mode
+                            </label>
+                        </div>
+                    </div>
+                    <button type="button" onclick="openPreview(this)" class="text-blue-500 hover:underline text-xs font-bold">👁️ Preview Step</button>
+                </div>
+                <div class="mt-1 w-full border rounded-lg overflow-hidden">
+                    {{ template_formset.empty_form.body }}
+                </div>
+            </div>
 
-          <div class="mt-1 w-full border rounded-lg overflow-hidden">
-            {{ template_formset.empty_form.body }}
-          </div>
+            <div class="flex items-center gap-4 mt-4">
+                <div class="hidden">{{ template_formset.empty_form.DELETE }}</div>
+                <button type="button" class="remove-template-btn text-red-500 hover:text-red-400 font-medium text-sm">
+                    Remove this Step
+                </button>
+            </div>
         </div>
-
-        <div class="flex items-center gap-4 mt-4">
-          {{ template_formset.empty_form.DELETE|add_class:"hidden" }}
-          <button type="button" class="remove-template-btn text-red-500 text-sm">
-            Remove this Template
-          </button>
-        </div>
-      </div>
     </template>
 
   {% else %}
@@ -339,106 +366,6 @@
 
 </div>
 
-
-<!-- <script>
-  document.addEventListener('DOMContentLoaded', function () {
-    const addBtn = document.getElementById('add-template-btn');
-    const formsContainer = document.getElementById('template-forms-container');
-    const template = document.getElementById('empty-form-template');
-    
-    // Find the management form's TOTAL_FORMS input.
-    // ** IMPORTANT ** This prefix must match your view!
-    // Your view uses 'templates', so this is correct.
-    const totalFormsInput = document.querySelector('input[name="templates-TOTAL_FORMS"]');
-
-    if (!addBtn || !formsContainer || !template || !totalFormsInput) {
-        console.warn('Formset JS: Missing one or more required elements.');
-        return;
-    }
-
-    /**
-     * Finds all visible forms and re-numbers their "Day X" headers
-     * in sequential order.
-     */
-    function updateDayCounters() {
-        // Find all form wrappers that are *not* hidden (by our remove logic)
-        const visibleForms = formsContainer.querySelectorAll('.template-form:not([style*="display: none"])');
-        
-        visibleForms.forEach((form, index) => {
-            const dayCounter = form.querySelector('.template-day-counter');
-            if (dayCounter) {
-                // `index` is 0-based, so add 1 for "Day 1", "Day 2", etc.
-                dayCounter.textContent = `Day ${index + 1}`;
-            }
-        });
-    }
-
-    // --- 1. "Add Step" Button Logic ---
-    addBtn.addEventListener('click', function() {
-        // Get the current number of forms. This is our new form's index.
-        let currentFormCount = parseInt(totalFormsInput.value, 10);
-
-        // Get the raw HTML from the template
-        let newFormHtml = template.innerHTML;
-
-        // Replace all instances of "__prefix__" with the new form's index
-        newFormHtml = newFormHtml.replace(/__prefix__/g, currentFormCount);
-
-        // Create a new div wrapper to hold the form
-        // We give it the .template-form class so updateDayCounters() can find it
-        const newFormWrapper = document.createElement('div');
-        newFormWrapper.className = 'template-form-wrapper'; // Wrapper for the form
-        newFormWrapper.innerHTML = newFormHtml;
-        
-        // Find the actual form *inside* the wrapper
-        const newFormElement = newFormWrapper.querySelector('.template-form');
-
-        // Append the new form to the container
-        formsContainer.appendChild(newFormElement);
-
-        // Increment the TOTAL_FORMS count in the management form
-        totalFormsInput.value = currentFormCount + 1;
-
-        // *** NEW ***
-        // Now that the form is added, re-run the counter function
-        updateDayCounters();
-
-        // Note: The CKEditor init script for the new form is *inside*
-        // newFormHtml and will execute automatically when added to the DOM.
-    });
-
-    // --- 2. "Remove Step" Button Logic (using Event Delegation) ---
-    formsContainer.addEventListener('click', function(e) {
-        // Check if the clicked element has the 'remove-template-btn' class
-        if (e.target && e.target.classList.contains('remove-template-btn')) {
-            e.preventDefault(); // Stop any default button action
-
-            // Find the closest parent form wrapper
-            const formWrapper = e.target.closest('.template-form');
-            if (!formWrapper) return;
-
-            // Find the hidden DELETE checkbox *within* this form
-            const deleteCheckbox = formWrapper.querySelector('input[type="checkbox"][name$="-DELETE"]');
-            
-            if (deleteCheckbox) {
-                // Check the box to mark this form for deletion
-                deleteCheckbox.checked = true;
-            }
-
-            // Hide the form from the user
-            formWrapper.style.display = 'none';
-
-            // *** NEW ***
-            // Now that the form is hidden, re-run the counter function
-            updateDayCounters();
-        }
-    });
-
-    // --- 3. Initial Run ---
-    // Run the counter once on page load to number existing forms
-    updateDayCounters();
-});
-</script> -->
 
   <script>
     // Global object to track CKEditor instances per form

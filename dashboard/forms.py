@@ -66,10 +66,17 @@ class CampaignTemplateForm(forms.ModelForm):
         required=True,
         widget=forms.TextInput(attrs={'placeholder': 'Hello [Legal Name] - [MC Number] - Some Big Offer'})
     )
+    track_template = forms.BooleanField(
+        required=False,
+        label="Track Email Opens",
+        widget=forms.CheckboxInput(attrs={
+            'class': 'w-4 h-4 text-green-600 bg-gray-700 border-gray-600 rounded focus:ring-green-500 focus:ring-2'
+        })
+    )
     
     class Meta:
         model = CampaignTemplate
-        fields = ['subject', 'body']
+        fields = ['subject', 'body', 'track_template']
         widgets = {
               'body': forms.Textarea(attrs={
                   'class': 'w-full h-96 p-5 bg-slate-900 text-blue-400 rounded-xl font-mono text-sm outline-none border-4 border-slate-800',
@@ -237,11 +244,11 @@ class CampaignForm(forms.Form):
             'class': 'rounded-lg outline-none text-primary bg-primary w-full'
         })
     )
-    track_campaign = forms.BooleanField(
-        required=False,
-        label="Track Email Opens",
-        widget=forms.CheckboxInput()
-    )
+    # track_campaign = forms.BooleanField(
+    #     required=False,
+    #     label="Track Email Opens",
+    #     widget=forms.CheckboxInput()
+    # )
 
     def __init__(self, *args, **kwargs):
         self.user = kwargs.pop('user', None)  # Get user instance

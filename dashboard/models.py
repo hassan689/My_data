@@ -69,6 +69,9 @@ class CampaignTemplate(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    track_template = models.BooleanField(default=False) # Changed from track_campaign
+    open_rate = models.IntegerField(default=0)
+
     def __str__(self):
         return f"Template: {self.subject[:30]}..."
 
