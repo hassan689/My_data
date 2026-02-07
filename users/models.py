@@ -62,7 +62,7 @@ class CustomUser(AbstractUser):
     groups = models.ManyToManyField("auth.Group", related_name="customuser_set", blank=True)
     user_permissions = models.ManyToManyField("auth.Permission", related_name="customuser_set", blank=True)
 
-    tracking_custom_domain = models.CharField(
+    tracking_custom_domain = models.CharField( # their primary one
         max_length=255, 
         unique=True, 
         null=True, 
@@ -187,6 +187,24 @@ class EmailAccount(models.Model):
     is_warmup_target = models.BooleanField(default=False)
     black_list = models.BooleanField(default=False) # These are for the accoutns that are causing trouble for the warmup
 
+    tracking_custom_domain = models.CharField( # for each account
+        max_length=255, 
+        unique=True, 
+        null=True, 
+        blank=True, 
+        help_text="Subdomain for email tracking (e.g., track.theircompany.com)"
+    )
+    
+    '''
+    This verfirication is for: 
+    1. if this domain is actually from my DB/System and not outsider
+    2. if it actually exists on the internet
+    3. it points to my server"
+    '''
+    tracking_domain_verified = models.BooleanField(
+        default=False,
+    )
+
     def set_password(self, raw_password):
         """Encrypt and set the password securely."""
         if raw_password:
@@ -202,6 +220,25 @@ class EmailAccount(models.Model):
     def check_password(self, raw_password):
         """Verify if the provided password matches the stored encrypted password."""
         return self.get_password() == raw_password  # Direct string comparison
+    
+    @property
+    def effective_tracking_domain(self):
+        """
+        Returns the domain to be used for tracking links.
+        Priority:
+        1. Account-specific domain (if verified)
+        2. User-profile domain (if verified)
+        """
+        # 1. Check Account Specific
+        if self.tracking_custom_domain and self.tracking_domain_verified:
+            return self.tracking_custom_domain
+        
+        # 2. Check User Profile Fallback
+        if self.user.tracking_custom_domain and self.user.tracking_domain_verified:
+            return self.user.tracking_custom_domain
+        
+        return None  # Return Nothing if no valid domain is found
+
 
     def save(self, *args, **kwargs):
         # Ensure user is assigned before validation

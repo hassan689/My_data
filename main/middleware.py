@@ -1,7 +1,7 @@
 from django.shortcuts import render
 from django.core.cache import cache
 from django.http import HttpResponseNotFound
-from users.models import CustomUser
+from users.models import CustomUser, EmailAccount
 from django.conf import settings
 from django.urls import reverse, NoReverseMatch # Import NoReverseMatch for robustness
 
@@ -50,40 +50,46 @@ class MaintenanceModeMiddleware:
 class CustomDomainTrackingMiddleware:
     def __init__(self, get_response):
         self.get_response = get_response
-        
-        # Define your primary domains that should ALWAYS work
         self.system_domains = getattr(settings, 'SYSTEM_DOMAINS', settings.ALLOWED_HOSTS)
 
     def __call__(self, request):
-        # request.get_host() returns 'domain.com:8000', we want just 'domain.com'
         host = request.get_host().split(':')[0].lower()
 
-        # 2. Allow System Domains immediately (Fast Exit)
         if host in self.system_domains:
             return self.get_response(request)
 
-        # 3. Check Cache (The Speed Layer)
-        # We use a specific prefix to avoid collision with other keys
-        cache_key = f"valid_tracking_domain:{host}"
-        is_valid = cache.get(cache_key)
+        cache_key = f"tracking_domain:{host}"
+        cache_status = cache.get(cache_key)
 
-        if is_valid:
+        # 1. Fast Exit: If we already know it's BAD, return 404 immediately
+        if cache_status == 'INVALID':
+            return HttpResponseNotFound("Not Found")
+        
+        # 2. Fast Entry: If we know it's GOOD, let it in
+        if cache_status == 'VALID':
             return self.get_response(request)
 
-        # 4. Check Database (The Source of Truth)
-        # We only hit this if the domain is not in the cache
-        exists = CustomUser.objects.filter(
+        # 3. DB Check (The Expensive Part)
+        # Check User Profile
+        user_valid = CustomUser.objects.filter(
             tracking_custom_domain=host, 
             tracking_domain_verified=True
         ).exists()
 
-        if exists:
-            # Save to cache for 2 hours
-            cache.set(cache_key, True, timeout=7200)
-            return self.get_response(request)
+        # Check Email Accounts
+        account_valid = EmailAccount.objects.filter(
+            tracking_custom_domain=host,
+            tracking_domain_verified=True
+        ).exists()
 
-        # 5. Security Block
-        # If the domain is pointing to us but we don't know it, block it.
-        print(f"Blocked request from unknown custom domain: {host}")
-        return HttpResponseNotFound("Not Found")
+        if user_valid or account_valid:
+            # Valid! Cache it.
+            cache.set(cache_key, 'VALID', timeout=7200)
+            return self.get_response(request)
+        else:
+            # CRITICAL FIX: Cache as INVALID for 1 hour to stop DB hammering
+            # This prevents the "Intruders" from eating your CPU/RAM
+            cache.set(cache_key, 'INVALID', timeout=3600)
+            print(f"Blocked and cached invalid domain: {host}")
+            return HttpResponseNotFound("Not Found")
 

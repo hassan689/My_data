@@ -17,7 +17,12 @@ class EmailAccountForm(forms.ModelForm):
 
     class Meta:
         model = EmailAccount
-        fields = ["email_address", "decrypted_password", "email_provider", "port_number", "server_type", "host", "is_warmup_target"]
+        fields = ["email_address", "decrypted_password", "email_provider", "port_number", "server_type", "host", "is_warmup_target", 'tracking_custom_domain']
+        widgets = {
+            'tracking_custom_domain': forms.TextInput(attrs={
+                'placeholder': 'track.yourdomainA.com',
+            }),
+        }
 
     def __init__(self, *args, **kwargs):
         """Auto-fill decrypted password when editing an email account."""

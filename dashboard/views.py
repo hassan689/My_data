@@ -1,7 +1,7 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse, StreamingHttpResponse
-from django.views.decorators.http import require_http_methods, require_safe, require_GET
+from django.views.decorators.http import require_http_methods, require_safe, require_GET, require_POST
 from django.core.paginator import Paginator
 
 from users.models import EmailAccount, AccountGroup
@@ -31,6 +31,7 @@ from urllib.parse import quote_plus
 
 import requests
 import pytz
+import dns.resolver
 import os
 import uuid
 import csv
@@ -1327,7 +1328,52 @@ def email_account_update(request, id):
     else:
         form = EmailAccountForm(instance=email_account)
     
-    return render(request, "dashboard/add_email_account.html", {"form": form})
+    return render(request, "dashboard/add_email_account.html", {
+        "form": form, 
+        "email_account": email_account, 
+        "is_verified": email_account.tracking_domain_verified,
+        "tracking_domain": email_account.tracking_custom_domain 
+    })
+
+
+@login_required
+@require_POST
+def verify_account_dns(request, account_id):
+    """
+    Verifies the DNS for a specific EmailAccount.
+    Triggered via AJAX from the 'Edit Email Account' modal/page.
+    """
+    # 1. Secure Lookup (Ensure user owns this account)
+    account = get_object_or_404(EmailAccount, id=account_id, user=request.user)
+    domain = account.tracking_custom_domain
+
+    if not domain:
+        return JsonResponse({'success': False, 'error': 'No domain saved for this account.'})
+
+    REQUIRED_TARGET = "whitelabel.dispatchskool.com."
+    
+    try:
+        answers = dns.resolver.resolve(domain, 'CNAME')
+        for rdata in answers:
+            target = rdata.target.to_text()
+            if target.rstrip('.') == REQUIRED_TARGET.rstrip('.'):
+                
+                # SUCCESS
+                account.tracking_domain_verified = True
+                account.save(update_fields=['tracking_domain_verified'])
+                return JsonResponse({'success': True, 'message': 'Account domain verified!'})
+
+        return JsonResponse({
+            'success': False, 
+            'error': f'CNAME points to {target}, not {REQUIRED_TARGET}'
+        })
+
+    except dns.resolver.NoAnswer:
+        return JsonResponse({'success': False, 'error': 'No CNAME record found.'})
+    except dns.resolver.NXDOMAIN:
+        return JsonResponse({'success': False, 'error': 'Domain does not exist.'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
 
 
 @login_required

@@ -121,6 +121,24 @@ def send_email_async(email_message):
     except Exception as e:
         print(f"Email sending failed: {str(e)}")
 
+
+def domain_root_router(request):
+    """
+    Directs traffic based on the domain name.
+    - dispatchskool.com -> Shows the Landing Page
+    - track.client.com  -> Redirects to the Dashboard
+    """
+    host = request.get_host().split(':')[0].lower()
+    system_domains = getattr(settings, 'SYSTEM_DOMAINS', [])
+
+    if host in system_domains:
+        # CORRECT: Call the view function directly. 
+        return index(request)
+
+    # If it's a tracking domain, redirect to dashboard
+    return redirect('dashboard:index')
+
+
 def index(request):
     form = ContactForm()
     error_message = None  # To store error messages

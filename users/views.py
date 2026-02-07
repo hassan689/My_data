@@ -291,31 +291,33 @@ def check_domain(request):
     print("Received SSL certificate request from Caddy.")
     # Caddy sends the domain as a query parameter: ?domain=example.com
     domain = request.GET.get('domain')
-
     if not domain:
         return HttpResponse('Domain required', status=400)
 
-    # 1. Clean the domain input
     domain = domain.lower().strip()
-
-    # 2. Allow your own System Domains (Critical!)
-    system_domains = getattr(settings, 'SYSTEM_DOMAINS', [])
-    if domain in system_domains:
+    
+    # 1. System Domains
+    if domain in getattr(settings, 'SYSTEM_DOMAINS', []):
         return HttpResponse('OK')
 
-    # 3. Check the Database for User Domains
-    # Only allow if the user has ALREADY verified the CNAME record via DNS.
-    # We don't want to issue certs for domains we don't control yet.
-    exists = CustomUser.objects.filter(
+    # 2. Check User Profiles (Global Fallback)
+    user_exists = CustomUser.objects.filter(
         tracking_custom_domain=domain, 
         tracking_domain_verified=True
     ).exists()
 
-    if exists:
+    if user_exists:
         return HttpResponse('OK')
 
-    # 4. Deny everything else
-    print(f"SSL Certificate request denied for unknown domain: {domain}")
+    # 3. Check Individual Email Accounts (Granular)
+    account_exists = EmailAccount.objects.filter(
+        tracking_custom_domain=domain,
+        tracking_domain_verified=True
+    ).exists()
+
+    if account_exists:
+        return HttpResponse('OK')
+
     return HttpResponse('Unauthorized', status=400)
 
 

@@ -1,3 +1,4 @@
+import re
 from django.contrib import admin, messages
 from django.contrib.auth.admin import UserAdmin
 from .models import CustomUser, EmailAccount, Affiliate, AccountGroup
@@ -141,7 +142,7 @@ class EmailAccountForm(forms.ModelForm):
     class Meta:
         model = EmailAccount
         fields = ("user", "email_address", "decrypted_password", "account_group",
-                  "email_provider", "port_number", "server_type", "host", "is_warmup_target", "black_list")
+                  "email_provider", "port_number", "server_type", "host", "is_warmup_target", "black_list", 'tracking_custom_domain', 'tracking_domain_verified')
 
     def __init__(self, *args, **kwargs):
         """Auto-fill decrypted password when editing an email account."""
@@ -152,6 +153,26 @@ class EmailAccountForm(forms.ModelForm):
             except Exception as e:
                 print(f"Decryption error: {e}")  # Debugging purposes
                 self.fields["decrypted_password"].initial = "ERROR: Unable to decrypt"
+
+    def clean_tracking_custom_domain(self):
+        domain = self.cleaned_data.get('tracking_custom_domain')
+        if domain:
+            # 1. Normalize
+            domain = domain.lower().strip()
+            domain = domain.replace("https://", "").replace("http://", "").rstrip('/')
+
+            # 2. Regex Validation
+            domain_regex = r'^(?!-)[A-Za-z0-9-]{1,63}(?<!-)(\.[A-Za-z0-9-]{1,63})+$'
+            if not re.match(domain_regex, domain):
+                raise ValidationError("Invalid domain format.")
+            
+            # 3. Uniqueness Check (Global)
+            # We must ensure this domain isn't used by ANOTHER user in CustomUser table
+            if CustomUser.objects.filter(tracking_custom_domain=domain).exists():
+                raise ValidationError("This domain is already in use by a user profile.")
+            
+            return domain
+        return None
 
     def save(self, commit=True):
         """Ensure password gets encrypted properly if changed."""
