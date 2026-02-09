@@ -15,7 +15,7 @@ urlpatterns = [
     path('affiliates/', include('affiliates.urls')),
     path('warmup/', include('warmup.urls')),
     path('drip-campaigns/', include('drip_campaigns.urls')),
-    path('leads/', include('leads_data.urls')),
+    path('leads_data/', include('leads_data.urls')),
 
     path('check-domain/', check_domain, name='check_domain'),
     

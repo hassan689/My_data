@@ -93,6 +93,11 @@ class DripTemplate(models.Model):
     track_template = models.BooleanField(default=False) # Individually track opens for this template
     open_rate = models.IntegerField(default=0)
 
+    include_unsubscribe = models.BooleanField(
+        default=False, 
+        verbose_name="Include Unsubscribe Link"
+    )
+
     DELIVERED_STATUS_CHOICES = [
         ('Pending', 'Pending'),
         ('Processing', 'Processing'),

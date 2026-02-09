@@ -70,17 +70,24 @@ class CampaignTemplateForm(forms.ModelForm):
         required=False,
         label="Track Email Opens",
         widget=forms.CheckboxInput(attrs={
-            'class': 'w-4 h-4 text-green-600 bg-gray-700 border-gray-600 rounded focus:ring-green-500 focus:ring-2'
+            'class': 'w-4 h-4 text-green-600 bg-gray-400 border-gray-600 rounded focus:ring-green-500 focus:ring-2'
         })
     )
     
     class Meta:
         model = CampaignTemplate
-        fields = ['subject', 'body', 'track_template']
+        fields = ['subject', 'body', 'track_template', 'include_unsubscribe']
         widgets = {
               'body': forms.Textarea(attrs={
                   'class': 'w-full h-96 p-5 bg-slate-900 text-blue-400 rounded-xl font-mono text-sm outline-none border-4 border-slate-800',
                   'placeholder': 'Paste your professional HTML here...'
+              }),
+              'include_unsubscribe': forms.CheckboxInput(attrs={
+                  'class': (
+                      'w-4 h-4 rounded border-gray-300 bg-gray-400 '
+                      'text-red-600 focus:ring-red-500 '
+                      'focus:ring-2 transition duration-150 ease-in-out'
+                  )
               }),
           }
 

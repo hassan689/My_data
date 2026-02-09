@@ -12,6 +12,7 @@ from django.db import transaction
 from django.db.models import Q
 from django_celery_results.models import TaskResult
 from django.core.files.base import ContentFile
+from django.core.signing import TimestampSigner
 
 import re
 import random
@@ -186,6 +187,35 @@ def send_single_email(self, campaign_record_id):
             else:
                 personalized_body += tracking_pixel
 
+        # Check if DB flag is True AND if we have a valid tracking domain
+        unsubscribe_url = None
+        if getattr(template_obj, 'include_unsubscribe', False) and tracking_domain:
+            signer = TimestampSigner()
+            
+            # Create the stateless token
+            token = signer.sign_object({
+                'uid': campaign.launched_by.id,
+                'email': lead['Email']
+            })
+            
+            # Construct the URL using the verified tracking domain
+            clean_domain = tracking_domain.strip('/')
+            unsubscribe_url = f"https://{clean_domain}/leads_data/unsubscribe/{token}/"
+            
+            # 1. Append HTML Footer (The visible link)
+            footer_html = f"""
+                <br><br>
+                <span style="font-size: 11px; color: #888;">
+                    Don't want to hear from me again? 
+                    <a href="{unsubscribe_url}" style="color: #888;">Click here to unsubscribe</a>.
+                </span>
+            """
+            
+            if "</body>" in personalized_body:
+                personalized_body = personalized_body.replace("</body>", f"{footer_html}</body>")
+            else:
+                personalized_body += footer_html
+        
         # 7. --- Send Email ---
         msg = EmailMultiAlternatives(
             subject=personalized_subject,
@@ -194,7 +224,15 @@ def send_single_email(self, campaign_record_id):
             to=[lead['Email']],
             connection=connection
         )
-        msg.extra_headers = {'Message-ID': message_id}
+        # Base headers
+        headers = {'Message-ID': message_id}
+        
+        # 2. Add List-Unsubscribe Headers (The "Magic" Button)
+        if unsubscribe_url:
+            headers['List-Unsubscribe'] = f"<{unsubscribe_url}>"
+            headers['List-Unsubscribe-Post'] = 'List-Unsubscribe=One-Click'
+            
+        msg.extra_headers = headers
         msg.attach_alternative(personalized_body, "text/html")
         
         try:
@@ -540,6 +578,35 @@ def send_emails_batch(self, campaign_record_id, batch_size=10):
                     except Exception as e:
                         print(f"Failed to create EmailOpen log: {e}")
                 
+                # Check if DB flag is True AND if we have a valid tracking domain
+                unsubscribe_url = None
+                if getattr(template_obj, 'include_unsubscribe', False) and tracking_domain:
+                    signer = TimestampSigner()
+                    
+                    # Create the stateless token
+                    token = signer.sign_object({
+                        'uid': campaign.launched_by.id,
+                        'email': lead['Email']
+                    })
+                    
+                    # Construct the URL using the verified tracking domain
+                    clean_domain = tracking_domain.strip('/')
+                    unsubscribe_url = f"https://{clean_domain}/leads_data/unsubscribe/{token}/"
+                    
+                    # 1. Append HTML Footer (The visible link)
+                    footer_html = f"""
+                        <br><br>
+                        <span style="font-size: 11px; color: #888;">
+                            Don't want to hear from me again? 
+                            <a href="{unsubscribe_url}" style="color: #888;">Click here to unsubscribe</a>.
+                        </span>
+                    """
+                    
+                    if "</body>" in personalized_body:
+                        personalized_body = personalized_body.replace("</body>", f"{footer_html}</body>")
+                    else:
+                        personalized_body += footer_html
+                
                 # --- 4. SEND EMAIL ---
                 msg = EmailMultiAlternatives(
                     subject=personalized_subject,
@@ -548,7 +615,15 @@ def send_emails_batch(self, campaign_record_id, batch_size=10):
                     to=[lead['Email']],
                     connection=connection
                 )
-                msg.extra_headers = {'Message-ID': message_id}
+                # Base headers
+                headers = {'Message-ID': message_id}
+                
+                # 2. Add List-Unsubscribe Headers (The "Magic" Button)
+                if unsubscribe_url:
+                    headers['List-Unsubscribe'] = f"<{unsubscribe_url}>"
+                    headers['List-Unsubscribe-Post'] = 'List-Unsubscribe=One-Click'
+                    
+                msg.extra_headers = headers
                 msg.attach_alternative(personalized_body, "text/html")
                 
                 try:

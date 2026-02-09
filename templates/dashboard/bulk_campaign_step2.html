@@ -478,24 +478,42 @@
                         {{ form.id }}
 
                         <div class="mt-4">
-                            <label class="block text-sm font-medium text-secondary mb-1">Email Subject</label>
-                            <div class="flex items-center gap-4">
-                                <div class="flex-grow">
-                                    {{ form.subject|add_class:"w-full p-3 border focus:ring-gray-500 focus:border-gray-500 rounded-lg outline-none text-primary bg-primary" }}
-                                </div>
-                                
-                                <div class="flex items-center shrink-0 relative group cursor-help">
-                                    {{ form.track_template }}
-                                    <label for="{{ form.track_template.id_for_label }}" class="select-none ms-2 text-sm font-medium text-secondary cursor-pointer">
-                                        Track Open rate
-                                    </label>
+                          <label class="block text-sm font-medium text-secondary mb-1">Email Subject</label>
+                          
+                          <div class="flex items-start gap-4">
+                              
+                              <div class="flex-grow">
+                                  {{ form.subject|add_class:"w-full p-3 border focus:ring-gray-500 focus:border-gray-500 rounded-lg outline-none text-primary bg-primary" }}
+                              </div>
+                              
+                              <div class="flex flex-col gap-3 mt-2"> 
 
-                                    <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-64 p-2 bg-gray-800 text-white text-xs text-center rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-10">
-                                        Requires a verified Custom Tracking Domain in your Email Account or User Profile.
-                                        <div class="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-800"></div>
-                                    </div>
-                                </div>
-                            </div>
+                                  <div class="flex items-center relative group cursor-help">
+                                      {{ form.track_template }}
+                                      <label for="{{ form.track_template.id_for_label }}" class="select-none ms-2 text-sm font-medium text-secondary cursor-pointer whitespace-nowrap">
+                                          Track Open Rate
+                                      </label>
+
+                                      <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-64 p-2 bg-gray-800 text-white text-xs text-center rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50">
+                                          Requires a verified Custom Tracking Domain in your Email Account or User Profile.
+                                          <div class="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-800"></div>
+                                      </div>
+                                  </div>
+
+                                  <div class="flex items-center relative group cursor-help">
+                                      {{ form.include_unsubscribe }}
+                                      <label for="{{ form.include_unsubscribe.id_for_label }}" class="select-none ms-2 text-sm font-medium text-secondary cursor-pointer whitespace-nowrap">
+                                          Include Unsubscribe Link
+                                      </label>
+
+                                      <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-64 p-2 bg-gray-800 text-white text-xs text-center rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50">
+                                          Requires a verified Custom Tracking Domain in your Email Account or User Profile. The system will automatically handle the link.
+                                          <div class="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-800"></div>
+                                      </div>
+                                  </div>
+
+                              </div>
+                          </div>
                         </div>
 
                         <div class="mt-4">
@@ -905,22 +923,38 @@
 
       <div class="mt-4">
           <label class="block text-sm font-medium text-secondary mb-1">Email Subject</label>
-          <div class="flex items-center gap-4">
+          
+          <div class="flex items-start gap-4">
+              
               <div class="flex-grow">
                   {{ template_formset.empty_form.subject|add_class:"w-full p-3 border focus:ring-gray-500 focus:border-gray-500 rounded-lg outline-none text-primary bg-primary" }}
               </div>
 
-              <div class="flex items-center shrink-0 relative group cursor-help">
-                  {{ template_formset.empty_form.track_template }}
-                  <label for="{{ template_formset.empty_form.track_template.id_for_label }}" class="select-none ms-2 text-sm font-medium text-secondary cursor-pointer">
-                      Track Open Rate
-                  </label>
+              <div class="flex flex-col gap-3 mt-2">
+                  
+                  <div class="flex items-center relative group cursor-help">
+                      {{ template_formset.empty_form.track_template }}
+                      <label for="{{ template_formset.empty_form.track_template.id_for_label }}" class="select-none ms-2 text-sm font-medium text-secondary cursor-pointer whitespace-nowrap">
+                          Track Open rate
+                      </label>
 
-                  <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-64 p-2 bg-gray-800 text-white text-xs text-center rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-10">
-                      Requires a verified Custom Tracking Domain in your Email Account or User Profile.
-                      <div class="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-800"></div>
+                      <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-64 p-2 bg-gray-800 text-white text-xs text-center rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50">
+                          Requires a verified Custom Tracking Domain in your Email Account or User Profile.
+                          <div class="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-800"></div>
+                      </div>
                   </div>
-              </div>
+
+                  <div class="flex items-center relative group cursor-help">
+                      {{ template_formset.empty_form.include_unsubscribe }}
+                      <label for="{{ template_formset.empty_form.include_unsubscribe.id_for_label }}" class="select-none ms-2 text-sm font-medium text-secondary cursor-pointer whitespace-nowrap">
+                          Include Unsubscribe Link
+                      </label>
+
+                      <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-64 p-2 bg-gray-800 text-white text-xs text-center rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50">
+                          Requires a verified Custom Tracking Domain in your Email Account or User Profile. The system will automatically handle the link.
+                          <div class="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-800"></div>
+                      </div>
+                  </div>              </div>
           </div>
       </div>
 

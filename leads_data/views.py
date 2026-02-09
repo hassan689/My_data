@@ -2,6 +2,11 @@ from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
 from .forms import SkipListForm
 from .models import SkipList
+from django.http import HttpResponse
+from django.core.signing import TimestampSigner, BadSignature, SignatureExpired
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
 
 @login_required
 def skip_list_page(request):
@@ -45,4 +50,47 @@ def skip_list_page(request):
     }
     
     return render(request, 'leads_data/skip_lists.html', context)
+
+
+def unsubscribe_view(request, token):
+    signer = TimestampSigner()
+    
+    try:
+        # 1. Decode the token 
+        # max_age=5184000 allows the link to work for 60 days.
+        data = signer.unsign_object(token, max_age=5184000)
+        
+        user_id = data.get('uid')
+        email_to_remove = data.get('email')
+        
+        if not user_id or not email_to_remove:
+            return HttpResponse("Invalid link data.", status=400)
+        
+        # 2. Find the User (Sender)
+        user = User.objects.get(id=user_id)
+        
+        # 3. Get or Create the SkipList
+        skip_list, created = SkipList.objects.get_or_create(user=user)
+        
+        # 4. Update the JSON List
+        current_emails = skip_list.emails if isinstance(skip_list.emails, list) else []
+        
+        if email_to_remove not in current_emails:
+            current_emails.append(email_to_remove)
+            skip_list.emails = current_emails
+            skip_list.save()
+            
+        # 5. Return Success Page (Simple HTML)
+        return HttpResponse("""
+            <div style="font-family: sans-serif; text-align: center; margin-top: 50px;">
+                <h1 style="color: #333;">Unsubscribed</h1>
+                <p style="color: #666;">You have been successfully removed from this mailing list.</p>
+            </div>
+        """)
+
+    except (BadSignature, SignatureExpired):
+        return HttpResponse("This unsubscribe link is invalid or has expired.", status=400)
+    except User.DoesNotExist:
+        return HttpResponse("The sender account for this link no longer exists.", status=404)
+
 

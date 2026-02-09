@@ -21,12 +21,19 @@ class DripTemplateModelForm(forms.ModelForm):
         required=False,
         label="Track Open Rate",
         widget=forms.CheckboxInput(attrs={
-            'class': 'w-4 h-4 text-green-600 bg-gray-700 border-gray-600 rounded focus:ring-green-500 focus:ring-2'
+            'class': 'w-4 h-4 text-green-600 bg-gray-400 border-gray-600 rounded focus:ring-green-500 focus:ring-2'
+        })
+    )
+    include_unsubscribe = forms.BooleanField(
+        required=False,
+        label="Include Unsubscribe Link",
+        widget=forms.CheckboxInput(attrs={
+            'class': 'w-4 h-4 text-red-600 bg-gray-400 border-gray-600 rounded focus:ring-red-500 focus:ring-2'
         })
     )
     class Meta:
         model = DripTemplate
-        fields = ['subject', 'body', 'track_template']
+        fields = ['subject', 'body', 'track_template', 'include_unsubscribe']
 
 
 class RemovedMCNumbersForm(forms.ModelForm):

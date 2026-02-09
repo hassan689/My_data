@@ -488,24 +488,42 @@
                         {{ form.id }}
 
                         <div class="mt-4">
-                            <label class="block text-sm font-medium text-secondary mb-1">Email Subject</label>
-                            <div class="flex items-center gap-4">
-                                <div class="flex-grow">
-                                    {{ form.subject|add_class:"w-full p-3 border focus:ring-gray-500 focus:border-gray-500 rounded-lg outline-none text-primary bg-primary" }}
-                                </div>
-                                
-                                <div class="flex items-center shrink-0 relative group cursor-help">
-                                    {{ form.track_template }}
-                                    <label for="{{ form.track_template.id_for_label }}" class="select-none ms-2 text-sm font-medium text-secondary cursor-pointer">
-                                        Track Open rate
-                                    </label>
+                          <label class="block text-sm font-medium text-secondary mb-1">Email Subject</label>
+                          
+                          <div class="flex items-start gap-4">
+                              
+                              <div class="flex-grow">
+                                  {{ form.subject|add_class:"w-full p-3 border focus:ring-gray-500 focus:border-gray-500 rounded-lg outline-none text-primary bg-primary" }}
+                              </div>
+                              
+                              <div class="flex flex-col gap-3 mt-2"> 
 
-                                    <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-64 p-2 bg-gray-800 text-white text-xs text-center rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-10">
-                                        Requires a verified Custom Tracking Domain in your Email Account or User Profile.
-                                        <div class="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-800"></div>
-                                    </div>
-                                </div>
-                            </div>
+                                  <div class="flex items-center relative group cursor-help">
+                                      {{ form.track_template }}
+                                      <label for="{{ form.track_template.id_for_label }}" class="select-none ms-2 text-sm font-medium text-secondary cursor-pointer whitespace-nowrap">
+                                          Track Open Rate
+                                      </label>
+
+                                      <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-64 p-2 bg-gray-800 text-white text-xs text-center rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50">
+                                          Requires a verified Custom Tracking Domain in your Email Account or User Profile.
+                                          <div class="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-800"></div>
+                                      </div>
+                                  </div>
+
+                                  <div class="flex items-center relative group cursor-help">
+                                      {{ form.include_unsubscribe }}
+                                      <label for="{{ form.include_unsubscribe.id_for_label }}" class="select-none ms-2 text-sm font-medium text-secondary cursor-pointer whitespace-nowrap">
+                                          Include Unsubscribe Link
+                                      </label>
+
+                                      <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-64 p-2 bg-gray-800 text-white text-xs text-center rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50">
+                                          Requires a verified Custom Tracking Domain in your Email Account or User Profile. The system will automatically handle the link.
+                                          <div class="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-800"></div>
+                                      </div>
+                                  </div>
+
+                              </div>
+                          </div>
                         </div>
 
                         <div class="mt-4">
@@ -581,87 +599,6 @@
 		{% include 'price_base.html' %}
 
 	{% endif %}
-
-
-  <!-- <script>
-    document.addEventListener("DOMContentLoaded", () => {
-      const form = document.getElementById("campaign-form");
-
-      form.addEventListener("submit", function (e) {
-        if (form.dataset.confirmed === "true") return; // Allow second submit
-        e.preventDefault(); // Stop the initial submit
-
-        const formData = new FormData(form);
-
-        fetch("", {
-          method: "POST",
-          headers: {
-            'X-Requested-With': 'XMLHttpRequest',
-            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
-          },
-          body: formData
-        })
-        .then(response => response.json())
-        .then(data => {
-
-          // Case 1: Validation Error (FIX)
-          if (data.success === false && data.errors) {
-            let errorMessages = "Please fix the following errors:\n\n";
-            
-            // Loop through the error object from Django
-            Object.keys(data.errors).forEach(field => {
-              // Clean up the field name (e.g., 'upper_limit_mc_number' -> 'Upper limit mc number')
-              let prettyField = field.replace(/_/g, ' ');
-              prettyField = prettyField.charAt(0).toUpperCase() + prettyField.slice(1);
-              
-              // Handle non-field errors
-              if (field === '__all__') {
-                prettyField = 'General Error';
-              }
-
-              // Add each error message for that field
-              data.errors[field].forEach(error => {
-                errorMessages += `• ${prettyField}: ${error}\n`;
-              });
-            });
-            
-            // Show the alert with all errors
-            alert(errorMessages);
-          
-          // Case 2: Confirmation Needed (Existing Logic)
-          } else if (data.confirmed === false) {
-            const filters = Object.entries(data.filters)
-              .map(([k, v]) => `${k}: ${v}`)
-              .join("\n");
-
-            const msg = `${data.lead_count} leads were found. Do you wish to Proceed?`;
-
-            if (confirm(msg)) {
-              const hidden = document.createElement("input");
-              hidden.type = "hidden";
-              hidden.name = "confirm";
-              hidden.value = "true";
-              form.appendChild(hidden);
-              form.dataset.confirmed = "true";
-              form.submit(); // Submit again with confirm=true
-            }
-          
-          // Case 3: Final Success (Redirect)
-          } else if (data.success === true && data.redirect_url) {
-            // Campaign was successfully scheduled or launched, show message and redirect
-            alert(data.message); 
-            window.location.href = data.redirect_url;
-          }
-
-        })
-        .catch(error => {
-          // Handle network errors or if response wasn't JSON
-          console.error('Submission error:', error);
-          alert('An unexpected error occurred. Please check the console and try again.');
-        });
-      });
-    });
-  </script> -->
 
   <!-- Select from DB -->
   <script>
@@ -770,21 +707,38 @@
 
       <div class="mt-4">
           <label class="block text-sm font-medium text-secondary mb-1">Email Subject</label>
-          <div class="flex items-center gap-4">
+          
+          <div class="flex items-start gap-4">
+              
               <div class="flex-grow">
                   {{ template_formset.empty_form.subject|add_class:"w-full p-3 border focus:ring-gray-500 focus:border-gray-500 rounded-lg outline-none text-primary bg-primary" }}
               </div>
 
-              <div class="flex items-center shrink-0 relative group cursor-help">
-                  {{ template_formset.empty_form.track_template }}
-                  <label for="{{ template_formset.empty_form.track_template.id_for_label }}" class="select-none ms-2 text-sm font-medium text-secondary cursor-pointer">
-                      Track Open Rate
-                  </label>
+              <div class="flex flex-col gap-3 mt-2">
+                  
+                  <div class="flex items-center relative group cursor-help">
+                      {{ template_formset.empty_form.track_template }}
+                      <label for="{{ template_formset.empty_form.track_template.id_for_label }}" class="select-none ms-2 text-sm font-medium text-secondary cursor-pointer whitespace-nowrap">
+                          Track Open Rate
+                      </label>
 
-                  <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-64 p-2 bg-gray-800 text-white text-xs text-center rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-10">
-                      Requires a verified Custom Tracking Domain in your Email Account or User Profile.
-                      <div class="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-800"></div>
+                      <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-64 p-2 bg-gray-800 text-white text-xs text-center rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50">
+                          Requires a verified Custom Tracking Domain in your Email Account or User Profile.
+                          <div class="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-800"></div>
+                      </div>                  </div>
+
+                  <div class="flex items-center relative group cursor-help">
+                      {{ template_formset.empty_form.include_unsubscribe }}
+                      <label for="{{ template_formset.empty_form.include_unsubscribe.id_for_label }}" class="select-none ms-2 text-sm font-medium text-secondary cursor-pointer whitespace-nowrap">
+                          Include Unsubscribe Link
+                      </label>
+
+                      <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-64 p-2 bg-gray-800 text-white text-xs text-center rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50">
+                          Requires a verified Custom Tracking Domain in your Email Account or User Profile. The system will automatically handle the link.
+                          <div class="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-800"></div>
+                      </div>
                   </div>
+
               </div>
           </div>
       </div>

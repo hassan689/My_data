@@ -72,6 +72,11 @@ class CampaignTemplate(models.Model):
     track_template = models.BooleanField(default=False) # Changed from track_campaign
     open_rate = models.IntegerField(default=0)
 
+    include_unsubscribe = models.BooleanField(
+        default=False, 
+        verbose_name="Include Unsubscribe Link"
+    )
+
     def __str__(self):
         return f"Template: {self.subject[:30]}..."
 

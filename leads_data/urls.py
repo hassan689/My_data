@@ -5,6 +5,7 @@ app_name = 'leads_data'
 
 urlpatterns = [
     path('skip-lists/', views.skip_list_page, name="skip_list_page"),
+    path('unsubscribe/<str:token>/', views.unsubscribe_view, name='unsubscribe_view'),
 ]
 
 
