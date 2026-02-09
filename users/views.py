@@ -2,6 +2,7 @@ from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import login, authenticate, get_backends
 import dns.resolver
+import requests
 
 from growth_skool import settings
 # from .forms import CustomUserSignupForm, EmailLoginForm, OTPForm
@@ -278,48 +279,53 @@ def user_profile_view(request):
 @require_GET
 def check_domain(request):
     """
-    Caddy 'ask' endpoint.
-    Verifies if a domain is allowed to have an SSL certificate issued.
-    
-    Args:
-        domain (query param): The domain Caddy wants to certify (e.g., track.user.com)
-        
-    Returns:
-        200 OK: Domain is valid. Proceed with SSL. (It exists in my db and is allowed to be used for tracking.)
-        400 Bad Request: Domain is invalid/unknown. Deny SSL.
+    Unified SSL validation endpoint for Caddy.
+    Bcz Caddy file can have only 1 "ask" directive, we need to check both DispatchSkool and ColdSkool in the same view.
+
+    Logic:
+    1. Check DispatchSkool DB
+    2. If not found, ask ColdSkool
+    3. Allow if either approves
     """
-    print("Received SSL certificate request from Caddy.")
-    # Caddy sends the domain as a query parameter: ?domain=example.com
+
     domain = request.GET.get('domain')
     if not domain:
         return HttpResponse('Domain required', status=400)
 
     domain = domain.lower().strip()
-    
-    # 1. System Domains
+
+    # 1. DispatchSkool DB check
     if domain in getattr(settings, 'SYSTEM_DOMAINS', []):
         return HttpResponse('OK')
 
-    # 2. Check User Profiles (Global Fallback)
-    user_exists = CustomUser.objects.filter(
-        tracking_custom_domain=domain, 
-        tracking_domain_verified=True
-    ).exists()
-
-    if user_exists:
-        return HttpResponse('OK')
-
-    # 3. Check Individual Email Accounts (Granular)
-    account_exists = EmailAccount.objects.filter(
+    if CustomUser.objects.filter(
         tracking_custom_domain=domain,
         tracking_domain_verified=True
-    ).exists()
-
-    if account_exists:
+    ).exists():
         return HttpResponse('OK')
 
-    return HttpResponse('Unauthorized', status=400)
+    if EmailAccount.objects.filter(
+        tracking_custom_domain=domain,
+        tracking_domain_verified=True
+    ).exists():
+        return HttpResponse('OK')
 
+    # 2. Fallback: ask ColdSkool
+    try:
+        resp = requests.get(
+            "https://coldskool.com/check-domain/",
+            params={"domain": domain},
+            timeout=1.5
+        )
+
+        if resp.status_code == 200:
+            return HttpResponse('OK')
+
+    except requests.RequestException:
+        pass
+
+    # 3. Deny the incoming domain, if both checks failed
+    return HttpResponse('Unauthorized', status=400)
 
 
 @login_required
