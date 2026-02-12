@@ -44,7 +44,7 @@ def send_warmup_step(campaign_id, step_number):
             return
         
         # --- NEW LOGIC: Refresh targets every 6 steps (Start of a new conversation cycle) ---
-        is_new_cycle = (step_number % 6 == 0)
+        is_new_cycle = (step_number % 4 == 0)
         
         if step_number > 0 and is_new_cycle:
             print(f"Cycle Complete (Step {step_number}). Refreshing targets for Campaign {campaign.id}.")

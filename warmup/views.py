@@ -5,59 +5,40 @@ from .models import WarmupTemplateSet, WarmupCampaign
 from django.utils import timezone
 from datetime import timedelta
 from users.models import EmailAccount
-import random
+from django.db.models import Count, Q
 
 
 def refresh_targets(campaign):
     """
-    Refreshes the target list for a campaign.
-    Priority 1: 'Idle' accounts (Not currently a target in any ACTIVE campaign).
-    Priority 2: 'Busy' accounts (Already targeted, used as fill-in).
+    Refreshes the target list for a campaign using a least-burdened strategy.
+    Prioritizes accounts acting as targets in the fewest 'Active' campaigns.
     """
-    target_count = 5
+    # 1. Configuration: Reduced from 5 to 2 targets to balance the pool
+    TARGET_LIMIT = 2
     sender_account = campaign.sender_account
     sender_user = sender_account.user
 
-    # 1. Base Pool: Eligible accounts, excluding the sender's own user
-    # We exclude the sender_user entirely to prevent self-warming loops within one user account
+    # 2. Base Pool: Eligible accounts, excluding the sender's own user and blacklisted accounts
     base_qs = EmailAccount.objects.filter(
         black_list=False, 
         is_warmup_target=True
     ).exclude(user=sender_user)
 
-    # 2. Priority Pool: Find accounts that are NOT in any 'Active' campaign right now
-    # We use the related_name 'target_of_warmup_campaigns' to check status
-    idle_accounts_qs = base_qs.exclude(target_of_warmup_campaigns__status='Active')
-    idle_accounts = list(idle_accounts_qs)
+    # 3. Least-Burdened Annotation
+    # We count how many 'Active' campaigns each account is currently a target of.
+    accounts_with_load = base_qs.annotate(
+        active_target_count=Count(
+            'target_of_warmup_campaigns',
+            filter=Q(target_of_warmup_campaigns__status='Active')
+        )
+    )
 
-    selected_accounts = []
-
-    # 3. Selection Logic
-    if len(idle_accounts) >= target_count:
-        # Ideal: We have enough idle accounts to fill the slots
-        selected_accounts = random.sample(idle_accounts, target_count)
-    else:
-        # Scarcity: Take all idle accounts, then fill the remainder with busy ones
-        selected_accounts = idle_accounts[:] # Take them all
-        needed = target_count - len(selected_accounts)
-        
-        if needed > 0:
-            
-            # Get IDs of accounts we already selected to exclude them
-            selected_ids = [acc.id for acc in selected_accounts]
-            
-            busy_accounts_qs = base_qs.filter(
-                target_of_warmup_campaigns__status='Active'
-            ).exclude(id__in=selected_ids).distinct()
-            
-            busy_accounts = list(busy_accounts_qs)
-
-            # Fill the rest
-            if len(busy_accounts) >= needed:
-                selected_accounts.extend(random.sample(busy_accounts, needed))
-            else:
-                # If we still don't have enough, just take what exists
-                selected_accounts.extend(busy_accounts)
+    # 4. Selection Logic
+    # Order by active_target_count (ascending) to pick the least used accounts first.
+    # Order by '?' (random) secondarily to break ties and prevent static pairs.
+    selected_accounts_qs = accounts_with_load.order_by('active_target_count', '?')[:TARGET_LIMIT]
+    
+    selected_accounts = list(selected_accounts_qs)
     
     return selected_accounts
 

@@ -7,6 +7,7 @@ from django.core.mail import get_connection
 from users.models import EmailAccount
 from django.core.mail import send_mail
 from django.conf import settings
+from django.db.models import Count, Q
 
 
 IMAP_SETTINGS_MAP = {
@@ -20,26 +21,48 @@ IMAP_SETTINGS_MAP = {
 
 # A professional master template with placeholders for injection
 WARMUP_SPINTAX_TEMPLATE = """
-{Hi|Hello|Hey} {recipient_name},
+{Hi|Hello|Hey|Good morning|Good afternoon} {recipient_name},
 
-{I hope this email finds you well.|I hope you are having a {great|productive} week.|Trust you're doing well.}
+{I hope this email finds you well.|Hope you're having a {great|productive|smooth} week.|Trust everything is going well on your end.|Hope business has been treating you well lately.}
 
-{I wanted to|Just wanted to} {reach out|connect|touch base} {briefly|quickly} regarding {our previous discussion|a potential partnership|some updates on our end|the business landscape}. {We have been|My team has been} {working on|reviewing} {some new strategies|internal processes|the latest market trends} and {I thought|I figured} it might be {relevant|of interest|useful} to {you|your team}.
+{I was|I've been|We were} {reading about|looking into|learning more about|following} 
+{the {logistics|construction|manufacturing|healthcare|retail|tech|real estate|food service|automotive|e-commerce|energy|agriculture} space
+|how companies in {your industry|the B2B space|operations-heavy businesses|service-based businesses} are adapting lately
+|recent shifts in {supply chains|customer demand|digital adoption|hiring trends|operational efficiency}
+|how teams are handling {growth|scaling challenges|new clients|process improvements}
+|emerging trends in {small business operations|enterprise workflows|client acquisition|team productivity}}.
 
-{Are you available|Do you have time} for a {quick|brief} {call|chat|discussion} {sometime soon|this week|next week}? {I'd love to|It would be great to} {hear your thoughts|get your input|catch up}.
+{It made me think about|It reminded me of|It got me thinking about}
+{how different teams are approaching {growth|efficiency|automation|customer experience|sales processes}
+|the way companies are adjusting their {workflows|operations|strategies}
+|how businesses are preparing for the next quarter
+|how organizations are improving internal processes}.
 
-{Best|Regards|Cheers|Talk soon},
+{Curious to hear|Would love to hear|Interested in knowing}
+{what your experience has been like|how things are going on your side|what trends you're noticing|how your team is approaching things}.
+
+{If you're open to it,|If it makes sense,|Whenever you have a moment,}
+{we could|maybe we could|perhaps we can}
+{jump on a quick call|have a short chat|connect for a few minutes|exchange a few thoughts}
+{sometime this week|in the coming days|next week|whenever it suits your schedule}.
+
+{Best regards|Regards|Cheers|Talk soon|All the best},
 {sender_company} Team
 """
 
 WARMUP_SUBJECT_TEMPLATE = "{" \
-                          "{Quick|Brief} {question|inquiry|query} for {you|{recipient_name}}" \
-                          "|{Connecting|Touching base|Checking in} regarding {business|{sender_company}|potential partnership}" \
-                          "|{Thoughts|Feedback} on {this|latest updates|our proposal}?" \
-                          "|{Meeting|Call} {request|invitation}: {Next week|This week}?" \
-                          "|{Important|Update}: {Regarding your account|Project details|Next steps}" \
-                          "|{Hello|Hi} {recipient_name}, {quick question|got a minute?}" \
-                          "}"
+"{Quick|Short|Small} {question|note|thought} for {you|{recipient_name}}" \
+"|{Hello|Hi} {recipient_name}" \
+"|{Checking in|Touching base|Quick follow-up}" \
+"|{Thoughts on|Quick note about} {operations|growth|recent trends|this week}" \
+"|{Are you seeing this too?|Quick industry question}" \
+"|{Quick idea|Small thought} about {business processes|team workflows|growth}" \
+"|{Connecting|Reaching out} from {sender_company}" \
+"|{Quick chat|Short call} sometime {this week|next week}?" \
+"|{Curious about|Quick question on} {your workflow|your process|your current setup}" \
+"|{A quick hello|Just saying hi} from {sender_company}" \
+"}"
+
 
 def spin_text(text):
     """
@@ -107,56 +130,39 @@ def generate_spintax_subject(recipient_first_name=None, sender_company_name=None
 
 def refresh_targets(campaign):
     """
-    Refreshes the target list for a campaign.
-    Priority 1: 'Idle' accounts (Not currently a target in any ACTIVE campaign).
-    Priority 2: 'Busy' accounts (Already targeted, used as fill-in).
+    Refreshes the target list for a campaign using a least-burdened strategy.
+    Prioritizes accounts acting as targets in the fewest 'Active' campaigns.
     """
-    target_count = 5
+    # 1. Configuration: Reduced from 5 to 2 targets to balance the pool
+    TARGET_LIMIT = 2
     sender_account = campaign.sender_account
     sender_user = sender_account.user
 
-    # 1. Base Pool: Eligible accounts, excluding the sender's own user
-    # We exclude the sender_user entirely to prevent self-warming loops within one user's account
+    # 2. Base Pool: Eligible accounts, excluding the sender's own user
+    # This prevents self-warming and maintains external deliverability weight.
     base_qs = EmailAccount.objects.filter(
         black_list=False, 
         is_warmup_target=True
     ).exclude(user=sender_user)
 
-    # 2. Priority Pool: Find accounts that are NOT in any 'Active' campaign right now
-    # We use the related_name 'target_of_warmup_campaigns' to check status
-    idle_accounts_qs = base_qs.exclude(target_of_warmup_campaigns__status='Active')
-    idle_accounts = list(idle_accounts_qs)
+    # 3. Least-Burdened Annotation
+    # We count how many 'Active' campaigns each account is currently a target of.
+    # The related_name 'target_of_warmup_campaigns' is used for the join.
+    accounts_with_load = base_qs.annotate(
+        active_target_count=Count(
+            'target_of_warmup_campaigns',
+            filter=Q(target_of_warmup_campaigns__status='Active')
+        )
+    )
 
-    selected_accounts = []
+    # 4. Selection Logic
+    # Order by active_target_count (ascending) to pick the least used accounts first.
+    # Order by '?' (random) secondarily to break ties and prevent static pairs.
+    selected_accounts_qs = accounts_with_load.order_by('active_target_count', '?')[:TARGET_LIMIT]
+    
+    selected_accounts = list(selected_accounts_qs)
 
-    # 3. Selection Logic
-    if len(idle_accounts) >= target_count:
-        # Ideal: We have enough idle accounts to fill the slots
-        selected_accounts = random.sample(idle_accounts, target_count)
-    else:
-        # Scarcity: Take all idle accounts, then fill the remainder with busy ones
-        selected_accounts = idle_accounts[:] # Take them all
-        needed = target_count - len(selected_accounts)
-        
-        if needed > 0:
-            
-            # Get IDs of accounts we already selected to exclude them
-            selected_ids = [acc.id for acc in selected_accounts]
-            
-            busy_accounts_qs = base_qs.filter(
-                target_of_warmup_campaigns__status='Active'
-            ).exclude(id__in=selected_ids).distinct()
-            
-            busy_accounts = list(busy_accounts_qs)
-
-            # Fill the rest
-            if len(busy_accounts) >= needed:
-                selected_accounts.extend(random.sample(busy_accounts, needed))
-            else:
-                # If we still don't have enough, just take what exists
-                selected_accounts.extend(busy_accounts)
-
-    # 4. Save and Return
+    # 5. Save and Return
     if selected_accounts:
         campaign.target_accounts.set(selected_accounts)
     
@@ -173,6 +179,7 @@ def personalize_template(template, lead):
         template = template.replace(f"[{ph}]", value)
     
     return template
+
 
 def get_email_connection(email_account, decrypted_password):
     """
@@ -254,7 +261,6 @@ def get_warmup_imap_connection(email_account):
         return None
 
 
-# Dedicated folder for warmup emails helps in organization and prevents cluttering the main inbox.
 def ensure_folder_exists(imap_conn, folder_name="Warmup", account_email="Unknown"):
     """
     Checks if a folder exists using SELECT.
