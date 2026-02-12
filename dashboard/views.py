@@ -836,7 +836,7 @@ def track_open(request, unique_identifier):
         with transaction.atomic():
             email_log = (
                 EmailOpen.objects
-                .select_for_update()
+                .select_for_update(of=('self',))
                 .select_related('campaign', 'template')
                 .get(unique_identifier=unique_identifier)
             )
