@@ -1,8 +1,12 @@
 from django.utils.timezone import now, timedelta
 from django.core.mail import send_mail
 from django.conf import settings
-from users.models import CustomUser
+from dashboard.models import CampaignRecord
+from drip_campaigns.models import DripCampaign, EmailAccountAndLeads
+from users.models import CustomUser, EmailAccount
 from growth_skool.celery import app
+from django.db import transaction
+from warmup.models import WarmupCampaign
 
 
 @app.task(
@@ -38,23 +42,47 @@ def send_expiry_email(self, user_email):
 
 @app.task(name="users.tasks.check_free_trial_expiry")
 def check_free_trial_expiry():
-    # 1. Identify targets (Using our new index!)
+    
     ten_days_ago = now() - timedelta(days=10)
     expired_users_qs = CustomUser.objects.filter(
         on_free_trial=True, 
         trial_started_at__lte=ten_days_ago
     )
 
-    # 2. Grab emails BEFORE updating
-    user_data = list(expired_users_qs.values_list("email", flat=True))
+    if expired_users_qs.exists():
+        for user in expired_users_qs:
+            try:
+                # --- WARMUP CLEANUP ---
+                user_accounts = EmailAccount.objects.filter(user=user)
+                if user_accounts.exists():
+                    WarmupCampaign.objects.filter(sender_account__in=user_accounts).update(status="Complete")
 
-    if user_data:
-        # 3. Bulk update in the DB (Fast SQL operation)
+                    for account in user_accounts:
+                        with transaction.atomic():
+                            account.target_of_warmup_campaigns.clear()
+                            account.is_warmup_target = False
+                            account.save(update_fields=["is_warmup_target"])
+
+                # --- DRIP & OTHER CAMPAIGN CLEANUP ---
+                # Pause Drip Campaigns
+                active_drip = DripCampaign.objects.filter(launched_by=user, status__in=['Active', 'Processing'])
+                if active_drip.exists():
+                    campaign_ids = list(active_drip.values_list('id', flat=True))
+                    with transaction.atomic():
+                        EmailAccountAndLeads.objects.filter(campaign_id__in=campaign_ids, status='Processing').update(status='Stopped')
+                        active_drip.update(status='Paused')
+
+                # Cancel generic CampaignRecords
+                CampaignRecord.objects.filter(launched_by=user, status__in=['pending', 'processing']).update(status='cancelled')
+
+                # --- NOTIFICATION ---
+                send_expiry_email.delay(user.email)
+
+            except Exception as e:
+                print(f"Error during cleanup for user {user.id}: {e}")
+
+        # 2. Bulk update the trial status AFTER cleanup is initiated
         expired_users_qs.update(on_free_trial=False)
-
-        # 4. Hand off to another task for email sending
-        for email in user_data:
-            send_expiry_email.delay(email)
 
     else:
         print("No expired trials today.")

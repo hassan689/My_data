@@ -1,7 +1,7 @@
 from django.shortcuts import get_object_or_404, redirect
 from django.contrib import messages
 from .tasks import send_warmup_step
-from .models import WarmupTemplateSet, WarmupCampaign
+from .models import WarmupCampaign
 from django.utils import timezone
 from datetime import timedelta
 from users.models import EmailAccount
@@ -51,8 +51,6 @@ def start_warmup_view(request, email_account_id):
         return redirect('dashboard:index')
 
     try:
-        template_set = WarmupTemplateSet.objects.get(name='Warmup Campaigns Templates')
-
         sender_account.is_warmup_target = True
         sender_account.save(update_fields=['is_warmup_target'])
         
@@ -71,7 +69,6 @@ def start_warmup_view(request, email_account_id):
             print("Creating new campaign")
             campaign = WarmupCampaign.objects.create(
                 sender_account=sender_account,
-                template_set=template_set,
                 status='Active',
                 current_step=0,
                 next_action_at=timezone.now() + timedelta(minutes=5)  # First step after 5 minutes
@@ -92,10 +89,9 @@ def start_warmup_view(request, email_account_id):
 
         messages.success(request, f"Warmup campaign for {sender_account.email_address} has been started.")
         return redirect('dashboard:index')
-
-    except WarmupTemplateSet.DoesNotExist:
-        messages.error(request, "Default warmup template set not found.")
-        return redirect('dashboard:index')
+    
+    except Exception as e:
+        print("Error starting warmup:", str(e))
 
 
 def stop_warmup_view(request, email_account_id):

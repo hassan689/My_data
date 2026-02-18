@@ -1201,7 +1201,13 @@ def verify_email_chunk(self, batch_id, chunk_rows, start_time, job_id=None, proc
 
 @shared_task
 def finalize_batch(results, batch_id):
-    flat_rows = [item for sublist in results for item in sublist]
+    
+    # Only includes rows where Status is 'deliverable'
+    flat_rows = [
+        item for sublist in results 
+        for item in sublist 
+        if item.get('Status') == 'deliverable'
+    ]
     
     fieldnames = ['Email', 'Status', 'Score', 'Reason', 'Disposable']
     all_keys = set().union(*(d.keys() for d in flat_rows))
@@ -1213,8 +1219,10 @@ def finalize_batch(results, batch_id):
     writer.writerows(flat_rows)
 
     batch = VerificationBatch.objects.get(id=batch_id)
-    output_filename = f"verified_{batch.original_filename.split('.')[0]}.csv"
-    batch.output_file.save(output_filename, ContentFile(csv_buffer.getvalue().encode('utf-8')))
+    
+    # Using rsplit('.', 1) is safer for files with multiple dots
+    output_filename = f"verified_{batch.original_filename.rsplit('.', 1)[0]}.csv"
+    batch.output_file.save(output_filename, ContentFile(csv_buffer.getvalue().encode('utf-8')), save=False)
     batch.status = 'COMPLETED'
 
     # CLEANUP: Delete the staging JSON file to save disk space
@@ -1224,5 +1232,4 @@ def finalize_batch(results, batch_id):
     batch.save(update_fields=['status', 'output_file'])
     
     return f"Processed {len(flat_rows)} rows"
-
 
