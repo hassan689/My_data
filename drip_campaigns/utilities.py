@@ -15,6 +15,8 @@ IMAP_SETTINGS_MAP = {
     'zoho':      {'host': 'imap.zoho.com', 'port': 993},
     'hostinger': {'host': 'imap.hostinger.com', 'port': 993},
     'namecheap': {'host': 'imap.privateemail.com', 'port': 993},
+    'godaddy':  {'host': 'imap.secureserver.net', 'port': 993},
+    'titan':     {'host': 'imap.titan.email', 'port': 993},
 }
 
 

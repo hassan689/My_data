@@ -8,7 +8,7 @@ from .models import DripCampaign, DripVariation, EmailAccountAndLeads, DripTempl
 from dashboard.models import GmailToken
 from unibox.models import EmailThread, OutgoingEmailMessage
 
-from dashboard.utilities import get_email_connection, personalize_template, sanitize_email_html, should_use_batch_processing
+from dashboard.utilities import get_email_connection, personalize_template, sanitize_email_html, should_use_batch_processing, bake_lead_snapshot
 from .utilities import reschedule_or_finalize, normalize_provider, send_campaign_failure_alert, IMAP_SETTINGS_MAP, get_imap_connection, save_email_with_existing_connection, get_best_sent_folder
 from django.core.mail import EmailMultiAlternatives, send_mail
 from django.db import transaction
@@ -536,13 +536,15 @@ def send_single_email(self, campaign_id, account_info_id, template_id, lead_inde
                 # Determine if 'variation' is a real DripVariation object or the legacy DripTemplate
                 # If it's the Step itself (legacy), we store None for the variation FK
                 variation_fk = variation if isinstance(variation, DripVariation) else None
-                
+                lead_snapshot = bake_lead_snapshot(lead)
+
                 SentDripEmail.objects.create(
                     drip_campaign=campaign,
                     template=template,        # The Step (Manager)
                     variation=variation_fk,   # NEW: The specific Content used
                     message_id=clean_message_id,
                     lead_email=lead['Email'],
+                    lead_snapshot=lead_snapshot,
                     unique_identifier=unique_id,
                     lead_mc_number=lead.get('MC Number'),
                     status='Sent'
@@ -782,6 +784,7 @@ def send_batch_emails(self, campaign_id, account_info_id, template_id, start_ind
                 
                 sanitization_base = f"https://{current_domain}"
                 personalized_body = sanitize_email_html(personalized_body, sanitization_base)
+                current_snapshot = bake_lead_snapshot(lead)
 
                 # --- Tracking ---
                 unique_id = None
@@ -875,6 +878,7 @@ def send_batch_emails(self, campaign_id, account_info_id, template_id, start_ind
                             variation=variation_fk, # The Variation
                             message_id=clean_message_id, # Matches the pixel link exactly
                             lead_email=lead['Email'],
+                            lead_snapshot=current_snapshot,
                             unique_identifier=unique_id,
                             lead_mc_number=lead.get('MC Number'),
                             status='Sent'

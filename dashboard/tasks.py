@@ -31,7 +31,7 @@ from celery import shared_task, states, chord, group
 from celery.exceptions import TimeLimitExceeded
 
 from drip_campaigns.utilities import get_imap_connection, save_email_with_existing_connection, get_best_sent_folder
-from .utilities import get_email_connection, personalize_template, sanitize_email_html, should_use_batch_processing, fill_missing_and_return
+from .utilities import bake_lead_snapshot, get_email_connection, personalize_template, sanitize_email_html, should_use_batch_processing, fill_missing_and_return
 from django.core.mail import EmailMultiAlternatives, get_connection, send_mail, EmailMessage
 
 
@@ -164,6 +164,8 @@ def send_single_email(self, campaign_record_id):
             unique_id = uuid.uuid4()
             pixel_url = reverse('dashboard:track_open', kwargs={'unique_identifier': unique_id})
             pixel_link = urljoin(f"https://{tracking_domain}", pixel_url)
+
+            lead_snapshot = bake_lead_snapshot(lead)
             
             try:
                 EmailOpen.objects.create(
@@ -173,7 +175,8 @@ def send_single_email(self, campaign_record_id):
                     unique_identifier=unique_id,
                     mc_number=lead.get('MC Number', ''),
                     legal_name=lead.get('Legal Name', ''),
-                    launched_by=campaign.launched_by
+                    launched_by=campaign.launched_by,
+                    lead_snapshot=lead_snapshot
                 )
             except Exception as e:
                 print(f"Failed to create EmailOpen log: {e}")
@@ -555,6 +558,7 @@ def send_emails_batch(self, campaign_record_id, batch_size=10):
                     unique_id = uuid.uuid4()
                     pixel_url = reverse('dashboard:track_open', kwargs={'unique_identifier': unique_id})
                     pixel_link = urljoin(f"https://{tracking_domain}", pixel_url)
+                    current_snapshot = bake_lead_snapshot(lead)
                     
                     try:
                         EmailOpen.objects.create(
@@ -564,7 +568,8 @@ def send_emails_batch(self, campaign_record_id, batch_size=10):
                             unique_identifier=unique_id,
                             mc_number=lead.get('MC Number', ''),
                             legal_name=lead.get('Legal Name', ''),
-                            launched_by=campaign_for_loop.launched_by
+                            launched_by=campaign_for_loop.launched_by,
+                            lead_snapshot=current_snapshot
                         )
                         # tracking_pixel = f'<img src="{pixel_link}" width="1" height="1" style="display:none;" alt="">'
                         # personalized_body += tracking_pixel

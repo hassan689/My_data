@@ -548,3 +548,26 @@ def fill_missing_and_return(chunk_rows, processed_map):
     return final_chunk
 
 
+def bake_lead_snapshot(lead_dict):
+    """
+    Merges DB data with current lead data. 
+    Excel/Current lead_dict always takes priority over DB.
+    """
+    mc_number = lead_dict.get('MC Number')
+    enriched_data = {}
+
+    # 1. If lead source is DB or we have an MC number, try to get extra info
+    if mc_number:
+        db_lead = Lead.objects.filter(mc_number=mc_number).values(
+            'telephone', 'power_units', 'drivers', 
+            'address', 'city', 'state'
+        ).first()
+        if db_lead:
+            enriched_data = db_lead
+
+    # 2. Merge: Start with DB data, overwrite with everything in the current lead_dict
+    # This ensures user-provided Excel columns are preserved and prioritized.
+    snapshot = {**enriched_data, **lead_dict}
+    
+    return snapshot
+

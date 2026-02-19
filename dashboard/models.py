@@ -165,6 +165,8 @@ class EmailOpen(models.Model):
     is_opened = models.BooleanField(default=False)
     timestamp = models.DateTimeField(auto_now_add=True, blank=True, null=True)
 
+    lead_snapshot = models.JSONField(default=dict, blank=True, null=True)
+
     # We set NULL on delete so we don't lose the "Open" event if the template is deleted later.
     template = models.ForeignKey(CampaignTemplate, on_delete=models.SET_NULL, null=True, blank=True)
 

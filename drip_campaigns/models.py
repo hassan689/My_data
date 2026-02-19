@@ -180,6 +180,7 @@ class SentDripEmail(models.Model):
     )
     # The lead's info, for easy removal later
     lead_email = models.EmailField()
+    lead_snapshot = models.JSONField(default=dict, blank=True, null=True)
     lead_mc_number = models.CharField(
         max_length=50, 
         blank=True, 

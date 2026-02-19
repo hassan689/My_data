@@ -125,7 +125,7 @@ class CampaignRecordAdmin(admin.ModelAdmin):
 
     # --- Display Helpers ---
     def display_launch_or_schedule_time(self, obj):
-        if obj.status == 'pending' and obj.scheduled_launch_time:
+        if obj.status == 'pending' or obj.scheduled_launch_time:
             return timezone.localtime(obj.scheduled_launch_time).strftime('%Y-%m-%d %H:%M %p (Scheduled)')
         elif obj.launch_time:
             return timezone.localtime(obj.launch_time).strftime('%Y-%m-%d %H:%M %p (Started)')

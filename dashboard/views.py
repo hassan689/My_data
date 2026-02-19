@@ -919,103 +919,75 @@ class Echo:
     def write(self, value):
         return value
 
-# @login_required
-# def export_email_opens(request):
-    
-#     queryset = EmailOpen.objects.filter(
-#         launched_by=request.user, is_opened=True
-#     ).values_list('mc_number', 'legal_name', 'recipient_email').iterator()
-
-#     # 2. Determine Date for Filename "Email_Opens_till_{date}"
-#     latest_open = EmailOpen.objects.filter(launched_by=request.user).select_related('campaign').order_by('-timestamp').first()
-#     date_str = now().date().isoformat()
-    
-#     if latest_open:
-#         if latest_open.campaign:
-#             # Case A: Campaign still exists -> Use launch time
-#             target_time = latest_open.campaign.launch_time or latest_open.campaign.scheduled_launch_time
-#             if target_time:
-#                 date_str = target_time.date().isoformat()
-#         else:
-#             # Case B: Campaign was deleted by Celery -> Use the open timestamp
-#             if latest_open.timestamp:
-#                 date_str = latest_open.timestamp.date().isoformat()
-
-#     # 3. Define the Generator
-#     def stream_csv():
-#         buffer = Echo()
-#         writer = csv.writer(buffer)
-        
-#         yield writer.writerow(["MC Number", "Legal Name", "Email"])
-
-#         for row in queryset:
-#             yield writer.writerow(row)
-
-#     # 4. Construct Streaming Response
-#     response = StreamingHttpResponse(stream_csv(), content_type="text/csv")
-#     response['Content-Disposition'] = f'attachment; filename="Email_Opens__till_{date_str}.csv"'
-    
-#     return response
-
 @login_required
 def export_email_opens(request):
+    # 1. Standard Sales Fields we always want as separate columns
+    sales_columns = ['Telephone', 'Power Units', 'Drivers', 'Address', 'State']
     
-    # 1. Fetch Legacy Opens
-    legacy_opens = EmailOpen.objects.filter(
-        launched_by=request.user, 
-        is_opened=True
-    ).annotate(
-        source=Value('Standard')
-    ).values_list('mc_number', 'legal_name', 'recipient_email', 'source')
+    # 2. Fetch QuerySets
+    legacy_qs = EmailOpen.objects.filter(launched_by=request.user, is_opened=True)
+    drip_qs = SentDripEmail.objects.filter(drip_campaign__launched_by=request.user, is_opened=True)
 
-    # 2. Build a Map for Drip Campaign Leads (Email -> Name)
-    # We fetch all lead data for this user's active/completed drip campaigns
-    drip_name_map = {}
-    lead_blobs = EmailAccountAndLeads.objects.filter(
-        campaign__launched_by=request.user
-    ).values_list('leads_data', flat=True)
+    # 3. Limited Column Discovery (Sampling first 100 of each)
+    sampled_keys = set()
+    for snap in legacy_qs.values_list('lead_snapshot', flat=True)[:100]:
+        if snap: sampled_keys.update(snap.keys())
+    for snap in drip_qs.values_list('lead_snapshot', flat=True)[:100]:
+        if snap: sampled_keys.update(snap.keys())
 
-    for blob in lead_blobs:
-        if not blob: continue
-        for lead in blob:
-            email = lead.get('Email') or lead.get('email')
-            if not email: continue
-            
-            # Find a name key (Legal Name, Name, full_name, etc.)
-            name_key = next((k for k in lead.keys() if 'name' in k.lower()), None)
-            if name_key:
-                drip_name_map[email] = lead[name_key]
-
-    # 3. Fetch Drip Opens
-    drip_opens_qs = SentDripEmail.objects.filter(
-        drip_campaign__launched_by=request.user,
-        is_opened=True
-    ).values_list('lead_mc_number', 'lead_email')
-
-    # 4. Filename Date Logic (Optimized)
-    last_legacy = EmailOpen.objects.filter(launched_by=request.user).order_by('-timestamp').only('timestamp').first()
-    last_drip = SentDripEmail.objects.filter(drip_campaign__launched_by=request.user).order_by('-created_at').only('created_at').first()
+    # We only separate columns that are in our 'sales_columns' list
+    found_sales_cols = [col for col in sales_columns if col in sampled_keys]
     
-    dates = [d for d in [getattr(last_legacy, 'timestamp', None), getattr(last_drip, 'created_at', None)] if d]
-    date_str = max(dates).date().isoformat() if dates else now().date().isoformat()
+    core_header = ["MC Number", "Legal Name", "Email", "Campaign Type"]
+    final_header = core_header + found_sales_cols + ["Others"]
 
-    # 5. Generator with Dynamic Lookup
     def stream_csv():
         buffer = Echo()
         writer = csv.writer(buffer)
-        yield writer.writerow(["MC Number", "Legal Name", "Email", "Campaign Type"])
+        yield writer.writerow(final_header)
+
+        # Helper to process snapshots
+        def process_row(obj, campaign_type):
+            snap = obj.lead_snapshot or {}
+            
+            # Fallback Logic for empty snapshots
+            if campaign_type == "Standard":
+                mc = snap.get('MC Number') or obj.mc_number or "N/A"
+                name = snap.get('Legal Name') or obj.legal_name or "N/A"
+                email = snap.get('Email') or obj.recipient_email
+            else:
+                mc = snap.get('MC Number') or obj.lead_mc_number or "N/A"
+                name = snap.get('Legal Name') or "N/A"
+                email = snap.get('Email') or obj.lead_email
+
+            # Extract explicit sales columns
+            row_data = [mc, name, email, campaign_type]
+            for col in found_sales_cols:
+                row_data.append(snap.get(col, "N/A"))
+
+            # Handle the "Others" column
+            # Anything not in core or sales_columns goes here
+            known_keys = set(core_header + found_sales_cols)
+            others_dict = {k: v for k, v in snap.items() if k not in known_keys}
+            others_str = ", ".join([f"{k}: {v}" for k, v in others_dict.items()]) if others_dict else ""
+            row_data.append(others_str)
+            
+            return row_data
 
         # Stream Legacy
-        for row in legacy_opens.iterator():
-            yield writer.writerow(row)
+        for obj in legacy_qs.iterator():
+            yield writer.writerow(process_row(obj, "Standard"))
 
-        # Stream Drip (Enriched with the name map)
-        for mc, email in drip_opens_qs.iterator():
-            name = drip_name_map.get(email, "N/A")
-            yield writer.writerow([mc, name, email, "Drip"])
+        # Stream Drip
+        for obj in drip_qs.iterator():
+            yield writer.writerow(process_row(obj, "Drip"))
 
-    return StreamingHttpResponse(stream_csv(), content_type="text/csv", 
-                                headers={'Content-Disposition': f'attachment; filename="Email_Opens__till_{date_str}.csv"'})
+    date_str = timezone.now().date().isoformat()
+    return StreamingHttpResponse(
+        stream_csv(), 
+        content_type="text/csv", 
+        headers={'Content-Disposition': f'attachment; filename="Enriched_Opens_{date_str}.csv"'}
+    )
 
 
 @login_required
