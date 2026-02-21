@@ -21,10 +21,9 @@ import json
 import requests
 import csv
 import time
-import pandas as pd
 
 from io import StringIO
-from email.utils import make_msgid
+from email.utils import make_msgid, formataddr
 from urllib.parse import urljoin
 from growth_skool.celery import app
 from celery import shared_task, states, chord, group
@@ -219,11 +218,17 @@ def send_single_email(self, campaign_record_id):
             else:
                 personalized_body += footer_html
         
+        # Check if display_name exists, otherwise just use the email address
+        if email_account.display_name:
+            from_email = formataddr((email_account.display_name, email_account.email_address))
+        else:
+            from_email = email_account.email_address
+        
         # 7. --- Send Email ---
         msg = EmailMultiAlternatives(
             subject=personalized_subject,
             body=strip_tags(personalized_body), # Fallback body (plain text)
-            from_email=email_account.email_address,
+            from_email=from_email,
             to=[lead['Email']],
             connection=connection
         )
@@ -612,11 +617,17 @@ def send_emails_batch(self, campaign_record_id, batch_size=10):
                     else:
                         personalized_body += footer_html
                 
+                # Check if display_name exists, otherwise just use the email address
+                if email_account.display_name:
+                    from_email = formataddr((email_account.display_name, email_account.email_address))
+                else:
+                    from_email = email_account.email_address
+                
                 # --- 4. SEND EMAIL ---
                 msg = EmailMultiAlternatives(
                     subject=personalized_subject,
                     body=strip_tags(personalized_body), # Will be replaced by HTML
-                    from_email=email_account.email_address,
+                    from_email=from_email,
                     to=[lead['Email']],
                     connection=connection
                 )

@@ -251,6 +251,20 @@
 				</div>
 
         <!-- Row 5 -->
+        <div class="md:col-span-2 ">
+            <label class="block font-medium text-secondary mb-1">Display Name</label>
+            {% render_field form.display_name class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none bg-primary text-primary" placeholder="e.g. Abdullah Atif" %}
+            
+            {% if form.display_name.help_text %}
+                <p class="mt-1 text-sm text-gray-500 italic">{{ form.display_name.help_text }}</p>
+            {% endif %}
+            
+            {% if form.display_name.errors %}
+                <p class="text-red-500 text-xs mt-1">{{ form.display_name.errors.0 }}</p>
+            {% endif %}
+        </div>
+
+        <!-- Row 6 -->
         <div class="md:col-span-2 p-4 border border-dashed border-gray-300 rounded-xl bg-tertiary">
             <div class="flex justify-between items-center mb-2">
                 <label class="block font-bold text-primary text-lg">Custom Tracking Domain</label>

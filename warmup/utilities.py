@@ -226,6 +226,10 @@ def normalize_provider(provider_string):
         return 'hostinger'
     if 'namecheap' in provider_low or 'privateemail' in provider_low:
         return 'namecheap'
+    if 'godaddy' in provider_low or 'secureserver' in provider_low:
+        return 'godaddy'
+    if 'titan' in provider_low:
+        return 'titan'
         
     return None
 

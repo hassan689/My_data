@@ -1,6 +1,6 @@
 from growth_skool.celery import app
 from celery import shared_task, chord
-from email.utils import make_msgid
+from email.utils import make_msgid, formataddr
 from celery.exceptions import TimeLimitExceeded, MaxRetriesExceededError
 from urllib.parse import urljoin
 
@@ -495,11 +495,17 @@ def send_single_email(self, campaign_id, account_info_id, template_id, lead_inde
             else:
                 personalized_body += footer_html
         
+        # Check if display_name exists, otherwise just use the email address
+        if email_account.display_name:
+            from_email = formataddr((email_account.display_name, email_account.email_address))
+        else:
+            from_email = email_account.email_address
+        
         # --- Send Email ---
         msg = EmailMultiAlternatives(
             subject=personalized_subject,
             body=strip_tags(personalized_body),
-            from_email=email_account.email_address,
+            from_email=from_email,
             to=[lead['Email']],
             connection=connection
         )
@@ -832,11 +838,17 @@ def send_batch_emails(self, campaign_id, account_info_id, template_id, start_ind
                     else:
                         personalized_body += footer_html
                 
+                # Check if display_name exists, otherwise just use the email address
+                if email_account.display_name:
+                    from_email = formataddr((email_account.display_name, email_account.email_address))
+                else:
+                    from_email = email_account.email_address
+                
                 # --- Send Email ---
                 msg = EmailMultiAlternatives(
                     subject=personalized_subject,
                     body=strip_tags(personalized_body),
-                    from_email=email_account.email_address,
+                    from_email=from_email,
                     to=[lead['Email']],
                     connection=connection
                 )

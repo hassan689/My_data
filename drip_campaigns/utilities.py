@@ -20,9 +20,6 @@ IMAP_SETTINGS_MAP = {
 }
 
 
-# ===================================================================
-# HELPER FUNCTION FOR RESCHEDULING (Updated with Cache Logic)
-# ===================================================================
 def reschedule_or_finalize(campaign_id, account, template, next_lead_index, delay_seconds, use_batch=False, batch_size=10):
     """
     Decides whether to reschedule the next lead/batch or finalize the account.
@@ -131,6 +128,10 @@ def normalize_provider(provider_string):
         return 'hostinger'
     if 'namecheap' in provider_low or 'privateemail' in provider_low:
         return 'namecheap'
+    if 'godaddy' in provider_low or 'secureserver' in provider_low:
+        return 'godaddy'
+    if 'titan' in provider_low:
+        return 'titan'
         
     return None # We don't recognize it
 

@@ -17,8 +17,11 @@ class EmailAccountForm(forms.ModelForm):
 
     class Meta:
         model = EmailAccount
-        fields = ["email_address", "decrypted_password", "email_provider", "port_number", "server_type", "host", "is_warmup_target", 'tracking_custom_domain']
+        fields = ["display_name","email_address", "decrypted_password", "email_provider", "port_number", "server_type", "host", "is_warmup_target", 'tracking_custom_domain']
         widgets = {
+            'display_name': forms.TextInput(attrs={
+                'placeholder': 'e.g. Abdullah Atif',
+            }),
             'tracking_custom_domain': forms.TextInput(attrs={
                 'placeholder': 'track.yourdomainA.com',
             }),
@@ -53,6 +56,7 @@ class EmailAccountForm(forms.ModelForm):
         if commit:
             email_account.save()
         return email_account
+
 
 class DateTimePickerInput(DateTimeInput):
     input_type = 'datetime-local'

@@ -12,7 +12,7 @@ import time
 from django.db import connections
 from celery.exceptions import SoftTimeLimitExceeded
 from .utilities import *
-from email.utils import make_msgid
+from email.utils import formataddr, make_msgid
 import uuid
 import requests
 from django.db.models import Q
@@ -123,11 +123,17 @@ def send_warmup_step(campaign_id, step_number):
                         )
                         personalized_body = generate_spintax_body(recipient_account.user.first_name, getattr(recipient_account.user, "company_name", "ABC Transports LLC"))
 
+                    # Check if display_name exists, otherwise just use the email address
+                    if sender_account.display_name:
+                        from_email = formataddr((sender_account.display_name, sender_account.email_address))
+                    else:
+                        from_email = sender_account.email_address
+
                     # --- SENDING ---
                     main_msg = EmailMultiAlternatives(
                         subject=personalized_subject,
                         body=personalized_body,
-                        from_email=sender_account.email_address,
+                        from_email=from_email,
                         to=[recipient_account.email_address],
                         connection=connection
                     )
@@ -345,11 +351,17 @@ def send_warmup_step(campaign_id, step_number):
                         )
                         personalized_body = generate_spintax_body(recipient_account.user.first_name, getattr(recipient_account.user, "company_name", "ABC Transports LLC"))
                     
+                    # Check if display_name exists, otherwise just use the email address
+                    if sender_account.display_name:
+                        from_email = formataddr((sender_account.display_name, sender_account.email_address))
+                    else:
+                        from_email = sender_account.email_address
+
                     # --- SENDING ---
                     main_msg = EmailMultiAlternatives(
                         subject=personalized_subject,
                         body=personalized_body,
-                        from_email=sender_account.email_address,
+                        from_email=from_email,
                         to=[recipient_account.email_address],
                         connection=connection
                     )

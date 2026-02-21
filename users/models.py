@@ -184,6 +184,13 @@ class EmailAccount(models.Model):
     )
     host = models.CharField(max_length=100, verbose_name="Outgoing Servr Host")
 
+    display_name = models.CharField(
+        max_length=255, 
+        null=True, 
+        blank=True, 
+        help_text="The name that appears in the recipient's inbox."
+    )
+
     is_warmup_target = models.BooleanField(default=False)
     black_list = models.BooleanField(default=False) # These are for the accoutns that are causing trouble for the warmup
 
