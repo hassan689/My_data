@@ -131,33 +131,23 @@ def generate_spintax_subject(recipient_first_name=None, sender_company_name=None
 
 
 def refresh_targets(campaign):
-    """
-    Refreshes the target list using strict membership and velocity caps.
-    Ensures an account is a target of <= 3 campaigns and receives <= 5 emails/day.
-    Uses atomic locking to prevent race conditions during concurrent Celery tasks.
-    """
     TARGET_LIMIT = 2
     MEMBERSHIP_CAP = 3
     DAILY_VELOCITY_CAP = 5
     
     sender_account = campaign.sender_account
     sender_user = sender_account.user
-    
-    # Using UTC midnight as the hard reset point for daily limits
     today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
 
     try:
         with transaction.atomic():
-            # 1. Base Eligibility: Exclude the sender's own accounts and blacklisted ones
+            # 1. Selection Stage: Get IDs only
             base_qs = EmailAccount.objects.filter(
                 black_list=False, 
                 is_warmup_target=True
             ).exclude(user=sender_user)
 
-            # 2. Annotate with current load:
-            # - active_target_count: number of campaigns where this account is currently a target
-            # - received_today_count: warmup messages received since midnight
-            accounts_with_load = base_qs.annotate(
+            eligible_ids = base_qs.annotate(
                 active_target_count=Count(
                     'target_of_warmup_campaigns',
                     filter=Q(target_of_warmup_campaigns__status='Active')
@@ -166,27 +156,28 @@ def refresh_targets(campaign):
                     'received_warmup_messages',
                     filter=Q(received_warmup_messages__sent_at__gte=today_start)
                 )
-            )
-
-            # 3. Apply Hard Constraints based on our engineering discussion
-            eligible_targets = accounts_with_load.filter(
+            ).filter(
                 active_target_count__lt=MEMBERSHIP_CAP,
                 received_today_count__lt=DAILY_VELOCITY_CAP
-            ).order_by('active_target_count', 'received_today_count', '?')
+            ).order_by(
+                'active_target_count', 
+                'received_today_count', 
+                '?'
+            ).values_list('id', flat=True)[:TARGET_LIMIT * 3] # Fetch a larger pool to handle skip_locked
 
-            # 4. Atomic Row Locking: select_for_update + skip_locked 
-            # This prevents multiple workers from "checking out" the same target simultaneously.
+            # 2. Locking Stage: Lock the actual rows using the IDs
+            # We use the list of IDs to perform a clean query without GROUP BY
             selected_accounts = list(
-                eligible_targets.select_for_update(skip_locked=True)[:TARGET_LIMIT]
+                EmailAccount.objects.filter(id__in=eligible_ids)
+                .select_for_update(skip_locked=True)[:TARGET_LIMIT]
             )
 
-            # 5. Assignment and Save
+            # 3. Assignment
             if len(selected_accounts) >= TARGET_LIMIT:
                 campaign.target_accounts.set(selected_accounts)
                 return selected_accounts
             else:
-                # Starvation Fallback: If we can't find enough targets, 
-                # defer the campaign to wait for daily limit resets or capacity.
+                # Starvation fallback
                 campaign.next_action_at = timezone.now() + timedelta(hours=random.uniform(1, 2))
                 campaign.save(update_fields=['next_action_at'])
                 return []
