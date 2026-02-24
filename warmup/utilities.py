@@ -6,6 +6,9 @@ import email
 from django.core.mail import get_connection
 from users.models import EmailAccount
 from django.db.models import Count, Q
+from django.db import transaction
+from django.utils import timezone
+from datetime import timedelta
 
 
 IMAP_SETTINGS_MAP = {
@@ -127,46 +130,70 @@ def generate_spintax_subject(recipient_first_name=None, sender_company_name=None
     return spin_text(raw_text)
 
 
-
 def refresh_targets(campaign):
     """
-    Refreshes the target list for a campaign using a least-burdened strategy.
-    Prioritizes accounts acting as targets in the fewest 'Active' campaigns.
+    Refreshes the target list using strict membership and velocity caps.
+    Ensures an account is a target of <= 3 campaigns and receives <= 5 emails/day.
+    Uses atomic locking to prevent race conditions during concurrent Celery tasks.
     """
-    # 1. Configuration: Reduced from 5 to 2 targets to balance the pool
     TARGET_LIMIT = 2
+    MEMBERSHIP_CAP = 3
+    DAILY_VELOCITY_CAP = 5
+    
     sender_account = campaign.sender_account
     sender_user = sender_account.user
-
-    # 2. Base Pool: Eligible accounts, excluding the sender's own user
-    # This prevents self-warming and maintains external deliverability weight.
-    base_qs = EmailAccount.objects.filter(
-        black_list=False, 
-        is_warmup_target=True
-    ).exclude(user=sender_user)
-
-    # 3. Least-Burdened Annotation
-    # We count how many 'Active' campaigns each account is currently a target of.
-    # The related_name 'target_of_warmup_campaigns' is used for the join.
-    accounts_with_load = base_qs.annotate(
-        active_target_count=Count(
-            'target_of_warmup_campaigns',
-            filter=Q(target_of_warmup_campaigns__status='Active')
-        )
-    )
-
-    # 4. Selection Logic
-    # Order by active_target_count (ascending) to pick the least used accounts first.
-    # Order by '?' (random) secondarily to break ties and prevent static pairs.
-    selected_accounts_qs = accounts_with_load.order_by('active_target_count', '?')[:TARGET_LIMIT]
     
-    selected_accounts = list(selected_accounts_qs)
+    # Using UTC midnight as the hard reset point for daily limits
+    today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
 
-    # 5. Save and Return
-    if selected_accounts:
-        campaign.target_accounts.set(selected_accounts)
-    
-    return selected_accounts
+    try:
+        with transaction.atomic():
+            # 1. Base Eligibility: Exclude the sender's own accounts and blacklisted ones
+            base_qs = EmailAccount.objects.filter(
+                black_list=False, 
+                is_warmup_target=True
+            ).exclude(user=sender_user)
+
+            # 2. Annotate with current load:
+            # - active_target_count: number of campaigns where this account is currently a target
+            # - received_today_count: warmup messages received since midnight
+            accounts_with_load = base_qs.annotate(
+                active_target_count=Count(
+                    'target_of_warmup_campaigns',
+                    filter=Q(target_of_warmup_campaigns__status='Active')
+                ),
+                received_today_count=Count(
+                    'received_warmup_messages',
+                    filter=Q(received_warmup_messages__sent_at__gte=today_start)
+                )
+            )
+
+            # 3. Apply Hard Constraints based on our engineering discussion
+            eligible_targets = accounts_with_load.filter(
+                active_target_count__lt=MEMBERSHIP_CAP,
+                received_today_count__lt=DAILY_VELOCITY_CAP
+            ).order_by('active_target_count', 'received_today_count', '?')
+
+            # 4. Atomic Row Locking: select_for_update + skip_locked 
+            # This prevents multiple workers from "checking out" the same target simultaneously.
+            selected_accounts = list(
+                eligible_targets.select_for_update(skip_locked=True)[:TARGET_LIMIT]
+            )
+
+            # 5. Assignment and Save
+            if len(selected_accounts) >= TARGET_LIMIT:
+                campaign.target_accounts.set(selected_accounts)
+                return selected_accounts
+            else:
+                # Starvation Fallback: If we can't find enough targets, 
+                # defer the campaign to wait for daily limit resets or capacity.
+                campaign.next_action_at = timezone.now() + timedelta(hours=random.uniform(1, 2))
+                campaign.save(update_fields=['next_action_at'])
+                return []
+
+    except Exception as e:
+        print(f"Error in refresh_targets for campaign {campaign.id}: {e}")
+        return []
 
 
 def personalize_template(template, lead):

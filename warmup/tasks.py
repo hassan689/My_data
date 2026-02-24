@@ -45,6 +45,24 @@ def send_warmup_step(campaign_id, step_number):
         
         # --- NEW LOGIC: Refresh targets every 6 steps (Start of a new conversation cycle) ---
         is_new_cycle = (step_number % 4 == 0)
+
+        if is_new_cycle:
+            # If step 0, we MUST have targets. If step 4, 8, etc., we refresh them.
+            selected_targets = refresh_targets(campaign)
+            
+            # CRITICAL: If the pool is empty, refresh_targets already handled 
+            # the campaign.next_action_at update. We just exit here.
+            if not selected_targets:
+                print(f"Campaign {campaign.id} postponed: Target pool exhausted.")
+                return 
+
+        # Now get the targets for the rest of the task logic
+        recipients = list(campaign.target_accounts.all())
+        
+        # Safety check: if for some reason targets are missing and it wasn't a refresh step
+        if not recipients:
+            refresh_targets(campaign)
+            return
         
         if step_number > 0 and is_new_cycle:
             print(f"Cycle Complete (Step {step_number}). Refreshing targets for Campaign {campaign.id}.")

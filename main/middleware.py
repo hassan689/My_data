@@ -50,86 +50,94 @@ class MaintenanceModeMiddleware:
     
 
 class CustomDomainTrackingMiddleware:
+    """
+    Middleware to route tracking requests to the correct app:
+    - DispatchSkool domains → handled locally
+    - ColdSkool domains → proxied
+    """
+
+    TRACKING_PATHS = (
+        '/track/',
+        '/dashboard/track/',
+        '/track-campaign/',
+        '/drip_campaigns/track-campaign/'
+    )
+
     def __init__(self, get_response):
         self.get_response = get_response
         self.system_domains = getattr(settings, 'SYSTEM_DOMAINS', settings.ALLOWED_HOSTS)
 
     def __call__(self, request):
         host = request.get_host().split(':')[0].lower()
+        cache_key = f"tracking_domain:{host}"
 
-        # 1. System Domain check
+        # 1. System domain → local
         if host in self.system_domains:
             return self.get_response(request)
 
-        cache_key = f"tracking_domain:{host}"
+        # 2. Fast cache lookup
         cache_status = cache.get(cache_key)
-
-        # 2. Fast Exit/Entry from Cache
         if cache_status == 'INVALID':
             return HttpResponseNotFound("Not Found")
-        
-        if cache_status == 'VALID':
+        if cache_status == 'VALID_LOCAL':
             return self.get_response(request)
+        if cache_status == 'VALID_COLD':
+            return self.proxy_to_coldskool(request, cache_key)
 
-        # 3. Check Local DispatchSkool DB
+        # 3. Check local DispatchSkool DB
         user_valid = CustomUser.objects.filter(
-            tracking_custom_domain=host, 
+            tracking_custom_domain=host,
             tracking_domain_verified=True
         ).exists()
-
         account_valid = EmailAccount.objects.filter(
             tracking_custom_domain=host,
             tracking_domain_verified=True
         ).exists()
 
         if user_valid or account_valid:
-            cache.set(cache_key, 'VALID', timeout=7200)
+            cache.set(cache_key, 'VALID_LOCAL', timeout=7200)
             return self.get_response(request)
 
-        # 4. CROSS-APP DELEGATION: Ask ColdSkool if this is their domain
-        # Only do this for tracking paths to prevent overhead on other requests
-        if request.path.startswith('/track/') or request.path.startswith('/dashboard/track/'):
-            try:
-                # We use the internal 'check-domain' logic to see if ColdSkool claims it
-                resp = requests.get(
-                    "https://coldskool.com/check-domain/",
-                    params={"domain": host},
-                    timeout=2
-                )
-                
-                if resp.status_code == 200:
-                    # Validated by ColdSkool! Cache it locally and proxy the request
-                    cache.set(cache_key, 'VALID', timeout=7200)
-                    return self.proxy_to_coldskool(request, host)
-            except requests.RequestException:
-                pass
+        # 4. Proxy to ColdSkool for tracking paths only
+        if any(request.path.startswith(p) for p in self.TRACKING_PATHS):
+            return self.proxy_to_coldskool(request, cache_key)
 
-        # 5. Final Fallback: Block and Cache
+        # 5. Unknown domain → block
         cache.set(cache_key, 'INVALID', timeout=3600)
-        print(f"Blocked and cached invalid domain: {host}")
         return HttpResponseNotFound("Not Found")
 
-    def proxy_to_coldskool(self, request, host):
+    def proxy_to_coldskool(self, request, cache_key):
         """
-        Forwards the request to ColdSkool.
+        Forward the request to ColdSkool via standard internal routing.
         """
-        # Ensure we target the ColdSkool app
+        # 1. Send it directly to ColdSkool's main domain
         target_url = f"https://coldskool.com{request.get_full_path()}"
         
+        # 2. Prepare headers (remove original Host so Caddy routes it to ColdSkool)
+        headers = dict(request.headers)
+        headers.pop('Host', None)
+        
+        # Optional: Tell ColdSkool the original domain in case you need it for logs
+        headers['X-Forwarded-Host'] = request.get_host() 
+
         try:
-            # Forward the original headers so ColdSkool sees the 'track.primeductservices.com' host
-            headers = {k: v for k, v in request.headers.items()}
-            # Remove Host header so requests uses the target_url domain for routing
-            headers.pop('Host', None) 
+            # 3. Use stream=True to efficiently pass the pixel GIF back
+            resp = requests.get(target_url, headers=headers, timeout=5, stream=True)
             
-            # Use stream=True for efficiency with the pixel GIF
-            response = requests.get(target_url, headers=headers, timeout=5, stream=True)
-            
+            # Only cache as VALID_COLD if ColdSkool actually found the tracking pixel (200 OK)
+            if resp.status_code == 200:
+                cache.set(cache_key, 'VALID_COLD', timeout=7200)
+            else:
+                # If ColdSkool returns a 404, don't cache it as a valid ColdSkool domain
+                cache.set(cache_key, 'INVALID', timeout=3600)
+
             return HttpResponse(
-                response.content, 
-                status=response.status_code, 
-                content_type=response.headers.get('Content-Type')
+                resp.content,
+                status=resp.status_code,
+                content_type=resp.headers.get('Content-Type', 'image/gif')
             )
         except Exception as e:
-            print(f"Proxy Error: {e}")
+            print(f"ColdSkool proxy error for {request.get_host()}: {e}")
+            cache.set(cache_key, 'INVALID', timeout=3600)
             return HttpResponseNotFound("Tracking Node Unreachable")
+
