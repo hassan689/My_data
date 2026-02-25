@@ -26,7 +26,7 @@ class SubscriptionAdmin(admin.ModelAdmin):
     search_fields = ("user__username", "user__email")
     list_filter = ("status", "type", ReferredUserFilter,)
     ordering = ("-start_date",)
-    readonly_fields = ("renewal_count",)
+    # readonly_fields = ("renewal_count",)
     list_editable = ("status", "paid_amount", "type",)
     
     def company_name(self, obj):

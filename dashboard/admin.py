@@ -39,8 +39,8 @@ class GmailTokenAdmin(admin.ModelAdmin):
 @admin.register(CampaignTemplate)
 class CampaignTemplateAdmin(admin.ModelAdmin):
     list_display = ('id', 'subject', 'owner', 'created_at', 'first_campaign_link')
-    list_filter = ('created_at', 'owner')
-    search_fields = ('name', 'subject', 'body')
+    list_filter = ('created_at',)
+    search_fields = ('owner', 'name', 'subject', 'body')
     readonly_fields = ('created_at', 'updated_at')
 
     def first_campaign_link(self, obj):
@@ -87,8 +87,9 @@ class CampaignTemplateInline(admin.TabularInline):
 class CampaignRecordAdmin(admin.ModelAdmin):
     list_display = (
         'launched_by', 
-        'sender_account', 
-        'display_launch_or_schedule_time', 
+        'sender_account',
+        'scheduled_at_display',
+        'started_at_display', 
         'total_recipients', 
         'sent_count', 
         'status', 
@@ -123,16 +124,34 @@ class CampaignRecordAdmin(admin.ModelAdmin):
         
         return fields
 
-    # --- Display Helpers ---
-    def display_launch_or_schedule_time(self, obj):
-        if obj.status == 'pending' or obj.scheduled_launch_time:
-            return timezone.localtime(obj.scheduled_launch_time).strftime('%Y-%m-%d %H:%M %p (Scheduled)')
-        elif obj.launch_time:
-            return timezone.localtime(obj.launch_time).strftime('%Y-%m-%d %H:%M %p (Started)')
-        return "-" 
+    @admin.display(description='Scheduled at', ordering='scheduled_launch_time')
+    def scheduled_at_display(self, obj):
+        """
+        Only show the schedule if the campaign is still pending.
+        Once moved to processing or launched, we clear this 'phase'.
+        """
+        if obj.status == 'pending' and obj.scheduled_launch_time:
+            return timezone.localtime(obj.scheduled_launch_time).strftime('%Y-%m-%d %H:%M %p')
+        return None
 
-    display_launch_or_schedule_time.short_description = 'Launch/Schedule Time'
-    display_launch_or_schedule_time.admin_order_field = 'launch_time'
+    @admin.display(description='Started at', ordering='launch_time')
+    def started_at_display(self, obj):
+        """
+        - Hide for pending.
+        - If scheduled, show the scheduled time (the 'planned' start).
+        - If instant, show the auto_now_add launch_time.
+        """
+        if obj.status == 'pending':
+            return None
+        
+        # Determine the 'logical' start time
+        # Priority 1: The time it was supposed to start
+        # Priority 2: The time the record was created (instant launch)
+        target_time = obj.scheduled_launch_time or obj.launch_time
+        
+        if target_time:
+            return timezone.localtime(target_time).strftime('%Y-%m-%d %H:%M %p')
+        return None
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
