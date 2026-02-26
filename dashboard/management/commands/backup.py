@@ -4,14 +4,18 @@ import subprocess
 from datetime import datetime
 from django.core.management.base import BaseCommand
 from django.conf import settings
-from django.db.models import Q
+from django.db import models
+from django.utils.timezone import now
+from datetime import timedelta
 
-from dashboard.models import GmailToken, CampaignRecord, EmailOpen
+from dashboard.models import GmailToken, CampaignRecord, EmailOpen, CampaignTemplate, VerificationBatch
 from users.models import EmailAccount, Affiliate, CustomUser, AccountGroup
 from leads_data.models import DailySheet, SkipList
 from subscriptions.models import Subscription, Revenue, Expense
 from unibox.models import EmailThread, OutgoingEmailMessage, IncomingEmailMessage
-from drip_campaigns.models import DripCampaign, EmailAccountAndLeads, DripTemplate, SentDripEmail
+from drip_campaigns.models import DripCampaign, EmailAccountAndLeads, DripTemplate, SentDripEmail, DripVariation
+
+thirty_days_ago = now() - timedelta(days=30)
 
 
 class Command(BaseCommand):
@@ -40,41 +44,47 @@ class Command(BaseCommand):
 
         # Model backup mapping
         models_to_backup = [
+            # --- Accounts & Users (Full Snapshot) ---
+            ("CustomUser", CustomUser.objects.all().iterator(chunk_size=100), self.serialize_model),
             ("EmailAccount", EmailAccount.objects.all().iterator(chunk_size=100), self.serialize_email_account),
             ("AccountGroup", AccountGroup.objects.all().iterator(chunk_size=100), self.serialize_model),
             ("GmailToken", GmailToken.objects.all().iterator(chunk_size=100), self.serialize_gmail_token),
-            ("CampaignRecord", CampaignRecord.objects.filter(status__in=['pending', 'processing']).iterator(chunk_size=100), self.serialize_model),
-            ("EmailOpen", EmailOpen.objects.filter(
-                Q(campaign__status__in=['processing', 'pending']) | 
-                Q(is_opened=True)
-            ).iterator(chunk_size=1000), self.serialize_model),
+            ("Affiliate", Affiliate.objects.all().iterator(chunk_size=100), self.serialize_model),
 
-            # Save templates for only those campaigns under status pening or processing
-            ("CampaignTemplate", CampaignRecord.objects.filter(status__in=['pending', 'processing']).values_list('template_id', flat=True).distinct().iterator(chunk_size=100), self.serialize_model),
+            # --- Campaign App (Full Snapshot) ---
+            ("CampaignRecord", CampaignRecord.objects.all().iterator(chunk_size=100), self.serialize_model),
+            ("CampaignTemplate", CampaignTemplate.objects.all().iterator(chunk_size=100), self.serialize_model), # Fixed bug
+            
+            # --- Drip Campaign App (Full Snapshot + Filtered Logs) ---
+            ("DripCampaign", DripCampaign.objects.all().iterator(chunk_size=100), self.serialize_model),
+            ("EmailAccountAndLeads", EmailAccountAndLeads.objects.all().iterator(chunk_size=100), self.serialize_model),
+            ("DripTemplate", DripTemplate.objects.all().iterator(chunk_size=100), self.serialize_model),
+            ("DripVariation", DripVariation.objects.all().iterator(chunk_size=100), self.serialize_model), # Added Variation content [cite: 37]
+            ("SentDripEmail", SentDripEmail.objects.filter(
+                is_opened=True, 
+                created_at__gte=thirty_days_ago
+            ).iterator(chunk_size=1000), self.serialize_model), # Log filter [cite: 42]
 
-            ("DailySheet", DailySheet.objects.all().order_by("-uploaded_at")[:30], self.serialize_model),
-            ("SkipList", SkipList.objects.all().iterator(chunk_size=100), self.serialize_model),
-
-            ("Subscription", Subscription.objects.all().iterator(chunk_size=100), self.serialize_model),
-            ("Revenue", Revenue.objects.all().iterator(chunk_size=100), self.serialize_model),
-            ("Expense", Expense.objects.all().iterator(chunk_size=100), self.serialize_model),
-
+            # --- Unibox & Communications ---
             ("EmailThread", EmailThread.objects.all().iterator(chunk_size=100), self.serialize_model),
             ("OutgoingEmailMessage", OutgoingEmailMessage.objects.all().iterator(chunk_size=100), self.serialize_model),
             ("IncomingEmailMessage", IncomingEmailMessage.objects.all().iterator(chunk_size=100), self.serialize_model),
 
-            ("Affiliate", Affiliate.objects.all().iterator(chunk_size=100), self.serialize_model),
-            ("CustomUser", CustomUser.objects.all().iterator(chunk_size=100), self.serialize_model),
+            # --- Engagement Logs (Filtered) ---
+            ("EmailOpen", EmailOpen.objects.filter(
+                is_opened=True, 
+                timestamp__gte=thirty_days_ago
+            ).iterator(chunk_size=1000), self.serialize_model), # Log filter [cite: 14]
 
-            ("DripCampaign", DripCampaign.objects.filter(status__in=['Active', 'Processing', 'Paused']).iterator(chunk_size=100), self.serialize_model),
-            ("EmailAccountAndLeads", EmailAccountAndLeads.objects.filter(
-                campaign__status__in=['Active', 'Processing', 'Paused']
-            ).iterator(chunk_size=100), self.serialize_model),
-            ("DripTemplate", DripTemplate.objects.filter(campaign__status__in=['Active', 'Processing', 'Paused']).iterator(chunk_size=100), self.serialize_model),
-            ("SentDripEmail", SentDripEmail.objects.filter(
-                Q(drip_campaign__status__in=['Active', 'Processing', 'Paused']) | 
-                Q(is_opened=True)
-            ).iterator(chunk_size=1000), self.serialize_model),
+            # --- Subscriptions & Revenue ---
+            ("Subscription", Subscription.objects.all().iterator(chunk_size=100), self.serialize_model),
+            ("Revenue", Revenue.objects.all().iterator(chunk_size=100), self.serialize_model),
+            ("Expense", Expense.objects.all().iterator(chunk_size=100), self.serialize_model),
+
+            # --- Sheets & Lists ---
+            ("DailySheet", DailySheet.objects.all().order_by("-uploaded_at")[:30], self.serialize_model), # Top 30 [cite: 46]
+            ("SkipList", SkipList.objects.all().iterator(chunk_size=100), self.serialize_model),
+            ("VerificationBatch", VerificationBatch.objects.all().iterator(chunk_size=100), self.serialize_model), # Added [cite: 24]
         ]
 
         for model_name, queryset_iterator, serializer in models_to_backup:
@@ -134,13 +144,21 @@ class Command(BaseCommand):
         }
 
     def serialize_model(self, obj):
-        # Generic serializer dumping all fields
         data = {}
+        # 1. Standard Fields
         for field in obj._meta.fields:
             value = getattr(obj, field.name)
             if hasattr(value, "isoformat"):
                 value = value.isoformat()
+            # Using models.Model here requires 'from django.db import models'
+            elif isinstance(value, models.Model): 
+                value = value.id # Use .id for universality
             data[field.name] = value
+
+        # 2. Many-to-Many Fields (Handles CampaignRecord.templates, etc.)
+        for m2m in obj._meta.many_to_many:
+            data[m2m.name] = list(getattr(obj, m2m.name).values_list('id', flat=True))
+            
         return data
 
 
