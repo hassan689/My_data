@@ -531,18 +531,32 @@ def should_use_batch_processing(min_delay: int, max_delay: int, batch_size: int 
 
 
 # for the email verification processing
-def fill_missing_and_return(chunk_rows, processed_map):
-    """Ensures every original row has a status before returning to finalizer."""
+def fill_missing_and_return(chunk_rows, processed_map, original_headers):
+    """Ensures every row matches the original header structure + verification cols."""
     final_chunk = []
+    
+    # We must include 'Email' because process_leads_file adds it explicitly
+    # if it wasn't already in the original headers.
+    extended_headers = list(original_headers)
+    if 'Email' not in extended_headers:
+        extended_headers.append('Email')
+
     for row in chunk_rows:
         email = str(row.get('Email', '')).strip().lower()
         res = processed_map.get(email, {})
         
+        # 1. Fill missing original "cells" or Nones with N/A
+        for header in extended_headers:
+            val = row.get(header)
+            if val is None or str(val).strip() == '':
+                row[header] = 'N/A'
+
+        # 2. Add namespaced verification data
         row.update({
-            'Status': res.get('result', 'timeout' if email else 'INVALID'),
-            'Score': res.get('score', 0),
-            'Reason': res.get('reason', 'API Timeout' if email else 'Empty email'),
-            'Disposable': res.get('is_disposable', False)
+            'v_status': res.get('result', 'timeout' if email else 'INVALID'),
+            'v_score': res.get('score', 0),
+            'v_reason': res.get('reason', 'API Timeout' if email else 'Empty email'),
+            'v_disposable': res.get('is_disposable', False)
         })
         final_chunk.append(row)
     return final_chunk

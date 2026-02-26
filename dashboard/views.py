@@ -1413,6 +1413,7 @@ def scraper_donwload(request):
 def verification_dashboard(request):
     # 1. Get or create the user's daily usage wallet
     usage, created = VerificationUsage.objects.get_or_create(user=request.user)
+    original_headers = []
     
     # 2. Reset daily usage if cooldown is over
     usage.check_and_reset()
@@ -1438,6 +1439,12 @@ def verification_dashboard(request):
 
             # 4. Process file in memory & deduplicate emails
             raw_leads_list = process_leads_file(uploaded_file, request.user)
+
+            if raw_leads_list:
+                # Capture the exact order of keys from the first dictionary
+                original_headers = list(raw_leads_list[0].keys())
+            else:
+                original_headers = []
             
             clean_leads_list = []
             seen_emails = set()
@@ -1482,7 +1489,8 @@ def verification_dashboard(request):
             batch = VerificationBatch(
                 user=request.user,
                 original_filename=uploaded_file.name,
-                status='PROCESSING'
+                status='PROCESSING',
+                original_headers=original_headers
             )
 
             json_content = json.dumps(clean_leads_list)

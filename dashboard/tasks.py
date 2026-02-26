@@ -1143,6 +1143,7 @@ API_SUBMIT_URL = 'https://api.mails.so/v1/batch'
 @shared_task(name="dashboard.verify_email_task")
 def verify_email_task(batch_id):
     batch = VerificationBatch.objects.get(id=batch_id)
+    headers = batch.original_headers
 
     with batch.clean_data_file.open('r') as f:
         all_leads = json.load(f)
@@ -1151,7 +1152,7 @@ def verify_email_task(batch_id):
 
     job = chord(
         group(
-            verify_email_chunk.s(batch_id, list(chunk), time.time()) 
+            verify_email_chunk.s(batch_id, list(chunk), time.time(), original_headers=headers) 
             for chunk in chunks
         ),
         finalize_batch.s(batch_id)
@@ -1161,17 +1162,21 @@ def verify_email_task(batch_id):
 
 
 @shared_task(bind=True, max_retries=10)
-def verify_email_chunk(self, batch_id, chunk_rows, start_time, job_id=None, processed_map=None):
+def verify_email_chunk(self, batch_id, chunk_rows, start_time, job_id=None, processed_map=None, original_headers=None):
     elapsed = time.time() - start_time
     processed_map = processed_map or {}
+    
+    # Ensure original_headers is at least an empty list to prevent downstream errors
+    original_headers = original_headers or []
+    
     API_KEY = getattr(settings, 'MAILS_SO_API_KEY', '')
     headers = {'Content-Type': 'application/json', 'x-mails-api-key': API_KEY}
 
-    # 1. HARD STOP: 5 Minute Period reached
+    # 1. HARD STOP
     if elapsed >= HARD_DEADLINE:
-        return fill_missing_and_return(chunk_rows, processed_map)
+        return fill_missing_and_return(chunk_rows, processed_map, original_headers)
 
-    # 2. SUBMISSION PHASE (New job or Chasing stragglers at 3-min mark)
+    # 2. SUBMISSION PHASE
     if not job_id:
         pending_emails = [
             str(r.get('Email', '')).strip().lower() 
@@ -1179,73 +1184,109 @@ def verify_email_chunk(self, batch_id, chunk_rows, start_time, job_id=None, proc
         ]
         
         if not pending_emails:
-            return list(processed_map.values())
+            return fill_missing_and_return(chunk_rows, processed_map, original_headers)
 
         try:
             resp = requests.post(API_SUBMIT_URL, headers=headers, json={'emails': pending_emails}, timeout=30)
             if resp.status_code in (200, 201, 202):
                 job_id = resp.json().get('id')
             else:
-                # API failure: wait a minute and try again if we have time
-                raise self.retry(countdown=POLL_INTERVAL, kwargs={'job_id': None, 'processed_map': processed_map})
+                raise self.retry(countdown=POLL_INTERVAL, kwargs={
+                    'job_id': None, 
+                    'processed_map': processed_map,
+                    'original_headers': original_headers
+                })
         except Exception:
-            raise self.retry(countdown=POLL_INTERVAL, kwargs={'job_id': None, 'processed_map': processed_map})
+            raise self.retry(countdown=POLL_INTERVAL, kwargs={
+                'job_id': None, 
+                'processed_map': processed_map,
+                'original_headers': original_headers
+            })
 
     # 3. POLLING PHASE
     try:
         poll_resp = requests.get(f"{API_SUBMIT_URL}/{job_id}", headers=headers, timeout=30)
         if poll_resp.status_code == 200:
             data = poll_resp.json()
-            # Update our local map with whatever we just got
             for r in data.get('emails', []):
                 email = str(r.get('email', '')).lower()
                 processed_map[email] = r
 
             if data.get('status') == 'completed' and len(processed_map) >= len(chunk_rows):
-                return fill_missing_and_return(chunk_rows, processed_map)
+                return fill_missing_and_return(chunk_rows, processed_map, original_headers)
 
-        # 4. THE 3-MINUTE AUDIT (Soft Kill)
-        # If we are past 3 mins and still missing emails, clear job_id to trigger a "Chase" resubmission
         if elapsed >= SOFT_DEADLINE and len(processed_map) < len(chunk_rows):
             job_id = None 
 
     except Exception:
-        pass # Let the retry handle it
+        pass 
 
-    raise self.retry(countdown=POLL_INTERVAL, kwargs={'job_id': job_id, 'processed_map': processed_map})
+    raise self.retry(countdown=POLL_INTERVAL, kwargs={
+        'job_id': job_id, 
+        'processed_map': processed_map,
+        'original_headers': original_headers
+    })
 
 
 @shared_task
 def finalize_batch(results, batch_id):
     
-    # Only includes rows where Status is 'deliverable'
+    batch = VerificationBatch.objects.get(id=batch_id)
+    
+    # 2. Extract original headers (saved during upload)
+    original_headers = batch.original_headers or []
+
+    # 3. Filter for 'deliverable' using 'v_status'
     flat_rows = [
         item for sublist in results 
         for item in sublist 
-        if item.get('Status') == 'deliverable'
+        if item.get('v_status') == 'deliverable'
     ]
     
-    fieldnames = ['Email', 'Status', 'Score', 'Reason', 'Disposable']
-    all_keys = set().union(*(d.keys() for d in flat_rows))
-    extra_cols = [k for k in all_keys if k not in fieldnames]
+    # 4. Define our standardized verification columns
+    verification_cols = ['v_status', 'v_score', 'v_reason', 'v_disposable']
+
+    final_fieldnames = list(original_headers)
+    if 'Email' not in final_fieldnames:
+        final_fieldnames.append('Email')
+    
+    # 5. Build final fieldnames: [Original User Cols] + [Verification Cols]
+    fieldnames = final_fieldnames + verification_cols
 
     csv_buffer = StringIO()
-    writer = csv.DictWriter(csv_buffer, fieldnames=fieldnames + extra_cols, extrasaction='ignore')
+    
+    # extrasaction='ignore' ensures any weird API keys don't crash the writer
+    writer = csv.DictWriter(
+        csv_buffer, 
+        fieldnames=fieldnames, 
+        extrasaction='ignore',
+        restval='N/A' # Fills missing cells automatically
+    )
+    
     writer.writeheader()
     writer.writerows(flat_rows)
 
-    batch = VerificationBatch.objects.get(id=batch_id)
+    # 6. File handling and naming
+    base_name = batch.original_filename.rsplit('.', 1)[0]
+    output_filename = f"verified_{base_name}.csv"
     
-    # Using rsplit('.', 1) is safer for files with multiple dots
-    output_filename = f"verified_{batch.original_filename.rsplit('.', 1)[0]}.csv"
-    batch.output_file.save(output_filename, ContentFile(csv_buffer.getvalue().encode('utf-8')), save=False)
+    # Save the CSV content to the FileField
+    batch.output_file.save(
+        output_filename, 
+        ContentFile(csv_buffer.getvalue().encode('utf-8')), 
+        save=False
+    )
+    
     batch.status = 'COMPLETED'
 
-    # CLEANUP: Delete the staging JSON file to save disk space
+    # 7. CLEANUP: Delete staging JSON to free up storage
     if batch.clean_data_file:
-        batch.clean_data_file.delete(save=False)
+        try:
+            batch.clean_data_file.delete(save=False)
+        except Exception:
+            pass
 
     batch.save(update_fields=['status', 'output_file'])
     
-    return f"Processed {len(flat_rows)} rows"
+    return f"Processed {len(flat_rows)} deliverable rows"
 

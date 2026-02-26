@@ -243,6 +243,9 @@ class VerificationBatch(models.Model):
     
     # Just for display in the history table (e.g., "leads_october.xlsx")
     original_filename = models.CharField(max_length=255)
+
+    # to store the exact order of columns from the uploaded file 
+    original_headers = models.JSONField(default=list)
     
     # The intermediate JSON file (input for the worker). We will delete this after processing is done
     clean_data_file = models.FileField(upload_to='verification_staging/', null=True, blank=True)
