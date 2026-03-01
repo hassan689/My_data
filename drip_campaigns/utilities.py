@@ -208,30 +208,31 @@ def get_best_sent_folder(imap_conn):
 
 def get_imap_connection(email_account):
     """
-    Establishes and logs into an IMAP connection. Returns the connection object.
+    Establishes and logs into an IMAP connection using database-stored settings.
     """
-    normalized_name = normalize_provider(email_account.email_provider)
-    if normalized_name == 'gmail':
-        return None  # Gmail doesn't need this
+    # 1. Prioritize database fields
+    imap_host = email_account.imap_host
+    imap_port = email_account.imap_port or 993
 
-    # Determine Host
-    imap_host = None
-    imap_port = 993
-    if normalized_name and normalized_name in IMAP_SETTINGS_MAP:
-        imap_host = IMAP_SETTINGS_MAP[normalized_name]['host']
-        imap_port = IMAP_SETTINGS_MAP[normalized_name]['port']
-    elif email_account.host:
+    # 2. String-replacement fallback for legacy or "Other" accounts
+    if not imap_host and email_account.host:
         if email_account.host.startswith('smtp.'):
             imap_host = email_account.host.replace('smtp.', 'imap.', 1)
-    else:
+
+    if not imap_host:
         return None
 
     try:
-        imap_conn = imaplib.IMAP4_SSL(imap_host, imap_port)
+        # 3. Establish SSL connection with a safety timeout
+        imap_conn = imaplib.IMAP4_SSL(imap_host, imap_port, timeout=30)
         decrypted_password = email_account.get_password()
+        
+        if not decrypted_password:
+            return None
+
         imap_conn.login(email_account.email_address, decrypted_password)
         return imap_conn
-    except Exception as e:
+    except (imaplib.IMAP4.error, TimeoutError, OSError) as e:
         print(f"IMAP Connection Failed for {email_account.email_address}: {e}")
         return None
 

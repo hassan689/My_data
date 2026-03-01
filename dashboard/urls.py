@@ -30,6 +30,7 @@ urlpatterns = [
     path('email-account-groups/delete/<int:group_id>/', delete_group, name="delete_group"),
 
 		path('add-email-account/', views.add_email_account, name='email_account'),
+    path('discover-provider/', views.discover_provider_settings, name='discover_provider'),
 		path('email-account/update/<int:id>/', views.email_account_update, name='email_account_update'),
 		path('email-account/delete/<int:id>/', views.email_account_delete, name='email_account_delete'),
     path('email-account/verify-account-dns/<int:account_id>/', views.verify_account_dns, name='verify_account_dns'),

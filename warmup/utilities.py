@@ -11,16 +11,16 @@ from django.utils import timezone
 from datetime import timedelta
 
 
-IMAP_SETTINGS_MAP = {
-    'gmail':     {'host': 'imap.gmail.com', 'port': 993},
-    'outlook':   {'host': 'outlook.office365.com', 'port': 993},
-    'yahoo':     {'host': 'imap.mail.yahoo.com', 'port': 993},
-    'zoho':      {'host': 'imap.zoho.com', 'port': 993},
-    'hostinger': {'host': 'imap.hostinger.com', 'port': 993},
-    'namecheap': {'host': 'imap.privateemail.com', 'port': 993},
-    'godaddy':  {'host': 'imap.secureserver.net', 'port': 993},
-    'titan':     {'host': 'imap.titan.email', 'port': 993},
-}
+# IMAP_SETTINGS_MAP = {
+#     'gmail':     {'host': 'imap.gmail.com', 'port': 993},
+#     'outlook':   {'host': 'outlook.office365.com', 'port': 993},
+#     'yahoo':     {'host': 'imap.mail.yahoo.com', 'port': 993},
+#     'zoho':      {'host': 'imap.zoho.com', 'port': 993},
+#     'hostinger': {'host': 'imap.hostinger.com', 'port': 993},
+#     'namecheap': {'host': 'imap.privateemail.com', 'port': 993},
+#     'godaddy':  {'host': 'imap.secureserver.net', 'port': 993},
+#     'titan':     {'host': 'imap.titan.email', 'port': 993},
+# }
 
 # A professional master template with placeholders for injection
 WARMUP_SPINTAX_TEMPLATE = """
@@ -132,8 +132,8 @@ def generate_spintax_subject(recipient_first_name=None, sender_company_name=None
 
 def refresh_targets(campaign):
     TARGET_LIMIT = 2
-    MEMBERSHIP_CAP = 3
-    DAILY_VELOCITY_CAP = 5
+    MEMBERSHIP_CAP = 6 
+    DAILY_VELOCITY_CAP = 6
     
     sender_account = campaign.sender_account
     sender_user = sender_account.user
@@ -141,46 +141,47 @@ def refresh_targets(campaign):
 
     try:
         with transaction.atomic():
-            # 1. Selection Stage: Get IDs only
             base_qs = EmailAccount.objects.filter(
                 black_list=False, 
                 is_warmup_target=True
             ).exclude(user=sender_user)
 
-            eligible_ids = base_qs.annotate(
-                active_target_count=Count(
-                    'target_of_warmup_campaigns',
-                    filter=Q(target_of_warmup_campaigns__status='Active')
-                ),
-                received_today_count=Count(
-                    'received_warmup_messages',
-                    filter=Q(received_warmup_messages__sent_at__gte=today_start)
-                )
-            ).filter(
-                active_target_count__lt=MEMBERSHIP_CAP,
-                received_today_count__lt=DAILY_VELOCITY_CAP
-            ).order_by(
-                'active_target_count', 
-                'received_today_count', 
-                '?'
-            ).values_list('id', flat=True)[:TARGET_LIMIT * 3] # Fetch a larger pool to handle skip_locked
+            eligible_ids = list(
+                base_qs.annotate(
+                    active_target_count=Count(
+                        'target_of_warmup_campaigns',
+                        filter=Q(target_of_warmup_campaigns__status='Active'),
+                        distinct=True
+                    ),
+                    received_today_count=Count(
+                        'received_warmup_messages',
+                        filter=Q(received_warmup_messages__sent_at__gte=today_start),
+                        distinct=True
+                    )
+                ).filter(
+                    active_target_count__lt=MEMBERSHIP_CAP,
+                    received_today_count__lt=DAILY_VELOCITY_CAP
+                ).order_by('active_target_count', 'received_today_count', '?')
+                .values_list('id', flat=True)[:40]
+            )
 
-            # 2. Locking Stage: Lock the actual rows using the IDs
-            # We use the list of IDs to perform a clean query without GROUP BY
+            if not eligible_ids:
+                # If total starvation occurs, stagger the retry
+                campaign.next_action_at = timezone.now() + timedelta(hours=random.uniform(1, 4))
+                campaign.save(update_fields=['next_action_at'])
+                return []
+
+            # Lock the best available rows
             selected_accounts = list(
                 EmailAccount.objects.filter(id__in=eligible_ids)
                 .select_for_update(skip_locked=True)[:TARGET_LIMIT]
             )
 
-            # 3. Assignment
-            if len(selected_accounts) >= TARGET_LIMIT:
+            if selected_accounts:
                 campaign.target_accounts.set(selected_accounts)
                 return selected_accounts
-            else:
-                # Starvation fallback
-                campaign.next_action_at = timezone.now() + timedelta(hours=random.uniform(1, 2))
-                campaign.save(update_fields=['next_action_at'])
-                return []
+            
+            return []
 
     except Exception as e:
         print(f"Error in refresh_targets for campaign {campaign.id}: {e}")
@@ -223,61 +224,65 @@ def get_email_connection(email_account, decrypted_password):
         return None
 
 
-def normalize_provider(provider_string):
-    """
-    Cleans the user-entered provider string to match a key in IMAP_SETTINGS_MAP.
-    """
-    if not provider_string:
-        return None
+# def normalize_provider(provider_string):
+#     """
+#     Cleans the user-entered provider string to match a key in IMAP_SETTINGS_MAP.
+#     """
+#     if not provider_string:
+#         return None
         
-    provider_low = provider_string.lower()
+#     provider_low = provider_string.lower()
     
-    if 'gmail' in provider_low or 'google' in provider_low:
-        return 'gmail'
-    if 'outlook' in provider_low or 'microsoft' in provider_low:
-        return 'outlook'
-    if 'yahoo' in provider_low:
-        return 'yahoo'
-    if 'zoho' in provider_low:
-        return 'zoho'
-    if 'hostinger' in provider_low:
-        return 'hostinger'
-    if 'namecheap' in provider_low or 'privateemail' in provider_low:
-        return 'namecheap'
-    if 'godaddy' in provider_low or 'secureserver' in provider_low:
-        return 'godaddy'
-    if 'titan' in provider_low:
-        return 'titan'
+#     if 'gmail' in provider_low or 'google' in provider_low:
+#         return 'gmail'
+#     if 'outlook' in provider_low or 'microsoft' in provider_low:
+#         return 'outlook'
+#     if 'yahoo' in provider_low:
+#         return 'yahoo'
+#     if 'zoho' in provider_low:
+#         return 'zoho'
+#     if 'hostinger' in provider_low:
+#         return 'hostinger'
+#     if 'namecheap' in provider_low or 'privateemail' in provider_low:
+#         return 'namecheap'
+#     if 'godaddy' in provider_low or 'secureserver' in provider_low:
+#         return 'godaddy'
+#     if 'titan' in provider_low:
+#         return 'titan'
         
-    return None
+#     return None
 
 
 def get_warmup_imap_connection(email_account):
     """
-    Establishes IMAP connection specifically for Warmup. 
+    Establishes IMAP connection using standardized database fields.
     """
-    normalized_name = normalize_provider(email_account.email_provider)
+    # 1. Pull directly from the new model fields
+    imap_host = email_account.imap_host
+    imap_port = email_account.imap_port or 993
 
-    imap_host = None
-    imap_port = 993
-
-    if normalized_name and normalized_name in IMAP_SETTINGS_MAP:
-        imap_host = IMAP_SETTINGS_MAP[normalized_name]['host']
-        imap_port = IMAP_SETTINGS_MAP[normalized_name]['port']
-    elif email_account.host:
-        # Fallback logic: replace smtp with imap
+    # 2. Last-resort fallback if fields are somehow empty
+    if not imap_host and email_account.host:
         if email_account.host.startswith('smtp.'):
             imap_host = email_account.host.replace('smtp.', 'imap.', 1)
     
     if not imap_host:
+        print(f"[IMAP Error] No IMAP host found for {email_account.email_address}")
         return None
 
     try:
-        imap_conn = imaplib.IMAP4_SSL(imap_host, imap_port)
+        # 3. Connection attempt
+        imap_conn = imaplib.IMAP4_SSL(imap_host, imap_port, timeout=30)
         decrypted_password = email_account.get_password()
+        
+        if not decrypted_password:
+            print(f"[IMAP Error] Could not decrypt password for {email_account.email_address}")
+            return None
+            
         imap_conn.login(email_account.email_address, decrypted_password)
         return imap_conn
-    except Exception as e:
+        
+    except (imaplib.IMAP4.error, TimeoutError, OSError) as e:
         print(f"Warmup IMAP Connection Failed for {email_account.email_address}: {e}")
         return None
 
@@ -329,12 +334,14 @@ def ensure_folder_exists(imap_conn, folder_name="Warmup"):
 
 def check_inbox_and_rescue(email_account, target_message_id):
     """
-    Finds a message by ID. Moves it to the 'Warmup' folder if found in Inbox or Spam.
+    Finds a message by ID. Dynamically discovers Spam/Junk folders to rescue 
+    messages and moves them to the 'Warmup' folder (or Inbox fallback).
     Returns the message body.
     """
     TARGET_FOLDER = "Warmup"
     quoted_target = f'"{TARGET_FOLDER}"'
     
+    # Utilizing our new database-driven connection logic
     imap_conn = get_warmup_imap_connection(email_account)
     if not imap_conn:
         return None
@@ -342,7 +349,6 @@ def check_inbox_and_rescue(email_account, target_message_id):
     try:
         # 0. Ensure the dedicated Warmup folder exists
         if not ensure_folder_exists(imap_conn, TARGET_FOLDER):
-            # Fallback to Inbox if folder creation fails
             TARGET_FOLDER = "INBOX"
             quoted_target = "INBOX"
 
@@ -358,29 +364,47 @@ def check_inbox_and_rescue(email_account, target_message_id):
             inbox_ids = messages[0].split()
             
             if inbox_ids:
-                # Found in Inbox -> Move to Warmup
                 msg_num = inbox_ids[0]
-                copy_res = imap_conn.copy(msg_num, quoted_target)
-                
-                if copy_res[0] == 'OK':
-                    # Flag for deletion and purge from Inbox
-                    imap_conn.store(msg_num, '+FLAGS', '\\Deleted')
-                    imap_conn.expunge()
-                    
-                    # Switch to Warmup to fetch the content
-                    imap_conn.select(quoted_target)
-                    status, messages = imap_conn.search(None, f'(HEADER Message-ID "{target_message_id}")')
-                    email_ids = messages[0].split()
+                # Only perform move if the target isn't already INBOX
+                if quoted_target != "INBOX":
+                    copy_res = imap_conn.copy(msg_num, quoted_target)
+                    if copy_res[0] == 'OK':
+                        imap_conn.store(msg_num, '+FLAGS', '\\Deleted')
+                        imap_conn.expunge()
+                        
+                        # Re-select Warmup to retrieve the new ID
+                        imap_conn.select(quoted_target)
+                        status, messages = imap_conn.search(None, f'(HEADER Message-ID "{target_message_id}")')
+                        email_ids = messages[0].split()
+                else:
+                    email_ids = inbox_ids
 
-        # 3. If still not found, Search common Spam folders (Rescue logic)
+        # 3. Aggressive Spam Rescue: Dynamically find and search potential Spam folders
         if not email_ids:
-            spam_folders = ["Spam", "Junk", "Junk Email", "[Gmail]/Spam", "Bulk", "Spambox"]
+            status, folder_list = imap_conn.list()
+            potential_spam_folders = []
             
-            for folder in spam_folders:
+            # Keywords to identify spam/junk folders across different providers
+            spam_keywords = ['spam', 'junk', 'bulk', 'track', 'dritt'] # 'dritt' example for localized junk
+            
+            if status == 'OK':
+                for f_info in folder_list:
+                    f_decoded = f_info.decode('utf-8', 'ignore').lower()
+                    if any(kw in f_decoded for kw in spam_keywords):
+                        # Extract folder name: handles various delimiters like "/" or "."
+                        # Standard IMAP LIST response: (Attributes) "Delimiter" "Name"
+                        parts = f_decoded.split(' "/" ') if ' "/" ' in f_decoded else f_decoded.split(' "." ')
+                        folder_name = parts[-1].strip().strip('"')
+                        potential_spam_folders.append(folder_name)
+
+            # Unique list to avoid redundant searches
+            unique_spam_folders = list(set(potential_spam_folders))
+
+            for folder in unique_spam_folders:
                 try:
-                    # Select folder, quoting only if it contains spaces
-                    folder_selector = f'"{folder}"' if " " in folder else folder
-                    status, _ = imap_conn.select(folder_selector)
+                    quoted_folder = f'"{folder}"'
+                    # Use readonly=False because we need to delete the message after copying
+                    status, _ = imap_conn.select(quoted_folder)
                     if status != 'OK': continue
                         
                     status, messages = imap_conn.search(None, f'(HEADER Message-ID "{target_message_id}")')
@@ -390,24 +414,25 @@ def check_inbox_and_rescue(email_account, target_message_id):
                         print(f"Rescue: Found {target_message_id} in {folder}. Moving to {TARGET_FOLDER}.")
                         msg_num = spam_msg_ids[0]
                         
-                        # Copy to Warmup folder
+                        # Copy to Warmup (or Inbox fallback)
                         copy_res = imap_conn.copy(msg_num, quoted_target)
                         
                         if copy_res[0] == 'OK':
-                            # Force permanent removal from Spam
+                            # Mark as deleted in Spam and purge
                             imap_conn.store(msg_num, '+FLAGS', '\\Deleted')
                             imap_conn.expunge() 
                             
-                            # Final selection to retrieve ID from the Warmup folder
+                            # Final selection to retrieve the message for parsing
                             imap_conn.select(quoted_target)
                             status, messages = imap_conn.search(None, f'(HEADER Message-ID "{target_message_id}")')
                             email_ids = messages[0].split()
                         break
-                except:
+                except Exception as e:
+                    print(f"Error searching folder {folder}: {e}")
                     continue
             
         if not email_ids:
-            return None # Message not found in any folder
+            return None # Message not found anywhere
 
         # 4. Fetch and Parse Content
         latest_email_id = email_ids[-1]
@@ -422,13 +447,15 @@ def check_inbox_and_rescue(email_account, target_message_id):
         body_content = ""
         if msg.is_multipart():
             for part in msg.walk():
-                # Focus only on the plain text body, skipping attachments
-                if part.get_content_type() == "text/plain" and "attachment" not in str(part.get("Content-Disposition")):
-                    try:
-                        body_content = part.get_payload(decode=True).decode(errors='replace')
-                        break
-                    except:
-                        pass
+                # Focus on the plain text body, skipping attachments
+                if part.get_content_type() == "text/plain":
+                    cdisp = str(part.get("Content-Disposition"))
+                    if "attachment" not in cdisp:
+                        try:
+                            body_content = part.get_payload(decode=True).decode(errors='replace')
+                            break
+                        except:
+                            pass
         else:
             try:
                 body_content = msg.get_payload(decode=True).decode(errors='replace')
@@ -438,10 +465,10 @@ def check_inbox_and_rescue(email_account, target_message_id):
         return body_content
 
     except Exception as e:
-        print(f"Error in rescue function: {e}")
+        print(f"Error in rescue function for {email_account.email_address}: {e}")
         return None
     finally:
-        # Guarantee connection closure to keep provider happy
+        # Guarantee connection closure to avoid 'Too many connections' errors
         try:
             imap_conn.close()
             imap_conn.logout()

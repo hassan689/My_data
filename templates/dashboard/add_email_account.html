@@ -38,9 +38,6 @@
 									<li class="me-2" role="presentation">
 											<button class="inline-block p-4 border-b-2 rounded-t-lg hover:text-gray-700 hover:border-gray-300" id="dashboard-tab" data-tabs-target="#dashboard" type="button" role="tab" aria-controls="dashboard" aria-selected="false">Hostinger</button>
 									</li>
-									<li class="me-2" role="presentation">
-											<button class="inline-block p-4 border-b-2 rounded-t-lg hover:text-gray-700 hover:border-gray-300" id="settings-tab" data-tabs-target="#settings" type="button" role="tab" aria-controls="settings" aria-selected="false">Outlook</button>
-									</li>
 									<li role="presentation">
 											<button class="inline-block p-4 border-b-2 rounded-t-lg hover:text-gray-700 hover:border-gray-300" id="contacts-tab" data-tabs-target="#contacts" type="button" role="tab" aria-controls="contacts" aria-selected="false">Other</button>
 									</li>
@@ -112,46 +109,6 @@
 										</div>
 									</div>
 
-									<!-- Outlook -->
-									<div class="hidden p-4 rounded-lg bg-inverted" id="settings" role="tabpanel" aria-labelledby="settings-tab">
-										<div class="max-w-2xl mx-auto space-y-4">
-											<div class="p-4 bg-primary rounded-lg shadow-sm hover:-translate-y-1">
-													<div class="flex items-start space-x-3">
-															<div>
-																	<h3 class="text-lg font-semibold text-primary">📩 Access Microsoft Account</h3>
-																	<p class="text-sm text-tertiary pl-5 pt-5">Sign in to your Microsoft account settings.</p>
-																	<a href="https://account.microsoft.com/" class="text-blue-500 text-sm font-medium hover:underline pl-5">Go to Microsoft Account</a>
-															</div>
-													</div>
-											</div>
-									
-											<div class="p-4 bg-primary rounded-lg shadow-sm hover:-translate-y-1">
-												<div class="flex items-start space-x-3">
-														<div>
-																<h3 class="text-lg font-semibold text-primary">🔑 Generate App Password</h3>
-																<p class="text-sm text-tertiary  pl-5 pt-5"><span class="text-red-700">Your Outlook account password will not work here!</span> If you use 2-step verification, you'll need to create an App Password specifically for this account.</p>
-																<a href="https://account.live.com/proofs/AppPassword" class="text-blue-500 text-sm font-medium hover:underline pl-5">App Passwords</a>
-																
-																<p class="text-sm text-tertiary pl-5 pt-5">For more details please visit:</p>
-																<a href="https://www.youtube.com/watch?v=fqimk_W1cgQ&pp=ygUUb3V0bG9vayBhcHAgcGFzc3dvcmQ%3D" class="text-blue-500 text-sm font-medium hover:underline pl-5">How to Generate App Password in Outlook</a>
-														</div>
-												</div>
-											</div>
-									
-											<div class="p-4 bg-primary rounded-lg shadow-sm hover:-translate-y-1">
-												<div class="flex items-start space-x-3">
-														<div>
-															<h3 class="text-lg font-semibold text-primary">⚙️ SMTP Port, Server type and other details</h3>
-															<p class="text-sm text-tertiary pl-5 pt-5">For further details like Outgoing Port, Encryption type and Outgoing Servr Host, please have a look at the docs. Settings for <strong>SMTP, not IMAP</strong> will be applied here.</p>
-															<a href="https://support.microsoft.com/en-us/office/pop-imap-and-smtp-settings-for-outlook-com-d088b986-291d-42b8-9564-9c414e2aa040" class="text-blue-500 text-sm font-medium hover:underline pl-5 pt-5">
-																POP, IMAP, and SMTP settings for Outlook.com
-															</a>
-													</div>
-												</div>
-											</div>
-										</div>
-									</div>
-
 									<!-- Others -->
 									<div class="hidden p-4 rounded-lg bg-inverted" id="contacts" role="tabpanel" aria-labelledby="contacts-tab">
 										<div class="max-w-2xl mx-auto space-y-4">
@@ -200,7 +157,7 @@
 			
 			<div class="pb-5">
 				<h2 class="text-2xl text-primary md:text-3xl font-semibold mt-1 text-center mb-2">Email Account Details</h2>
-				<p class="text-tertiary text-base mb-4 text-center">Please fill out the following details to register your email account. Please refer to the <strong>above instructions</strong> depending on <strong>Your Email Provider</strong></p>
+				<p class="text-tertiary text-base mb-4 text-center">Please fill out the following details to register your email account.</p>
 			</div>
 
 			{% if messages %}
@@ -219,41 +176,45 @@
 			<form method="post" class="grid grid-cols-1 md:grid-cols-2 gap-4">
 				{% csrf_token %}
 				
-				<!-- Row 1 -->
 				<div>
-						<label class="block font-medium text-secondary mb-3">Email Address</label>
-						{% render_field form.email_address class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none bg-primary text-primary" placeholder="Enter your email" %}
-				</div>
-				<div>
-					<label class="block font-medium text-secondary mb-3">Password</label>
-					{% render_field form.decrypted_password class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none bg-primary text-primary" placeholder="Enter password" %}
-				</div>
-		
-		
-				<!-- Row 3 -->
-				<div>
-						<label class="block font-medium text-secondary mb-3">Email Provider</label>
-						{% render_field form.email_provider class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none bg-primary text-primary" placeholder="e.g. Google, Hostinger, Yahoo etc." %}
-				</div>
-				<div>
-						<label class="block font-medium text-secondary mb-3">Outgoing Port</label>
-						{% render_field form.port_number class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none bg-primary text-primary" placeholder="Your SMTP Port Number" %}
-				</div>
-		
-				<!-- Row 4 -->
-				<div class="w-full">
-						<label class="block font-medium text-secondary mb-3">Encryption</label>
-						{% render_field form.server_type class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none bg-primary text-primary" %}
-				</div>
-				<div class="w-full">
-						<label class="block font-medium text-secondary mb-3">Outgoing Servr Host</label>
-						{% render_field form.host class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none bg-primary text-primary" placeholder="smtp.example.com" %}
-				</div>
+            <label class="block font-medium text-secondary mb-3">Email Address</label>
+            {% render_field form.email_address id="id_email_address" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none bg-primary text-primary" placeholder="Enter your email" %}
+        </div>
+        <div>
+            <label class="block font-medium text-secondary mb-3">Password / App Password</label>
+            {% render_field form.decrypted_password id="id_password" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none bg-primary text-primary" placeholder="Enter password" %}
+        </div>
+
+        <div>
+            <label class="block font-medium text-secondary mb-3">Email Provider</label>
+            {% render_field form.email_provider id="id_email_provider" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none bg-primary text-primary" placeholder="e.g. Google, Hostinger, Zoho" %}
+        </div>
+        <div class="w-full">
+            <label class="block font-medium text-secondary mb-3">Encryption (SSL/TLS)</label>
+            {% render_field form.server_type id="id_server_type" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none bg-primary text-primary" %}
+        </div>
+
+        <div>
+            <label class="block text-sm font-medium text-secondary mb-1">IMAP Host</label>
+            {% render_field form.imap_host id="id_imap_host" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none bg-primary text-primary" placeholder="imap.example.com" %}
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-secondary mb-1">IMAP Port</label>
+            {% render_field form.imap_port id="id_imap_port" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none bg-primary text-primary" placeholder="993" %}
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-secondary mb-1">SMTP Host</label>
+            {% render_field form.host id="id_smtp_host" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none bg-primary text-primary" placeholder="smtp.example.com" %}
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-secondary mb-1">SMTP Port</label>
+            {% render_field form.port_number id="id_smtp_port" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none bg-primary text-primary" placeholder="465" %}
+        </div>
 
         <!-- Row 5 -->
         <div class="md:col-span-2 ">
             <label class="block font-medium text-secondary mb-1">Display Name</label>
-            {% render_field form.display_name class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none bg-primary text-primary" placeholder="e.g. Abdullah Atif" %}
+            {% render_field form.display_name class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-gray-200 focus:outline-none bg-primary text-primary" placeholder="e.g. John Doe" %}
             
             {% if form.display_name.help_text %}
                 <p class="mt-1 text-sm text-gray-500 italic">{{ form.display_name.help_text }}</p>
@@ -321,11 +282,76 @@
 								Create Account
 						</button>
 				</div>
-		</form>
+      </form>
 	
 	
 		</div>
 	</div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const emailInput = document.getElementById('id_email_address');
+      const fields = {
+          provider: document.getElementById('id_email_provider'),
+          smtpHost: document.getElementById('id_smtp_host'),
+          smtpPort: document.getElementById('id_smtp_port'),
+          encryption: document.getElementById('id_server_type'),
+          imapHost: document.getElementById('id_imap_host'),
+          imapPort: document.getElementById('id_imap_port')
+      };
+
+      // 1. Debounce to prevent server spam during typing
+      function debounce(func, timeout = 700) {
+          let timer;
+          return (...args) => {
+              clearTimeout(timer);
+              timer = setTimeout(() => { func.apply(this, args); }, timeout);
+          };
+      }
+
+      // 2. The core discovery logic
+      const discoverProvider = () => {
+          const email = emailInput.value.trim();
+          
+          // Only trigger if it looks like a complete domain
+          if (email.includes('@') && email.split('@')[1].length > 3) {
+              emailInput.classList.add('opacity-50');
+
+              fetch(`/dashboard/discover-provider/?email=${encodeURIComponent(email)}`)
+                  .then(response => response.json())
+                  .then(data => {
+                      emailInput.classList.remove('opacity-50');
+                      
+                      if (data.success) {
+                          // Auto-fill fields
+                          if (fields.provider) fields.provider.value = data.provider_name;
+                          if (fields.smtpHost) fields.smtpHost.value = data.smtp_host;
+                          if (fields.smtpPort) fields.smtpPort.value = data.smtp_port;
+                          if (fields.encryption) fields.encryption.value = data.server_type;
+                          if (fields.imapHost) fields.imapHost.value = data.imap_host;
+                          if (fields.imapPort) fields.imapPort.value = data.imap_port;
+
+                          // Visual feedback (Subtle dopamine)
+                          Object.values(fields).forEach(f => {
+                              if (f) {
+                                  f.style.transition = 'background-color 0.4s';
+                                  f.style.backgroundColor = '#ecfdf5';
+                                  setTimeout(() => f.style.backgroundColor = '', 800);
+                              }
+                          });
+                      }
+                  })
+                  .catch(err => {
+                      emailInput.classList.remove('opacity-50');
+                      console.error('Discovery error:', err);
+                  });
+          }
+      };
+
+      // 3. Listen for 'input' to catch typing and pasting instantly
+      emailInput.addEventListener('input', debounce(discoverProvider));
+  });
+  </script>
 
   {% if email_account and email_account.id %}
   <script>

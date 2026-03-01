@@ -23,8 +23,8 @@ from .utilities import process_audit_results, generate_spintax_body, generate_sp
 def send_warmup_step(campaign_id, step_number):
     """
     Sends the next step of a warmup conversation for a given campaign.
-    - Cycle: 6 Steps (Sender -> Target -> Sender -> Target -> Sender -> Target)
-    - Step % 6 == 0: Refresh Targets & Start New Thread.
+    - Cycle: 4 Steps (Sender -> Target -> Sender -> Target -> Sender -> Target)
+    - Step % 4 == 0: Refresh Targets & Start New Thread.
     - Even steps: Sender replies. Odd steps: Targets reply.
     """
     try:
@@ -43,17 +43,22 @@ def send_warmup_step(campaign_id, step_number):
             print(f"Campaign {campaign.id} is already in {campaign.status} state. Skipping.")
             return
         
-        # --- NEW LOGIC: Refresh targets every 6 steps (Start of a new conversation cycle) ---
+        # --- NEW LOGIC: Refresh targets every 4 steps (Start of a new conversation cycle) ---
         is_new_cycle = (step_number % 4 == 0)
+        msg = f"--- [START] Processing Campaign {campaign.id} | Step {step_number} | New Cycle: {is_new_cycle}"
+        print(msg)
 
         if is_new_cycle:
+            msg = f"--- [REFRESH] Step {step_number} triggered target refresh for {campaign.sender_account.email_address}"
+            print(msg)
             # If step 0, we MUST have targets. If step 4, 8, etc., we refresh them.
             selected_targets = refresh_targets(campaign)
             
             # CRITICAL: If the pool is empty, refresh_targets already handled 
             # the campaign.next_action_at update. We just exit here.
             if not selected_targets:
-                print(f"Campaign {campaign.id} postponed: Target pool exhausted.")
+                msg = f"--- [POSTPONE] Campaign {campaign.id} postponed: Target pool exhausted."
+                print(msg)
                 return 
 
         # Now get the targets for the rest of the task logic
@@ -61,12 +66,10 @@ def send_warmup_step(campaign_id, step_number):
         
         # Safety check: if for some reason targets are missing and it wasn't a refresh step
         if not recipients:
+            msg = f"--- [RECOVERY] No targets found for Campaign {campaign.id}. Attempting refresh..."
+            print(msg)
             refresh_targets(campaign)
             return
-        
-        if step_number > 0 and is_new_cycle:
-            print(f"Cycle Complete (Step {step_number}). Refreshing targets for Campaign {campaign.id}.")
-            refresh_targets(campaign)
         
         # ==============================================================================
         # SENDER'S TURN (Even steps: 0, 2, 4...)
@@ -74,99 +77,68 @@ def send_warmup_step(campaign_id, step_number):
         if step_number % 2 == 0:
             try:
                 sender_account = campaign.sender_account
+                msg = f"--- [CONNECT] Attempting SMTP Connection for Sender: {sender_account.email_address}"
+                print(msg)
+                
                 recipients = list(campaign.target_accounts.all())
-
-                # Establish connection for the sender account
                 decrypted_password = sender_account.get_password()
                 connection = get_email_connection(sender_account, decrypted_password)
+                
+                # CRITICAL: If the connection itself fails, we must exit and reschedule.
                 if not connection:
+                    msg = f"--- [FAILURE] Could not establish SMTP for {sender_account.email_address}. Rescheduling..."
+                    print(msg)
                     campaign.next_action_at = timezone.now() + timedelta(hours=random.uniform(1, 3))
                     campaign.save(update_fields=["next_action_at"])
-                    return
+                    return  # Early exit only on total connection failure
                 
+                sent_successfully = False
                 for recipient_account in recipients:
-                    
-                    # --- THREADING LOGIC ---
-                    thread_id = None
-                    parent_message_id = None
-                    quoted_body = None
-                    new_msg_id = make_msgid(idstring=uuid.uuid4().hex, domain='dispatchskool.com')
-                    is_reply = False
-
-                    # If it's NOT a new cycle, we try to reply to the Target's last message
-                    if not is_new_cycle and step_number > 0:
-                        last_msg = WarmupMessage.objects.filter(
-                            campaign=campaign,
-                            sender=recipient_account,
-                            recipient=sender_account
-                        ).order_by('-sent_at').first()
-
-                        if last_msg:
-                            # Search for this email in Sender's Inbox/Spam via IMAP
-                            quoted_body = check_inbox_and_rescue(sender_account, last_msg.message_id)
-                            
-                            if quoted_body:
-                                # Found it! We can reply properly.
-                                is_reply = True
-                                parent_message_id = last_msg.message_id
-                                thread_id = last_msg.thread_id
-                            else:
-                                # Start Fresh Fallback: Message lost, so we start a new thread to keep moving
-                                thread_id = uuid.uuid4()
-                        else:
-                            # Fallback: No previous message found in DB
-                            thread_id = uuid.uuid4()
-                    else:
-                        # New Cycle or Step 0: Always start fresh
-                        thread_id = uuid.uuid4()
-
-                    # --- CONTENT GENERATION ---
-                    if is_reply:
-                        subject_raw = last_msg.subject
-                        if not subject_raw.lower().startswith("re:"):
-                            personalized_subject = f"Re: {subject_raw}"
-                        else:
-                            personalized_subject = generate_spintax_subject(
-                                recipient_first_name=recipient_account.user.first_name,
-                                sender_company_name=getattr(sender_account.user, "company_name", "Dispatch Skool")
-                            )
-                        
-                        # Generate body and append quote
-                        fresh_body = generate_spintax_body(recipient_account.user.first_name, getattr(recipient_account.user, "company_name", "ABC Transports LLC"))
-                        personalized_body = f"{fresh_body}\n\nOn {last_msg.sent_at.strftime('%a, %b %d, %Y')}, {recipient_account.email_address} wrote:\n> {quoted_body.replace(chr(10), chr(10)+'> ')}"
-                    else:
-                        personalized_subject = generate_spintax_subject(
-                            recipient_first_name=recipient_account.user.first_name,
-                            sender_company_name=getattr(sender_account.user, "company_name", "ABC Transports")
-                        )
-                        personalized_body = generate_spintax_body(recipient_account.user.first_name, getattr(recipient_account.user, "company_name", "ABC Transports LLC"))
-
-                    # Check if display_name exists, otherwise just use the email address
-                    if sender_account.display_name:
-                        from_email = formataddr((sender_account.display_name, sender_account.email_address))
-                    else:
-                        from_email = sender_account.email_address
-
-                    # --- SENDING ---
-                    main_msg = EmailMultiAlternatives(
-                        subject=personalized_subject,
-                        body=personalized_body,
-                        from_email=from_email,
-                        to=[recipient_account.email_address],
-                        connection=connection
-                    )
-                    
-                    # Inject Headers
-                    main_msg.extra_headers = {'Message-ID': new_msg_id}
-                    if is_reply:
-                        main_msg.extra_headers['In-Reply-To'] = parent_message_id
-                        main_msg.extra_headers['References'] = parent_message_id
-
-                    main_msg.encoding = 'utf-8'
                     try:
-                        main_msg.send()
+                        msg = f"--- [SENDING] {sender_account.email_address} -> {recipient_account.email_address} (Step {step_number})"
+                        print(msg)
                         
-                        # Save to DB
+                        # --- THREADING & CONTENT LOGIC ---
+                        new_msg_id = make_msgid(idstring=uuid.uuid4().hex, domain='dispatchskool.com')
+                        thread_id = uuid.uuid4()
+                        parent_message_id = None
+                        is_reply = False
+                        quoted_body = None
+
+                        if not is_new_cycle and step_number > 0:
+                            last_msg = WarmupMessage.objects.filter(
+                                campaign=campaign,
+                                sender=recipient_account,
+                                recipient=sender_account
+                            ).order_by('-sent_at').first()
+
+                            if last_msg:
+                                quoted_body = check_inbox_and_rescue(sender_account, last_msg.message_id)
+                                if quoted_body:
+                                    is_reply = True
+                                    parent_message_id = last_msg.message_id
+                                    thread_id = last_msg.thread_id
+
+                        # --- PREPARE MESSAGE ---
+                        from_email = formataddr((sender_account.display_name, sender_account.email_address)) if sender_account.display_name else sender_account.email_address
+                        
+                        main_msg = EmailMultiAlternatives(
+                            subject=personalized_subject,
+                            body=personalized_body,
+                            from_email=from_email,
+                            to=[recipient_account.email_address],
+                            connection=connection
+                        )
+                        main_msg.extra_headers = {'Message-ID': new_msg_id}
+                        if is_reply:
+                            main_msg.extra_headers['In-Reply-To'] = parent_message_id
+                            main_msg.extra_headers['References'] = parent_message_id
+                        main_msg.encoding = 'utf-8'
+
+                        # --- ACTUAL SEND ---
+                        main_msg.send()
+                        sent_successfully = True
+                        
                         WarmupMessage.objects.create(
                             campaign=campaign,
                             sender=sender_account,
@@ -178,35 +150,28 @@ def send_warmup_step(campaign_id, step_number):
                             thread_id=thread_id
                         )
 
-                    except Exception as e:
-                        if "please run connect() first" in str(e) or "connection expired" in str(e) or "Connection unexpectedly closed" in str(e) or "Connection reset by peer" in str(e):
-                            connection = get_email_connection(sender_account, decrypted_password)
-                            if not connection:
-                                campaign.next_action_at = timezone.now() + timedelta(hours=random.uniform(1, 3))
-                                campaign.save(update_fields=["next_action_at"])
-                                return
-                            main_msg.connection = connection
-                            main_msg.send()
-                            
-                            # Save to DB on retry success
-                            WarmupMessage.objects.create(
-                                campaign=campaign,
-                                sender=sender_account,
-                                recipient=recipient_account,
-                                subject=personalized_subject,
-                                body=personalized_body,
-                                message_id=new_msg_id,
-                                in_reply_to_id=parent_message_id,
-                                thread_id=thread_id
-                            )
-                        else:
-                            raise e
+                        connections.close_all()
+                        time.sleep(random.randint(30, 60))
 
-                    connections.close_all()
-                    time.sleep(random.randint(30, 60))
+                    except Exception as e:
+                        # If one recipient fails, log it and CONTINUE to the next recipient
+                        msg = f"--- [RETRYABLE ERROR] {sender_account.email_address} -> {recipient_account.email_address}: {str(e)}"
+                        print(msg)
+                        
+                        # Handle specific connection drops inside the loop
+                        if any(err in str(e) for err in ["connect() first", "expired", "unexpectedly closed", "reset by peer"]):
+                            connection = get_email_connection(sender_account, decrypted_password)
+                            # If reconnection fails, we break the recipient loop
+                            if not connection: break
+                        
+                        continue # Don't return, try the next peer
 
                 if connection:
                     connection.close()
+                
+                # If we failed to send to EVERYONE, return early to avoid advancing the step
+                if not sent_successfully:
+                    return
 
             except Exception as e:
                 
@@ -246,13 +211,13 @@ def send_warmup_step(campaign_id, step_number):
                     try:
                         main_msg.send()
                     except Exception as e:
-                         # Retry logic matching your block
+                        # Retry logic matching your block
                         if "please run connect() first" in str(e) or "connection expired" in str(e) or "Connection unexpectedly closed" in str(e) or "Connection reset by peer" in str(e):
                             connection = get_email_connection(sender_account, decrypted_password)
                             if not connection:
                                 campaign.next_action_at = timezone.now() + timedelta(hours=random.uniform(1, 3))
                                 campaign.save(update_fields=["next_action_at"])
-                                return
+
                             main_msg.connection = connection
                             main_msg.send()
                         else:
@@ -264,7 +229,6 @@ def send_warmup_step(campaign_id, step_number):
                     if not connection:
                         campaign.next_action_at = timezone.now() + timedelta(hours=random.uniform(1, 3))
                         campaign.save(update_fields=["next_action_at"])
-                        return
                     try:
                         main_msg.connection = connection
                         try:
@@ -315,10 +279,15 @@ def send_warmup_step(campaign_id, step_number):
             
             for sender_account in sender_accounts:
                 
+                msg = f"--- [CONNECT] Target acting as Sender: {sender_account.email_address}"
+                print(msg)
+                
                 try: 
                     decrypted_password = sender_account.get_password()
                     connection = get_email_connection(sender_account, decrypted_password)
                     if not connection:
+                        msg = f"--- [SKIP] Target {sender_account.email_address} connection failed."
+                        print(msg)
                         continue
                     
                     # --- THREADING LOGIC ---
@@ -490,8 +459,9 @@ def send_warmup_step(campaign_id, step_number):
         campaign.next_action_at = timezone.now() + timedelta(hours=random.uniform(24, 36))
         
         campaign.save(update_fields=['current_step', 'last_action_at', 'next_action_at'])
-        
-        print(f"Warmup campaign {campaign.id} processed step {step_number} and is now at step {campaign.current_step}.")
+
+        msg = f"--- [FINISH] Campaign {campaign.id} advanced to Step {campaign.current_step}"
+        print(msg)
 
     except SoftTimeLimitExceeded:
         print(f"[TIMEOUT] Warmup step {step_number} exceeded time limit — safely rescheduling.")
@@ -555,10 +525,11 @@ def audit_warmup_targets():
     Identifies all 'active' email accounts currently enabled for warmup
     and dispatches them to Mails.so to verify deliverability.
     """
-    # Filter: Accounts that are marked for warmup, not yet blacklisted,
+    # Filter: Accounts that are marked for warmup, not yet blacklisted, only gmail accounts
     # belonging to users who have an Active Subscription OR are on a Free Trial.
     candidates = EmailAccount.objects.filter(
         Q(user__subscription__status='active') | Q(user__on_free_trial=True),
+        email_address__endswith='@gmail.com',
         is_warmup_target=True,
         black_list=False
     ).distinct().values_list('email_address', flat=True)

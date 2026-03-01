@@ -17,7 +17,12 @@ class EmailAccountForm(forms.ModelForm):
 
     class Meta:
         model = EmailAccount
-        fields = ["display_name","email_address", "decrypted_password", "email_provider", "port_number", "server_type", "host", "is_warmup_target", 'tracking_custom_domain']
+        fields = [
+            "display_name", "email_address", "decrypted_password", 
+            "email_provider", "port_number", "server_type", "host", 
+            "imap_host", "imap_port",
+            "is_warmup_target", 'tracking_custom_domain'
+        ]
         widgets = {
             'display_name': forms.TextInput(attrs={
                 'placeholder': 'e.g. Abdullah Atif',

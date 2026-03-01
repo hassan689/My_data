@@ -4,7 +4,7 @@ from django.http import JsonResponse, StreamingHttpResponse
 from django.views.decorators.http import require_http_methods, require_safe, require_GET, require_POST
 from django.core.paginator import Paginator
 
-from users.models import EmailAccount, AccountGroup
+from users.models import EmailAccount, AccountGroup, EmailProvider
 from leads_data.models import DailySheet
 from .models import GmailToken, CampaignRecord, EmailOpen, VerificationBatch, VerificationUsage, CampaignTemplate
 from drip_campaigns.models import DripTemplate, EmailAccountAndLeads
@@ -1264,6 +1264,41 @@ def campaign_statuses(request):
     }
 
     return JsonResponse(data)
+
+
+@login_required
+def discover_provider_settings(request):
+    email = request.GET.get('email', '').strip()
+    if not email or '@' not in email:
+        return JsonResponse({'success': False, 'error': 'Invalid email'})
+
+    domain = email.split('@')[-1].lower()
+    
+    try:
+        # 1. Get MX Records
+        answers = dns.resolver.resolve(domain, 'MX')
+        mx_records = [str(r.exchange).lower() for r in answers]
+        
+        # 2. Get all providers from DB
+        providers = EmailProvider.objects.all()
+        
+        # 3. Match fingerprint
+        for provider in providers:
+            # Check if any MX record contains the provider's keyword
+            if any(provider.mx_keyword.lower() in record for record in mx_records):
+                return JsonResponse({
+                    'success': True,
+                    'provider_name': provider.name,
+                    'smtp_host': provider.smtp_host,
+                    'smtp_port': provider.smtp_port,
+                    'imap_host': provider.imap_host,
+                    'imap_port': provider.imap_port,
+                    'server_type': provider.server_type,
+                })
+        
+        return JsonResponse({'success': False, 'error': 'No matching provider found'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
 
 
 @login_required

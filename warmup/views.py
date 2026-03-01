@@ -11,8 +11,8 @@ import random
 
 def refresh_targets(campaign):
     TARGET_LIMIT = 2
-    MEMBERSHIP_CAP = 3
-    DAILY_VELOCITY_CAP = 5
+    MEMBERSHIP_CAP = 6 
+    DAILY_VELOCITY_CAP = 6
     
     sender_account = campaign.sender_account
     sender_user = sender_account.user
@@ -20,45 +20,46 @@ def refresh_targets(campaign):
 
     try:
         with transaction.atomic():
-            # 1. Selection Stage: Get IDs only
             base_qs = EmailAccount.objects.filter(
                 black_list=False, 
                 is_warmup_target=True
             ).exclude(user=sender_user)
 
-            eligible_ids = base_qs.annotate(
-                active_target_count=Count(
-                    'target_of_warmup_campaigns',
-                    filter=Q(target_of_warmup_campaigns__status='Active')
-                ),
-                received_today_count=Count(
-                    'received_warmup_messages',
-                    filter=Q(received_warmup_messages__sent_at__gte=today_start)
-                )
-            ).filter(
-                active_target_count__lt=MEMBERSHIP_CAP,
-                received_today_count__lt=DAILY_VELOCITY_CAP
-            ).order_by(
-                'active_target_count', 
-                'received_today_count', 
-                '?'
-            ).values_list('id', flat=True)[:TARGET_LIMIT * 3] # Fetch a larger pool to handle skip_locked
+            eligible_ids = list(
+                base_qs.annotate(
+                    active_target_count=Count(
+                        'target_of_warmup_campaigns',
+                        filter=Q(target_of_warmup_campaigns__status='Active'),
+                        distinct=True
+                    ),
+                    received_today_count=Count(
+                        'received_warmup_messages',
+                        filter=Q(received_warmup_messages__sent_at__gte=today_start),
+                        distinct=True
+                    )
+                ).filter(
+                    active_target_count__lt=MEMBERSHIP_CAP,
+                    received_today_count__lt=DAILY_VELOCITY_CAP
+                ).order_by('active_target_count', 'received_today_count', '?')
+                .values_list('id', flat=True)[:40]
+            )
 
-            # 2. Locking Stage: Lock the actual rows using the IDs
-            # We use the list of IDs to perform a clean query without GROUP BY
+            if not eligible_ids:
+                # If total starvation occurs, stagger the retry
+                campaign.next_action_at = timezone.now() + timedelta(hours=random.uniform(1, 4))
+                campaign.save(update_fields=['next_action_at'])
+                return []
+
+            # Lock the best available rows
             selected_accounts = list(
                 EmailAccount.objects.filter(id__in=eligible_ids)
                 .select_for_update(skip_locked=True)[:TARGET_LIMIT]
             )
 
-            # 3. Assignment
-            if len(selected_accounts) >= TARGET_LIMIT:
+            if selected_accounts:
                 return selected_accounts
-            else:
-                # Starvation fallback
-                campaign.next_action_at = timezone.now() + timedelta(hours=random.uniform(1, 2))
-                campaign.save(update_fields=['next_action_at'])
-                return []
+            
+            return []
 
     except Exception as e:
         print(f"Error in refresh_targets for campaign {campaign.id}: {e}")

@@ -1,7 +1,7 @@
 import re
 from django.contrib import admin, messages
 from django.contrib.auth.admin import UserAdmin
-from .models import CustomUser, EmailAccount, Affiliate, AccountGroup
+from .models import CustomUser, EmailAccount, Affiliate, AccountGroup, EmailProvider
 from django.db.models import Count, Case, When, BooleanField
 from django.forms import PasswordInput
 from django import forms
@@ -100,6 +100,11 @@ class CustomUserAdmin(UserAdmin):
         return queryset
 
 
+@admin.register(EmailProvider)
+class EmailProviderAdmin(admin.ModelAdmin):
+    list_display = ('name', 'smtp_host', 'imap_host', 'server_type')
+    search_fields = ('name',)
+
 
 @admin.register(Affiliate)
 class AffiliateAdmin(admin.ModelAdmin):
@@ -141,7 +146,7 @@ class EmailAccountForm(forms.ModelForm):
 
     class Meta:
         model = EmailAccount
-        fields = ("user", "email_address", "decrypted_password", "account_group",
+        fields = ("user", "email_address", "decrypted_password", "account_group", "imap_host", "imap_port",
                   "email_provider", "port_number", "server_type", "host", "is_warmup_target", "black_list", 'tracking_custom_domain', 'tracking_domain_verified')
 
     def __init__(self, *args, **kwargs):

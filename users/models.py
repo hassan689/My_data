@@ -184,6 +184,18 @@ class EmailAccount(models.Model):
     )
     host = models.CharField(max_length=100, verbose_name="Outgoing Servr Host")
 
+    # Specific IMAP fields for this account
+    imap_host = models.CharField(
+        max_length=100, 
+        null=True, 
+        blank=True, 
+        verbose_name="Incoming Server (IMAP)"
+    )
+    imap_port = models.IntegerField(
+        default=993, 
+        verbose_name="IMAP Port"
+    )
+
     display_name = models.CharField(
         max_length=255, 
         null=True, 
@@ -269,6 +281,28 @@ class EmailAccount(models.Model):
         verbose_name = "Email Account"
         verbose_name_plural = "Email Accounts"
 
+
+class EmailProvider(models.Model):
+    name = models.CharField(max_length=100, help_text="e.g. Gmail, Outlook, Zoho")
+    mx_keyword = models.CharField(
+        max_length=100, 
+        help_text="Keyword to match in MX records (e.g., 'google.com' or 'outlook.com')"
+    )
+    smtp_host = models.CharField(max_length=100) # smtp.gmail.com
+    smtp_port = models.IntegerField(default=465)
+    imap_host = models.CharField(max_length=100)
+    imap_port = models.IntegerField(default=993)
+    
+    # Matching your existing server_type choices
+    SERVER_TYPE_CHOICES = [
+        ("TLS", "TLS"), 
+        ("SSL", "SSL"), 
+        ("STARTTLS", "STARTTLS"),
+    ]
+    server_type = models.CharField(max_length=10, choices=SERVER_TYPE_CHOICES)
+
+    def __str__(self):
+        return self.name
 
 
 # Leaving it alone here for now as migrations have been run with this model. Not required now as. Business decision.
