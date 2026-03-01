@@ -119,6 +119,16 @@ def send_warmup_step(campaign_id, step_number):
                                     parent_message_id = last_msg.message_id
                                     thread_id = last_msg.thread_id
 
+                        if is_reply:
+                            subject_raw = last_msg.subject
+                            personalized_subject = f"Re: {subject_raw}" if not subject_raw.lower().startswith("re:") else generate_spintax_subject(recipient_account.user.first_name, getattr(sender_account.user, "company_name", "Dispatch Skool"))
+                            fresh_body = generate_spintax_body(recipient_account.user.first_name, getattr(recipient_account.user, "company_name", "ABC Transports LLC"))
+                            personalized_body = f"{fresh_body}\n\nOn {last_msg.sent_at.strftime('%a, %b %d, %Y')}, {recipient_account.email_address} wrote:\n> {quoted_body.replace(chr(10), chr(10)+'> ')}"
+                        else:
+                            # This block was missing for Step 0/New Cycles
+                            personalized_subject = generate_spintax_subject(recipient_account.user.first_name, getattr(sender_account.user, "company_name", "ABC Transports"))
+                            personalized_body = generate_spintax_body(recipient_account.user.first_name, getattr(recipient_account.user, "company_name", "ABC Transports LLC"))
+
                         # --- PREPARE MESSAGE ---
                         from_email = formataddr((sender_account.display_name, sender_account.email_address)) if sender_account.display_name else sender_account.email_address
                         
