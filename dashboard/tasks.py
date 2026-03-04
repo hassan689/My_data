@@ -262,27 +262,27 @@ def send_single_email(self, campaign_record_id):
         except Exception as e:
             # Handle connection-lost error
             if "please run connect() first" in str(e).lower() or "connection expired" in str(e).lower():
-                print("SMTP connection lost, reconnecting...")
+                print("SMTP connection lost, moving on ...")
                 connection.close() # Close old
-                connection = get_email_connection(email_account, decrypted_password)
-                msg.connection = connection
-                msg.send() # Retry send
+                # connection = get_email_connection(email_account, decrypted_password)
+                # msg.connection = connection
+                # msg.send() # Retry send
 
-                # RECONNECT IMAP (Safely)
-                if imap_connection: # Only if it was supposed to exist
-                    try: imap_connection.logout()
-                    except: pass
+                # # RECONNECT IMAP (Safely)
+                # if imap_connection: # Only if it was supposed to exist
+                #     try: imap_connection.logout()
+                #     except: pass
                     
-                    imap_connection = get_imap_connection(email_account)
+                #     imap_connection = get_imap_connection(email_account)
 
-                    if imap_connection:
-                        try:
-                            raw_message = msg.message().as_bytes()
-                            save_email_with_existing_connection(imap_connection, raw_message, message_id)
-                        except Exception as inner_e:
-                            print(f"IMAP retry failed: {inner_e}")
-            else:
-                raise e # Re-raise other errors to be caught by outer try/except
+                #     if imap_connection:
+                #         try:
+                #             raw_message = msg.message().as_bytes()
+                #             save_email_with_existing_connection(imap_connection, raw_message, message_id)
+                #         except Exception as inner_e:
+                #             print(f"IMAP retry failed: {inner_e}")
+            # else:
+            #     raise e # Re-raise other errors to be caught by outer try/except
         
         # 8. --- SUCCESS: Update DB & Log ---
         print(f"Celery Task: Sent to {lead['Email']} via {campaign.sender_account.email_address}")
@@ -661,27 +661,27 @@ def send_emails_batch(self, campaign_record_id, batch_size=10):
 
                 except Exception as e:
                     if "please run connect() first" in str(e).lower() or "connection expired" in str(e).lower():
-                        print("SMTP connection lost, reconnecting...")
+                        print("SMTP connection lost, moving on ...")
                         connection.close()
-                        connection = get_email_connection(email_account, decrypted_password)
-                        msg.connection = connection
-                        msg.send() # Retry send
+                    #     connection = get_email_connection(email_account, decrypted_password)
+                    #     msg.connection = connection
+                    #     msg.send() # Retry send
 
-                        # RECONNECT IMAP (Safely)
-                        if imap_connection: # Only if it was supposed to exist
-                            try: imap_connection.logout()
-                            except: pass
+                    #     # RECONNECT IMAP (Safely)
+                    #     if imap_connection: # Only if it was supposed to exist
+                    #         try: imap_connection.logout()
+                    #         except: pass
                             
-                            imap_connection = get_imap_connection(email_account)
+                    #         imap_connection = get_imap_connection(email_account)
 
-                            if imap_connection:
-                                try:
-                                    raw_message = msg.message().as_bytes()
-                                    save_email_with_existing_connection(imap_connection, raw_message, message_id, cached_folder_name=batch_folder_name)
-                                except Exception as inner_e:
-                                    print(f"IMAP retry failed: {inner_e}")
-                    else:
-                        raise e # Re-raise to be caught by outer loop
+                    #         if imap_connection:
+                    #             try:
+                    #                 raw_message = msg.message().as_bytes()
+                    #                 save_email_with_existing_connection(imap_connection, raw_message, message_id, cached_folder_name=batch_folder_name)
+                    #             except Exception as inner_e:
+                    #                 print(f"IMAP retry failed: {inner_e}")
+                    # else:
+                    #     raise e # Re-raise to be caught by outer loop
                 
                 # --- 5. SUCCESS: ATOMIC COUNT ---
                 # Send was successful. Now we *only* increment the count.

@@ -205,3 +205,13 @@ class SentDripEmail(models.Model):
     def __str__(self):
         return f"{self.lead_email} - {self.message_id}"
 
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['drip_campaign', 'template', 'lead_email'], 
+                name='unique_send_per_lead_step'
+            )
+        ]
+        verbose_name = "Sent Drip Email"
+        verbose_name_plural = "Sent Drip Emails"
+

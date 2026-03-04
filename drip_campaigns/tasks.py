@@ -411,6 +411,19 @@ def send_single_email(self, campaign_id, account_info_id, template_id, lead_inde
 
         mc_num = lead.get('MC Number')
         email_addr = lead.get('Email')
+
+        # --- PRE-FLIGHT GUARD ---
+        # We check the database BEFORE doing any connection work
+        already_sent = SentDripEmail.objects.filter(
+            drip_campaign=campaign,
+            template=template,
+            lead_email=email_addr
+        ).exists()
+
+        if already_sent:
+            print(f"Skipping: Lead {email_addr} already processed for Step {template.step_number}")
+            reschedule_or_finalize(campaign.id, account, template, next_lead_index, delay_seconds=1)
+            return
         
         if (mc_num and mc_num in removed_leads_set) or (email_addr and email_addr in removed_leads_set):
             print(f"Skipping lead {email_addr or mc_num} (in removed list).")
@@ -559,37 +572,38 @@ def send_single_email(self, campaign_id, account_info_id, template_id, lead_inde
                 print(f"CRITICAL: Email sent but DB log failed: {db_e}")
         except Exception as e:
             if "please run connect() first" in str(e).lower() or "connection expired" in str(e).lower():
+                print("SMTP connection lost, moving on ...")
                 connection.close()
-                connection = get_email_connection(email_account, decrypted_password)
-                msg.connection = connection
-                msg.send()
+            #     connection = get_email_connection(email_account, decrypted_password)
+            #     msg.connection = connection
+            #     msg.send()
 
-                # RECONNECT IMAP (Safely)
-                if imap_connection: # Only if it was supposed to exist
-                    try: imap_connection.logout()
-                    except: pass
+            #     # RECONNECT IMAP (Safely)
+            #     if imap_connection: # Only if it was supposed to exist
+            #         try: imap_connection.logout()
+            #         except: pass
                     
-                    imap_connection = get_imap_connection(email_account)
+            #         imap_connection = get_imap_connection(email_account)
 
-                    if imap_connection:
-                        try:
-                            raw_message = msg.message().as_bytes()
-                            save_email_with_existing_connection(imap_connection, raw_message, raw_msg_id)
-                        except Exception as inner_e:
-                            print(f"IMAP retry failed: {inner_e}")
+            #         if imap_connection:
+            #             try:
+            #                 raw_message = msg.message().as_bytes()
+            #                 save_email_with_existing_connection(imap_connection, raw_message, raw_msg_id)
+            #             except Exception as inner_e:
+            #                 print(f"IMAP retry failed: {inner_e}")
 
-                # Log success after retry
-                SentDripEmail.objects.create(
-                    drip_campaign=campaign,
-                    template=template,
-                    message_id=clean_message_id,
-                    lead_email=lead['Email'],
-                    unique_identifier=unique_id,
-                    lead_mc_number=lead.get('MC Number'),
-                    status='Sent'
-                )
-            else:
-                raise e 
+            #     # Log success after retry
+            #     SentDripEmail.objects.create(
+            #         drip_campaign=campaign,
+            #         template=template,
+            #         message_id=clean_message_id,
+            #         lead_email=lead['Email'],
+            #         unique_identifier=unique_id,
+            #         lead_mc_number=lead.get('MC Number'),
+            #         status='Sent'
+            #     )
+            # else:
+            #     raise e 
             
         print(f"Drip Task: Sent to {lead['Email']} via {account.email_account.email_address}")
 
@@ -761,6 +775,13 @@ def send_batch_emails(self, campaign_id, account_info_id, template_id, start_ind
             
             mc_num = lead.get('MC Number')
             email_addr = lead.get('Email')
+
+            if SentDripEmail.objects.filter(
+                drip_campaign=campaign,
+                template=template,
+                lead_email=email_addr
+            ).exists():
+                continue
             
             if (mc_num and mc_num in removed_leads_set) or (email_addr and email_addr in removed_leads_set):
                 print(f"Skipping lead {email_addr or mc_num} (in removed list).")
@@ -899,37 +920,38 @@ def send_batch_emails(self, campaign_id, account_info_id, template_id, start_ind
                         print(f"CRITICAL: Email sent but DB log failed: {db_e}")
                 except Exception as e:
                     if "please run connect() first" in str(e).lower() or "connection expired" in str(e).lower():
+                        print("SMTP connection lost, moving on ...")
                         connection.close()
-                        connection = get_email_connection(email_account, decrypted_password)
-                        msg.connection = connection
-                        msg.send()
+                    #     connection = get_email_connection(email_account, decrypted_password)
+                    #     msg.connection = connection
+                    #     msg.send()
 
-                        # RECONNECT IMAP (Safely)
-                        if imap_connection: # Only if it was supposed to exist
-                            try: imap_connection.logout()
-                            except: pass
+                    #     # RECONNECT IMAP (Safely)
+                    #     if imap_connection: # Only if it was supposed to exist
+                    #         try: imap_connection.logout()
+                    #         except: pass
                             
-                            imap_connection = get_imap_connection(email_account)
+                    #         imap_connection = get_imap_connection(email_account)
 
-                            if imap_connection:
-                                try:
-                                    raw_message = msg.message().as_bytes()
-                                    save_email_with_existing_connection(imap_connection, raw_message, raw_msg_id, cached_folder_name=batch_folder_name)
-                                except Exception as inner_e:
-                                    print(f"IMAP retry failed: {inner_e}")
+                    #         if imap_connection:
+                    #             try:
+                    #                 raw_message = msg.message().as_bytes()
+                    #                 save_email_with_existing_connection(imap_connection, raw_message, raw_msg_id, cached_folder_name=batch_folder_name)
+                    #             except Exception as inner_e:
+                    #                 print(f"IMAP retry failed: {inner_e}")
 
-                        # Log success after retry
-                        SentDripEmail.objects.create(
-                            drip_campaign=campaign,
-                            template=template,
-                            message_id=clean_message_id,
-                            lead_email=lead['Email'],
-                            unique_identifier=unique_id,
-                            lead_mc_number=lead.get('MC Number'),
-                            status='Sent'
-                        )
-                    else:
-                        raise e 
+                    #     # Log success after retry
+                    #     SentDripEmail.objects.create(
+                    #         drip_campaign=campaign,
+                    #         template=template,
+                    #         message_id=clean_message_id,
+                    #         lead_email=lead['Email'],
+                    #         unique_identifier=unique_id,
+                    #         lead_mc_number=lead.get('MC Number'),
+                    #         status='Sent'
+                    #     )
+                    # else:
+                    #     raise e 
                     
                 print(f"Drip Task: Sent to {lead['Email']} via {account.email_account.email_address}")
 
