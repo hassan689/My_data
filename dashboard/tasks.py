@@ -41,7 +41,7 @@ email_regex = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
 # (e.g., 10 minutes = 600 seconds)
 EMAIL_TASK_TIME_LIMIT = 600
 
-@shared_task(name="dashboard.send_single_email", acks_late=True, bind=True, default_retry_delay=300, time_limit=EMAIL_TASK_TIME_LIMIT)
+@shared_task(name="dashboard.send_single_email", bind=True, time_limit=EMAIL_TASK_TIME_LIMIT)
 def send_single_email(self, campaign_record_id):
     """
     This is the self-perpetuating "Worker" task.
@@ -446,7 +446,7 @@ def send_single_email(self, campaign_record_id):
         CampaignRecord.objects.filter(id=campaign_record_id).update(status='failed')
 
 
-@shared_task(name="dashboard.send_emails_batch", acks_late=True, bind=True, default_retry_delay=300, time_limit=EMAIL_TASK_TIME_LIMIT)
+@shared_task(name="dashboard.send_emails_batch", bind=True, time_limit=EMAIL_TASK_TIME_LIMIT)
 def send_emails_batch(self, campaign_record_id, batch_size=10):
     """
     Batch processor that atomically "pops" a batch of leads

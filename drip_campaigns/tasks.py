@@ -11,7 +11,7 @@ from unibox.models import EmailThread, OutgoingEmailMessage
 from dashboard.utilities import get_email_connection, personalize_template, sanitize_email_html, should_use_batch_processing, bake_lead_snapshot
 from .utilities import reschedule_or_finalize, normalize_provider, send_campaign_failure_alert, IMAP_SETTINGS_MAP, get_imap_connection, save_email_with_existing_connection, get_best_sent_folder
 from django.core.mail import EmailMultiAlternatives, send_mail
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.utils import timezone
 from django.utils.html import strip_tags
 from django.utils.encoding import force_str
@@ -363,7 +363,7 @@ def chain_starter_task(results, campaign_id):
 # ===================================================================
 # TASK(S) 3: THE WORKERS
 # ===================================================================
-@shared_task(name="drip_campaigns.send_single_email", acks_late=True, bind=True, default_retry_delay=300, time_limit=EMAIL_TASK_TIME_LIMIT)
+@shared_task(name="drip_campaigns.send_single_email", bind=True, time_limit=EMAIL_TASK_TIME_LIMIT)
 def send_single_email(self, campaign_id, account_info_id, template_id, lead_index):
 
     connection = None
@@ -443,7 +443,6 @@ def send_single_email(self, campaign_id, account_info_id, template_id, lead_inde
         mailbox_instance = GmailToken.objects.filter(email_account=email_account).first()
 
         # --- Prepare Email ---
-        # NEW: Fetch the specific variation (Content) instead of the Step (Manager)
         # We use lead_index as the rotation counter (0, 1, 2...)
         variation = template.get_assigned_variation(lead_index) # will use the subject and body of the template (manager) for older camapigns with no var
 
@@ -514,6 +513,30 @@ def send_single_email(self, campaign_id, account_info_id, template_id, lead_inde
         else:
             from_email = email_account.email_address
         
+        
+        try:
+            with transaction.atomic():
+                variation_fk = variation if isinstance(variation, DripVariation) else None
+                lead_snapshot = bake_lead_snapshot(lead)
+
+                # We lower() the email here to match the constraint strictly
+                SentDripEmail.objects.create(
+                    drip_campaign=campaign,
+                    template=template,
+                    variation=variation_fk,
+                    message_id=clean_message_id,
+                    lead_email=email_addr.lower(), 
+                    lead_snapshot=lead_snapshot,
+                    unique_identifier=unique_id,
+                    lead_mc_number=lead.get('MC Number'),
+                    status='Sent'
+                )
+        except IntegrityError:
+            # IMPORTANT: Catch this so the chain doesn't die!
+            print(f"Collision: {email_addr} grabbed by another worker. Moving to next.")
+            reschedule_or_finalize(campaign.id, account, template, next_lead_index, delay_seconds=1)
+            return
+        
         # --- Send Email ---
         msg = EmailMultiAlternatives(
             subject=personalized_subject,
@@ -550,60 +573,10 @@ def send_single_email(self, campaign_id, account_info_id, template_id, lead_inde
                     except:
                         print("IMAP Reconnect failed. Skipping save.")
             
-            # Log to Database (Use the CLEAN ID)
-            try:
-                # Determine if 'variation' is a real DripVariation object or the legacy DripTemplate
-                # If it's the Step itself (legacy), we store None for the variation FK
-                variation_fk = variation if isinstance(variation, DripVariation) else None
-                lead_snapshot = bake_lead_snapshot(lead)
-
-                SentDripEmail.objects.create(
-                    drip_campaign=campaign,
-                    template=template,        # The Step (Manager)
-                    variation=variation_fk,   # NEW: The specific Content used
-                    message_id=clean_message_id,
-                    lead_email=lead['Email'],
-                    lead_snapshot=lead_snapshot,
-                    unique_identifier=unique_id,
-                    lead_mc_number=lead.get('MC Number'),
-                    status='Sent'
-                )
-            except Exception as db_e:
-                print(f"CRITICAL: Email sent but DB log failed: {db_e}")
         except Exception as e:
             if "please run connect() first" in str(e).lower() or "connection expired" in str(e).lower():
                 print("SMTP connection lost, moving on ...")
                 connection.close()
-            #     connection = get_email_connection(email_account, decrypted_password)
-            #     msg.connection = connection
-            #     msg.send()
-
-            #     # RECONNECT IMAP (Safely)
-            #     if imap_connection: # Only if it was supposed to exist
-            #         try: imap_connection.logout()
-            #         except: pass
-                    
-            #         imap_connection = get_imap_connection(email_account)
-
-            #         if imap_connection:
-            #             try:
-            #                 raw_message = msg.message().as_bytes()
-            #                 save_email_with_existing_connection(imap_connection, raw_message, raw_msg_id)
-            #             except Exception as inner_e:
-            #                 print(f"IMAP retry failed: {inner_e}")
-
-            #     # Log success after retry
-            #     SentDripEmail.objects.create(
-            #         drip_campaign=campaign,
-            #         template=template,
-            #         message_id=clean_message_id,
-            #         lead_email=lead['Email'],
-            #         unique_identifier=unique_id,
-            #         lead_mc_number=lead.get('MC Number'),
-            #         status='Sent'
-            #     )
-            # else:
-            #     raise e 
             
         print(f"Drip Task: Sent to {lead['Email']} via {account.email_account.email_address}")
 
@@ -638,11 +611,6 @@ def send_single_email(self, campaign_id, account_info_id, template_id, lead_inde
         reschedule_or_finalize(campaign.id, account, template, next_lead_index, delay_seconds=300)
         return
     
-    except MaxRetriesExceededError:
-        print(f"Max retries hit for account {account_info_id}. Terminating this chain.")
-        reschedule_or_finalize(campaign.id, account, template, account.recipient_count, delay_seconds=1)
-        return
-
     except (DripTemplate.DoesNotExist, EmailAccountAndLeads.DoesNotExist, DripCampaign.DoesNotExist) as e:
         print(f"Critical error: {e}. Stopping chain for account {account_info_id}.")
         return
@@ -681,12 +649,8 @@ def send_single_email(self, campaign_id, account_info_id, template_id, lead_inde
 
         elif "timeout" in error_message.lower() or "connection" in error_message.lower():
             print(f"Network error for account {account_info_id}. Retrying task.")
-            try:
-                raise self.retry(exc=e, max_retries=3)
-            except MaxRetriesExceededError:
-                # If retry fails here, clock out
-                reschedule_or_finalize(campaign.id, account, template, account.recipient_count, delay_seconds=1)
-                return
+            reschedule_or_finalize(campaign.id, account, template, next_lead_index, delay_seconds=1)
+            return
         
         else:
             print(f"Unhandled error for {lead['Email']}: {e}. Skipping lead.")
@@ -708,7 +672,7 @@ def send_single_email(self, campaign_id, account_info_id, template_id, lead_inde
     reschedule_or_finalize(campaign.id, account, template, next_lead_index, delay_seconds=next_delay)
 
 
-@shared_task(name="drip_campaigns.send_batch_emails", acks_late=True, bind=True, default_retry_delay=300, time_limit=EMAIL_TASK_TIME_LIMIT)
+@shared_task(name="drip_campaigns.send_batch_emails", bind=True, time_limit=EMAIL_TASK_TIME_LIMIT)
 def send_batch_emails(self, campaign_id, account_info_id, template_id, start_index, batch_size):
 
     connection = None
@@ -865,6 +829,24 @@ def send_batch_emails(self, campaign_id, account_info_id, template_id, start_ind
                 else:
                     from_email = email_account.email_address
                 
+                try:
+                    with transaction.atomic():
+                        variation_fk = variation if isinstance(variation, DripVariation) else None
+                        SentDripEmail.objects.create(
+                            drip_campaign=campaign,
+                            template=template,
+                            variation=variation_fk,
+                            message_id=clean_message_id,
+                            lead_email=email_addr.lower(),
+                            lead_snapshot=current_snapshot,
+                            unique_identifier=unique_id,
+                            lead_mc_number=lead.get('MC Number'),
+                            status='Sent'
+                        )
+                except IntegrityError:
+                    print(f"Batch Collision: {email_addr} already logged. Skipping.")
+                    continue
+
                 # --- Send Email ---
                 msg = EmailMultiAlternatives(
                     subject=personalized_subject,
@@ -901,58 +883,11 @@ def send_batch_emails(self, campaign_id, account_info_id, template_id, start_ind
                             except:
                                 print("IMAP Reconnect failed. Skipping save.")
                     
-                    # Log to Database (Use the CLEAN ID)
-                    try:
-                        # Determine if 'variation' is a real DripVariation object or the legacy DripTemplate
-                        variation_fk = variation if isinstance(variation, DripVariation) else None
-                        SentDripEmail.objects.create(
-                            drip_campaign=campaign,
-                            template=template,      # The Step
-                            variation=variation_fk, # The Variation
-                            message_id=clean_message_id, # Matches the pixel link exactly
-                            lead_email=lead['Email'],
-                            lead_snapshot=current_snapshot,
-                            unique_identifier=unique_id,
-                            lead_mc_number=lead.get('MC Number'),
-                            status='Sent'
-                        )
-                    except Exception as db_e:
-                        print(f"CRITICAL: Email sent but DB log failed: {db_e}")
                 except Exception as e:
                     if "please run connect() first" in str(e).lower() or "connection expired" in str(e).lower():
                         print("SMTP connection lost, moving on ...")
                         connection.close()
-                    #     connection = get_email_connection(email_account, decrypted_password)
-                    #     msg.connection = connection
-                    #     msg.send()
 
-                    #     # RECONNECT IMAP (Safely)
-                    #     if imap_connection: # Only if it was supposed to exist
-                    #         try: imap_connection.logout()
-                    #         except: pass
-                            
-                    #         imap_connection = get_imap_connection(email_account)
-
-                    #         if imap_connection:
-                    #             try:
-                    #                 raw_message = msg.message().as_bytes()
-                    #                 save_email_with_existing_connection(imap_connection, raw_message, raw_msg_id, cached_folder_name=batch_folder_name)
-                    #             except Exception as inner_e:
-                    #                 print(f"IMAP retry failed: {inner_e}")
-
-                    #     # Log success after retry
-                    #     SentDripEmail.objects.create(
-                    #         drip_campaign=campaign,
-                    #         template=template,
-                    #         message_id=clean_message_id,
-                    #         lead_email=lead['Email'],
-                    #         unique_identifier=unique_id,
-                    #         lead_mc_number=lead.get('MC Number'),
-                    #         status='Sent'
-                    #     )
-                    # else:
-                    #     raise e 
-                    
                 print(f"Drip Task: Sent to {lead['Email']} via {account.email_account.email_address}")
 
                 # --- Update Stats (Atomic) ---
@@ -1031,13 +966,6 @@ def send_batch_emails(self, campaign_id, account_info_id, template_id, start_ind
         reschedule_or_finalize(campaign.id, account, template, next_batch_start_index, 
                               delay_seconds=60, use_batch=True, batch_size=batch_size)
         return
-    
-    except MaxRetriesExceededError:
-        print(f"Max retries hit for batch (Acc {account_info_id}). Clocking Out.")
-        # Force finish this account so others aren't held up
-        reschedule_or_finalize(campaign.id, account, template, account.recipient_count, 
-                              delay_seconds=1, use_batch=True, batch_size=batch_size)
-        return
 
     except (DripTemplate.DoesNotExist, EmailAccountAndLeads.DoesNotExist, DripCampaign.DoesNotExist) as e:
         print(f"Critical error: {e}. Stopping chain for account {account_info_id}.")
@@ -1050,13 +978,9 @@ def send_batch_emails(self, campaign_id, account_info_id, template_id, start_ind
         # This is for errors *outside* the loop (e.g., initial connection)
         if "timeout" in error_message.lower() or "connection" in error_message.lower():
             print(f"Network error for account {account_info_id}. Retrying task.")
-            try:
-                raise self.retry(exc=e, max_retries=3)
-            except MaxRetriesExceededError:
-                # Retry failed? Clock out.
-                reschedule_or_finalize(campaign.id, account, template, account.recipient_count, 
+            reschedule_or_finalize(campaign.id, account, template, account.recipient_count, 
                                       delay_seconds=1, use_batch=True, batch_size=batch_size)
-                return
+            return
         
         else:
             print(f"Unhandled error for batch: {e}. Skipping batch.")
