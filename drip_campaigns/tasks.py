@@ -282,7 +282,7 @@ def chain_starter_task(results, campaign_id):
             valid_leads = []
             for lead in account_info.leads_data:
                 mc_num = lead.get('MC Number')
-                email_addr = lead.get('Email')
+                email_addr = lead.get('Email').lower()
 
                 # Check if either identifier is in the "stop list" or "already sent to for this template" (used for resuming campaigns)
                 if (mc_num and mc_num in removed_leads_set) or (email_addr and email_addr in removed_leads_set) or (email_addr and email_addr in sent_leads_set):
@@ -291,6 +291,7 @@ def chain_starter_task(results, campaign_id):
                 valid_leads.append(lead)
             
             account_info.recipient_count = len(valid_leads)
+            account_info.filtered_leads = valid_leads
             account_info.sent_count = 0
 
             # Set the new status
@@ -300,7 +301,7 @@ def chain_starter_task(results, campaign_id):
             else:
                 account_info.status = 'Ready'
             
-            account_info.save(update_fields=['recipient_count', 'sent_count', 'status'])
+            account_info.save(update_fields=['filtered_leads', 'recipient_count', 'sent_count', 'status'])
         
         # 2. Update the template status
         template.delivered_status = 'Processing'
@@ -401,13 +402,13 @@ def send_single_email(self, campaign_id, account_info_id, template_id, lead_inde
 
         # --- Lead Fetching & Filtering ---
         # Use recipient_count (the goal) not leads_data (the full list)
-        if lead_index >= len(account.leads_data):
+        if lead_index >= account.recipient_count:
             print(f"Lead index {lead_index} is out of bounds for recipient goal {account.recipient_count}. Stopping.")
             # This task is done, trigger the finalize check
             reschedule_or_finalize(campaign.id, account, template, next_lead_index, delay_seconds=1)
             return
 
-        lead = account.leads_data[lead_index]
+        lead = account.filtered_leads[lead_index]
 
         mc_num = lead.get('MC Number')
         email_addr = lead.get('Email')
@@ -417,7 +418,7 @@ def send_single_email(self, campaign_id, account_info_id, template_id, lead_inde
         already_sent = SentDripEmail.objects.filter(
             drip_campaign=campaign,
             template=template,
-            lead_email=email_addr
+            lead_email=email_addr.lower()
         ).exists()
 
         if already_sent:
@@ -731,11 +732,11 @@ def send_batch_emails(self, campaign_id, account_info_id, template_id, start_ind
             lead = None # Reset lead for each iteration
 
             # --- Lead Fetching & Filtering (Inside Loop) ---
-            if lead_index >= len(account.leads_data):
+            if lead_index >= account.recipient_count:
                 print(f"Lead index {lead_index} is out of bounds. Ending batch early.")
                 break # Finished all leads for this account
 
-            lead = account.leads_data[lead_index]
+            lead = account.filtered_leads[lead_index]
             
             mc_num = lead.get('MC Number')
             email_addr = lead.get('Email')
@@ -743,11 +744,11 @@ def send_batch_emails(self, campaign_id, account_info_id, template_id, start_ind
             if SentDripEmail.objects.filter(
                 drip_campaign=campaign,
                 template=template,
-                lead_email=email_addr
+                lead_email=email_addr.lower()
             ).exists():
                 continue
             
-            if (mc_num and mc_num in removed_leads_set) or (email_addr and email_addr in removed_leads_set):
+            if (mc_num and mc_num in removed_leads_set) or (email_addr and email_addr.lower() in removed_leads_set):
                 print(f"Skipping lead {email_addr or mc_num} (in removed list).")
                 continue # Skip to next lead in batch
 

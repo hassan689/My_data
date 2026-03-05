@@ -50,6 +50,7 @@ class EmailAccountAndLeads(models.Model):
     campaign = models.ForeignKey(DripCampaign, on_delete=models.CASCADE, related_name="email_accounts_and_leads")
     email_account = models.ForeignKey(EmailAccount, on_delete=models.CASCADE)
     leads_data = models.JSONField(default=list) # Stores list of lead emails as JSON
+    filtered_leads = models.JSONField(default=list) # Stores list of lead emails that passed the filter (replied/unsubscribed)
 
     recipient_count = models.IntegerField(default=0) # Number of leads associated with this email account for the latest step.
     sent_count = models.IntegerField(default=0) # Number of emails sent from this account in this campaign for the latest step.

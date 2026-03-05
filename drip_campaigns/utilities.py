@@ -28,7 +28,7 @@ def reschedule_or_finalize(campaign_id, account, template, next_lead_index, dela
     from .tasks import finalize_drip_step_task, send_single_email, send_batch_emails
     
     # --- CASE 1: Account finished its leads ---
-    if next_lead_index >= len(account.leads_data):
+    if next_lead_index >= account.recipient_count:
         print(f"Account {account.id} finished its list for template {template.id}.")
 
         # 1. Mark this account as 'Ready' (Done) in the DB immediately
