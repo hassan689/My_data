@@ -268,12 +268,18 @@ def chain_starter_task(results, campaign_id):
         )
         
         all_accounts = campaign.email_accounts_and_leads.all()
-        removed_leads_set = set(campaign.removed_mc_numbers)
+        removed_leads_set = set(
+            item.lower() if isinstance(item, str) else item
+            for item in campaign.removed_mc_numbers
+        )
 
-        sent_leads_set = set(SentDripEmail.objects.filter(
-            drip_campaign=campaign, 
-            template=template
-        ).values_list('lead_email', flat=True))
+        sent_leads_set = set(
+            email.lower()
+            for email in SentDripEmail.objects.filter(
+                drip_campaign=campaign,
+                template=template
+            ).values_list('lead_email', flat=True)
+        )
 
         total_accounts_for_step = 0
         
@@ -282,7 +288,8 @@ def chain_starter_task(results, campaign_id):
             valid_leads = []
             for lead in account_info.leads_data:
                 mc_num = lead.get('MC Number')
-                email_addr = lead.get('Email').lower()
+                raw_email = lead.get('Email')
+                email_addr = raw_email.lower() if raw_email else None
 
                 # Check if either identifier is in the "stop list" or "already sent to for this template" (used for resuming campaigns)
                 if (mc_num and mc_num in removed_leads_set) or (email_addr and email_addr in removed_leads_set) or (email_addr and email_addr in sent_leads_set):

@@ -128,7 +128,7 @@
           <div class="rounded-lg shadow-sm border border-gray-700 bg-secondary overflow-hidden">
               <div class="p-6 border-b border-color flex justify-between items-center">
                   <h2 class="text-lg font-semibold text-primary">History</h2>
-                  <button onClick="window.location.reload();" class="text-sm text-tertiary hover:text-secondary transition-colors flex items-center gap-2">
+                  <button onClick="checkStatuses();" class="text-sm text-tertiary hover:text-secondary transition-colors flex items-center gap-2">
                       <svg class="w-3 h-3" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 18 20">
                           <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 1v5h-5M2 19v-5h5m10-4a8 8 0 0 1-14.947 3.97M1 10a8 8 0 0 1 14.947-3.97"/>
                       </svg>
@@ -143,7 +143,7 @@
                               <th scope="col" class="px-6 py-3">File Name</th>
                               <th scope="col" class="px-6 py-3">Date</th>
                               <th scope="col" class="px-6 py-3">Status</th>
-                              <th scope="col" class="px-6 py-3 text-right">Action</th>
+                              <th scope="col" class="px-6 py-3 text-center">Actions</th>
                           </tr>
                       </thead>
                       <tbody id="batches-container">
@@ -184,13 +184,20 @@
                                   {% endif %}
                               </td>
                               
-                              <td class="px-6 py-4 text-right download-cell">
+                              <td class="px-6 py-4 text-center download-cell">
                                   {% if batch.is_downloadable %}
-                                      <a href="{{ batch.output_file.url }}" class="inline-flex items-center justify-center bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600 transition-colors text-xs font-medium">
-                                          Download ⬇️
-                                      </a>
+                                      <div class="flex flex-col sm:flex-row gap-2 justify-center">
+                                          <a href="{% url 'dashboard:download_verification_results' batch.id %}?export=clean" 
+                                            class="inline-flex items-center justify-center bg-green-600 text-white px-3 py-1.5 rounded hover:bg-green-700 transition-colors text-xs font-medium whitespace-nowrap">
+                                              Clean List ⬇️
+                                          </a>
+                                          <a href="{% url 'dashboard:download_verification_results' batch.id %}?export=full" 
+                                            class="inline-flex items-center justify-center bg-gray-600 text-white px-3 py-1.5 rounded hover:bg-gray-700 transition-colors text-xs font-medium whitespace-nowrap">
+                                              Full Report ⬇️
+                                          </a>
+                                      </div>
                                   {% else %}
-                                      <span class="text-tertiary cursor-not-allowed text-xs">N/A</span>
+                                      <span class="text-tertiary cursor-not-allowed text-xs">Processing...</span>
                                   {% endif %}
                               </td>
                           </tr>
@@ -297,14 +304,23 @@
 
               // 2. Update Download Cell
               const downloadCell = row.querySelector('.download-cell');
-              if (data.is_downloadable && data.download_url) {
+              if (data.is_downloadable && data.download_clean_url && data.download_full_url) {
                   downloadCell.innerHTML = `
-                      <a href="${data.download_url}" class="inline-flex items-center justify-center bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600 transition-colors text-xs font-medium">
-                          Download ⬇️
-                      </a>
+                      <div class="flex flex-col sm:flex-row gap-2 justify-center">
+                          <a href="${data.download_clean_url}" 
+                            class="inline-flex items-center justify-center bg-green-600 text-white px-3 py-1.5 rounded hover:bg-green-700 transition-colors text-xs font-medium whitespace-nowrap">
+                              Clean List ⬇️
+                          </a>
+                          <a href="${data.download_full_url}" 
+                            class="inline-flex items-center justify-center bg-gray-600 text-white px-3 py-1.5 rounded hover:bg-gray-700 transition-colors text-xs font-medium whitespace-nowrap">
+                              Full Report ⬇️
+                          </a>
+                      </div>
                   `;
               } else if (data.status === 'FAILED') {
                   downloadCell.innerHTML = `<span class="text-red-500 text-xs">Error</span>`;
+              } else {
+                  downloadCell.innerHTML = `<span class="text-tertiary cursor-not-allowed text-xs">Processing...</span>`;
               }
           }
 
@@ -354,6 +370,8 @@
                     // Do not clear interval; let it try again in 1m 10s
                 });
           }
+
+          window.checkStatuses = checkStatuses;
 
           // Start polling if there are active batches on load
           if (getActiveBatches().length > 0) {

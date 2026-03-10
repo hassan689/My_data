@@ -206,7 +206,7 @@ def send_warmup_step(campaign_id, step_number):
                     email_message.send()
                 
                 elif "Daily user sending limit exceeded" in str(e):
-                    campaign.next_action_at = timezone.now() + timedelta(hours=random.uniform(24, 36))
+                    campaign.next_action_at = timezone.now() + timedelta(hours=random.uniform(4, 6))
                     campaign.save(update_fields=['next_action_at'])
 
                 elif "codec can't encode character" in str(e): 
@@ -264,7 +264,7 @@ def send_warmup_step(campaign_id, step_number):
                         campaign.save(update_fields=['next_action_at'])
 
                 elif "Temporary System Problem" in str(e) or "Concurrent connections limit exceeded" in str(e):
-                    campaign.next_action_at = timezone.now() + timedelta(hours=random.uniform(24, 36))
+                    campaign.next_action_at = timezone.now() + timedelta(hours=random.uniform(4, 6))
                     campaign.save(update_fields=['next_action_at'])
 
                 elif "Please log in with your web browser" in str(e) or "Sender address rejected" in str(e): 
@@ -275,7 +275,7 @@ def send_warmup_step(campaign_id, step_number):
                     body = f"Error during sender's turn (step {step_number}) for Campaign sender {campaign.sender_account}: {e}"
                     recipient_list = ['abdullahatif132@gmail.com']
                     send_mail(subject, body, settings.DEFAULT_FROM_EMAIL, recipient_list, fail_silently=False)
-                    campaign.next_action_at = timezone.now() + timedelta(hours=random.uniform(24, 36))
+                    campaign.next_action_at = timezone.now() + timedelta(hours=random.uniform(4, 6))
                     campaign.save(update_fields=['next_action_at'])
 
                 return
@@ -466,7 +466,7 @@ def send_warmup_step(campaign_id, step_number):
         # Update campaign status for the next step (only runs if no errors occurred)
         campaign.current_step += 1
         campaign.last_action_at = timezone.now()
-        campaign.next_action_at = timezone.now() + timedelta(hours=random.uniform(24, 36))
+        campaign.next_action_at = timezone.now() + timedelta(hours=random.uniform(4, 6))
         
         campaign.save(update_fields=['current_step', 'last_action_at', 'next_action_at'])
 

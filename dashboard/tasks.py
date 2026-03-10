@@ -1240,7 +1240,7 @@ def finalize_batch(results, batch_id):
     flat_rows = [
         item for sublist in results 
         for item in sublist 
-        if item.get('v_status') == 'deliverable'
+        # if item.get('v_status') == 'deliverable'
     ]
     
     # 4. Define our standardized verification columns
@@ -1250,8 +1250,8 @@ def finalize_batch(results, batch_id):
     if 'Email' not in final_fieldnames:
         final_fieldnames.append('Email')
     
-    # 5. Build final fieldnames: [Original User Cols] + [Verification Cols]
-    fieldnames = final_fieldnames + verification_cols
+    # 5. Build final fieldnames
+    fieldnames = verification_cols + final_fieldnames
 
     csv_buffer = StringIO()
     
@@ -1268,7 +1268,7 @@ def finalize_batch(results, batch_id):
 
     # 6. File handling and naming
     base_name = batch.original_filename.rsplit('.', 1)[0]
-    output_filename = f"verified_{base_name}.csv"
+    output_filename = f"verified_full_{base_name}.csv"
     
     # Save the CSV content to the FileField
     batch.output_file.save(

@@ -1,6 +1,6 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
-from django.http import JsonResponse, StreamingHttpResponse
+from django.http import JsonResponse, StreamingHttpResponse, FileResponse, HttpResponse
 from django.views.decorators.http import require_http_methods, require_safe, require_GET, require_POST
 from django.core.paginator import Paginator
 
@@ -25,6 +25,7 @@ from django.utils import timezone
 from datetime import datetime, timedelta
 from django.db import transaction
 from django.db.models import Sum
+from django.urls import reverse
 
 from google_secrets import *
 from urllib.parse import quote_plus
@@ -35,6 +36,7 @@ import pytz
 import dns.resolver
 import os
 import uuid
+from io import StringIO
 import csv
 
 ######################################## Campaign sending views
@@ -1575,21 +1577,50 @@ def batch_status_api(request):
 
     results = {}
     for batch in batches:
-        # Securely get the URL only if the file actually exists on storage
-        download_url = None
-        try:
-            if batch.output_file and hasattr(batch.output_file, 'url'):
-                download_url = batch.output_file.url
-        except ValueError:
-            download_url = None
-
         results[batch.id] = {
             'status': batch.status,
             'is_downloadable': batch.is_downloadable,
-            'download_url': download_url,
+            'download_clean_url': reverse('dashboard:download_verification_results', args=[batch.id]) + "?export=clean",
+            'download_full_url': reverse('dashboard:download_verification_results', args=[batch.id]) + "?export=full",
         }
     
     return JsonResponse(results)
+
+
+@login_required
+def download_verification_results(request, batch_id):
+    batch = get_object_or_404(VerificationBatch, id=batch_id, user=request.user)
+    
+    if not batch.output_file:
+        messages.error(request, "The result file is not available yet.")
+        return redirect('dashboard:verification_dashboard')
+
+    export_type = request.GET.get('export', 'full')
+    base_name = batch.original_filename.split('.')[0]
+
+    # --- Option 1: Full Export (Direct Stream from Disk) ---
+    if export_type != 'clean':
+        response = FileResponse(batch.output_file.open('rb'))
+        response['Content-Type'] = 'text/csv'
+        response['Content-Disposition'] = f'attachment; filename="full_verified_{base_name}.csv"'
+        return response
+
+    # --- Option 2: Clean Export ---
+    output = StringIO()
+    
+    with batch.output_file.open('r') as f:
+        reader = csv.DictReader(f)
+        writer = csv.DictWriter(output, fieldnames=reader.fieldnames)
+        writer.writeheader()
+        
+        for row in reader:
+            if row.get('v_status') == 'deliverable':
+                writer.writerow(row)
+
+    response = HttpResponse(output.getvalue(), content_type='text/csv')
+    response['Content-Disposition'] = f'attachment; filename="clean_verified_{base_name}.csv"'
+    return response
+
 
 ######################################## Views to connect to Gmail API
 
