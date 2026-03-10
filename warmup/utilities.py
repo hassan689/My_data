@@ -500,35 +500,61 @@ def ensure_folder_exists(imap_conn, folder_name="Warmup"):
     except:
         return False
 
+
 def check_inbox_and_rescue(email_account, target_message_id):
+    """
+    Finds a message by ID across all folders, rescues it from Spam/Junk if needed,
+    and moves it to the 'Warmup' folder. 
+    
+    Hardened for: Gmail Labels, Hostinger Delimiters, and IMAP State Safety.
+    """
     TARGET_FOLDER = "Warmup"
+    # Normalize Message-ID for strict header searching
     search_id = target_message_id if target_message_id.startswith('<') else f'<{target_message_id}>'
     
     imap_conn = get_warmup_imap_connection(email_account)
-    if not imap_conn: return None
+    if not imap_conn: 
+        return None
 
     try:
+        # 0. Ensure target folder exists before doing anything
         ensure_folder_exists(imap_conn, TARGET_FOLDER)
+        
+        # 1. Map all available folders
         status, folder_list = imap_conn.list()
-        if status != 'OK': return None
+        if status != 'OK': 
+            return None
 
-        skip_attrs = [r'\Sent', r'\Trash', r'\Drafts', r'\Deleted']
+        # System folders and non-selectable folders to skip
+        skip_attrs = [r'\Sent', r'\Trash', r'\Drafts', r'\Deleted', r'\Noselect']
         found_uid, found_in_folder = None, None
 
         for f_info in folder_list:
             f_str = f_info.decode('utf-8', 'ignore')
-            if any(attr in f_str for attr in skip_attrs): continue
+            
+            # Optimization: Skip folders that are explicitly non-selectable or system-specific
+            if any(attr in f_str for attr in skip_attrs):
+                continue
 
+            # Parse folder name regardless of provider delimiter (regex handles "." and "/")
             match = re.search(r'\((?P<attrs>.*)\)\s+"(?P<delim>.*)"\s+"?(?P<name>.*)"?', f_str)
-            if not match: continue
+            if not match: 
+                continue
+            
             current_folder = match.group('name').strip('"')
             
             try:
+                # CRITICAL: Attempt to SELECT. We must be in SELECTED state for SEARCH.
                 res, _ = imap_conn.select(f'"{current_folder}"', readonly=False)
-                if res != 'OK': continue
+                if res != 'OK':
+                    # If selection fails, we stay in AUTH state; skipping search to prevent illegal command error
+                    continue
 
+                # Tier 1: Strict Header Search
                 res, data = imap_conn.uid('search', None, f'HEADER Message-ID "{search_id}"')
                 uids = data[0].split()
+
+                # Tier 2: Fuzzy Body Search (fallback)
                 if not uids:
                     res, data = imap_conn.uid('search', None, f'TEXT "{target_message_id}"')
                     uids = data[0].split()
@@ -537,35 +563,42 @@ def check_inbox_and_rescue(email_account, target_message_id):
                     found_uid = uids[-1]
                     found_in_folder = current_folder
                     break 
-            except: continue
+            except:
+                continue
 
-        if not found_uid: return None
+        if not found_uid: 
+            return None
 
-        # FIX 1: Robust UID refreshing after move
+        # 2. Rescue Logic (Move to Warmup if found elsewhere)
         if found_in_folder != TARGET_FOLDER:
+            # Atomic Move pattern: Copy -> Flag -> Expunge
             copy_res = imap_conn.uid('copy', found_uid, f'"{TARGET_FOLDER}"')
             if copy_res[0] == 'OK':
                 imap_conn.uid('store', found_uid, '+FLAGS', '\\Deleted')
                 imap_conn.expunge()
             
-            imap_conn.select(f'"{TARGET_FOLDER}"')
-            res, data = imap_conn.uid('search', None, f'HEADER Message-ID "{search_id}"')
-            new_uids = data[0].split()
-            if new_uids:
-                found_uid = new_uids[-1]
+            # Re-Select Warmup and find the NEW UID for the message
+            res, _ = imap_conn.select(f'"{TARGET_FOLDER}"')
+            if res == 'OK':
+                res, data = imap_conn.uid('search', None, f'HEADER Message-ID "{search_id}"')
+                new_uids = data[0].split()
+                if new_uids:
+                    found_uid = new_uids[-1]
+                else:
+                    # Message moved but indexer hasn't caught up
+                    print(f"[IMAP Warning] Moved {search_id} to {TARGET_FOLDER}, but not found in index yet.")
+                    return None
             else:
-                # If message isn't indexed in Warmup yet, don't use the old UID
-                print(f"[IMAP Warning] Message {search_id} not found in {TARGET_FOLDER} after move.")
                 return None
 
-        # 3. Fetch and Parse
+        # 3. Content Extraction (with None payload safety)
         status, msg_data = imap_conn.uid('fetch', found_uid, "(RFC822)")
-        if status != 'OK' or not msg_data: return None
+        if status != 'OK' or not msg_data: 
+            return None
 
         raw_email = msg_data[0][1]
         msg = email.message_from_bytes(raw_email)
         
-        # FIX 2: Handle None payloads for malformed emails
         body = ""
         if msg.is_multipart():
             for part in msg.walk():
@@ -585,8 +618,12 @@ def check_inbox_and_rescue(email_account, target_message_id):
         print(f"Rescue Error [{email_account.email_address}]: {e}")
         return None
     finally:
-        try: imap_conn.logout()
-        except: pass
+        # Standardize closure
+        try:
+            # imap_conn.close() only works if we are in SELECTED state
+            imap_conn.logout()
+        except:
+            pass
 
 
 def process_audit_results(results_map):
