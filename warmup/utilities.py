@@ -288,192 +288,305 @@ def get_warmup_imap_connection(email_account):
 
 
 # Dedicated folder for warmup emails helps in organization and prevents cluttering the main inbox.
+# def ensure_folder_exists(imap_conn, folder_name="Warmup"):
+#     """
+#     Checks if a folder exists. If not, creates and subscribes to it.
+#     Uses quoted folder names to prevent "BAD Could not parse" IMAP errors.
+#     Returns True if successful/exists, False otherwise.
+#     """
+#     try:
+#         # 1. List all folders to check existence
+#         status, folders = imap_conn.list()
+#         folder_exists = False
+        
+#         # We wrap the name in quotes to handle spaces and prevent parser errors
+#         quoted_name = f'"{folder_name}"'
+        
+#         for f in folders:
+#             if not f: continue
+#             decoded_f = f.decode('utf-8', 'ignore')
+#             # Check for exact matches in the list response
+#             if quoted_name in decoded_f or f' {folder_name}' in decoded_f:
+#                 folder_exists = True
+#                 break
+        
+#         # 2. Create if missing
+#         if not folder_exists:
+#             print(f"Creating folder {quoted_name}...")
+#             # Use the quoted name for the CREATE command
+#             status, response = imap_conn.create(quoted_name)
+#             if status != 'OK':
+#                 print(f"Failed to create folder: {response}")
+#                 return False
+                
+#         # 3. Subscribe (Important for some clients to "see" it)
+#         try:
+#             imap_conn.subscribe(quoted_name)
+#         except:
+#             pass
+
+#         return True
+
+#     except Exception as e:
+#         print(f"Error ensuring folder {folder_name}: {e}")
+#         return False
+
+
+# def check_inbox_and_rescue(email_account, target_message_id):
+#     """
+#     Finds a message by ID. Dynamically discovers Spam/Junk folders to rescue 
+#     messages and moves them to the 'Warmup' folder (or Inbox fallback).
+#     Returns the message body.
+#     """
+#     TARGET_FOLDER = "Warmup"
+#     quoted_target = f'"{TARGET_FOLDER}"'
+    
+#     # Utilizing our new database-driven connection logic
+#     imap_conn = get_warmup_imap_connection(email_account)
+#     if not imap_conn:
+#         return None
+
+#     try:
+#         # 0. Ensure the dedicated Warmup folder exists
+#         if not ensure_folder_exists(imap_conn, TARGET_FOLDER):
+#             TARGET_FOLDER = "INBOX"
+#             quoted_target = "INBOX"
+
+#         # 1. Search the target 'Warmup' folder first
+#         imap_conn.select(quoted_target) 
+#         status, messages = imap_conn.search(None, f'(HEADER Message-ID "{target_message_id}")')
+#         email_ids = messages[0].split()
+        
+#         # 2. If not found, Search INBOX (Declutter logic)
+#         if not email_ids:
+#             imap_conn.select("INBOX")
+#             status, messages = imap_conn.search(None, f'(HEADER Message-ID "{target_message_id}")')
+#             inbox_ids = messages[0].split()
+            
+#             if inbox_ids:
+#                 msg_num = inbox_ids[0]
+#                 # Only perform move if the target isn't already INBOX
+#                 if quoted_target != "INBOX":
+#                     copy_res = imap_conn.copy(msg_num, quoted_target)
+#                     if copy_res[0] == 'OK':
+#                         imap_conn.store(msg_num, '+FLAGS', '\\Deleted')
+#                         imap_conn.expunge()
+                        
+#                         # Re-select Warmup to retrieve the new ID
+#                         imap_conn.select(quoted_target)
+#                         status, messages = imap_conn.search(None, f'(HEADER Message-ID "{target_message_id}")')
+#                         email_ids = messages[0].split()
+#                 else:
+#                     email_ids = inbox_ids
+
+#         # 3. Aggressive Spam Rescue: Dynamically find and search potential Spam folders
+#         if not email_ids:
+#             status, folder_list = imap_conn.list()
+#             potential_spam_folders = []
+            
+#             # Keywords to identify spam/junk folders across different providers
+#             spam_keywords = ['spam', 'junk', 'bulk', 'track', 'dritt'] # 'dritt' example for localized junk
+            
+#             if status == 'OK':
+#                 for f_info in folder_list:
+#                     f_decoded = f_info.decode('utf-8', 'ignore').lower()
+#                     if any(kw in f_decoded for kw in spam_keywords):
+#                         # Extract folder name: handles various delimiters like "/" or "."
+#                         # Standard IMAP LIST response: (Attributes) "Delimiter" "Name"
+#                         parts = f_decoded.split(' "/" ') if ' "/" ' in f_decoded else f_decoded.split(' "." ')
+#                         folder_name = parts[-1].strip().strip('"')
+#                         potential_spam_folders.append(folder_name)
+
+#             # Unique list to avoid redundant searches
+#             unique_spam_folders = list(set(potential_spam_folders))
+
+#             for folder in unique_spam_folders:
+#                 try:
+#                     quoted_folder = f'"{folder}"'
+#                     # Use readonly=False because we need to delete the message after copying
+#                     status, _ = imap_conn.select(quoted_folder)
+#                     if status != 'OK': continue
+                        
+#                     status, messages = imap_conn.search(None, f'(HEADER Message-ID "{target_message_id}")')
+#                     spam_msg_ids = messages[0].split()
+                    
+#                     if spam_msg_ids:
+#                         print(f"Rescue: Found {target_message_id} in {folder}. Moving to {TARGET_FOLDER}.")
+#                         msg_num = spam_msg_ids[0]
+                        
+#                         # Copy to Warmup (or Inbox fallback)
+#                         copy_res = imap_conn.copy(msg_num, quoted_target)
+                        
+#                         if copy_res[0] == 'OK':
+#                             # Mark as deleted in Spam and purge
+#                             imap_conn.store(msg_num, '+FLAGS', '\\Deleted')
+#                             imap_conn.expunge() 
+                            
+#                             # Final selection to retrieve the message for parsing
+#                             imap_conn.select(quoted_target)
+#                             status, messages = imap_conn.search(None, f'(HEADER Message-ID "{target_message_id}")')
+#                             email_ids = messages[0].split()
+#                         break
+#                 except Exception as e:
+#                     print(f"Error searching folder {folder}: {e}")
+#                     continue
+            
+#         if not email_ids:
+#             return None # Message not found anywhere
+
+#         # 4. Fetch and Parse Content
+#         latest_email_id = email_ids[-1]
+#         status, msg_data = imap_conn.fetch(latest_email_id, "(RFC822)")
+        
+#         if status != 'OK' or not msg_data or not msg_data[0]:
+#             return None
+
+#         raw_email = msg_data[0][1]
+#         msg = email.message_from_bytes(raw_email)
+        
+#         body_content = ""
+#         if msg.is_multipart():
+#             for part in msg.walk():
+#                 # Focus on the plain text body, skipping attachments
+#                 if part.get_content_type() == "text/plain":
+#                     cdisp = str(part.get("Content-Disposition"))
+#                     if "attachment" not in cdisp:
+#                         try:
+#                             body_content = part.get_payload(decode=True).decode(errors='replace')
+#                             break
+#                         except:
+#                             pass
+#         else:
+#             try:
+#                 body_content = msg.get_payload(decode=True).decode(errors='replace')
+#             except:
+#                 pass
+
+#         return body_content
+
+#     except Exception as e:
+#         print(f"Error in rescue function for {email_account.email_address}: {e}")
+#         return None
+#     finally:
+#         # Guarantee connection closure to avoid 'Too many connections' errors
+#         try:
+#             imap_conn.close()
+#             imap_conn.logout()
+#         except:
+#             pass
+
+
 def ensure_folder_exists(imap_conn, folder_name="Warmup"):
-    """
-    Checks if a folder exists. If not, creates and subscribes to it.
-    Uses quoted folder names to prevent "BAD Could not parse" IMAP errors.
-    Returns True if successful/exists, False otherwise.
-    """
     try:
-        # 1. List all folders to check existence
         status, folders = imap_conn.list()
+        if status != 'OK': return False
+        
         folder_exists = False
-        
-        # We wrap the name in quotes to handle spaces and prevent parser errors
-        quoted_name = f'"{folder_name}"'
-        
         for f in folders:
-            if not f: continue
             decoded_f = f.decode('utf-8', 'ignore')
-            # Check for exact matches in the list response
-            if quoted_name in decoded_f or f' {folder_name}' in decoded_f:
+            # Look for the folder name at the end of the string (after the last delimiter)
+            if decoded_f.strip().endswith(f'"{folder_name}"') or decoded_f.strip().endswith(f' {folder_name}'):
                 folder_exists = True
                 break
         
-        # 2. Create if missing
         if not folder_exists:
-            print(f"Creating folder {quoted_name}...")
-            # Use the quoted name for the CREATE command
-            status, response = imap_conn.create(quoted_name)
-            if status != 'OK':
-                print(f"Failed to create folder: {response}")
-                return False
-                
-        # 3. Subscribe (Important for some clients to "see" it)
-        try:
-            imap_conn.subscribe(quoted_name)
-        except:
-            pass
-
+            # Create the folder. Quoting is essential.
+            status, res = imap_conn.create(f'"{folder_name}"')
+            if status == 'OK':
+                imap_conn.subscribe(f'"{folder_name}"')
+                return True
+            return False
         return True
-
-    except Exception as e:
-        print(f"Error ensuring folder {folder_name}: {e}")
+    except:
         return False
 
-
 def check_inbox_and_rescue(email_account, target_message_id):
-    """
-    Finds a message by ID. Dynamically discovers Spam/Junk folders to rescue 
-    messages and moves them to the 'Warmup' folder (or Inbox fallback).
-    Returns the message body.
-    """
     TARGET_FOLDER = "Warmup"
-    quoted_target = f'"{TARGET_FOLDER}"'
+    search_id = target_message_id if target_message_id.startswith('<') else f'<{target_message_id}>'
     
-    # Utilizing our new database-driven connection logic
     imap_conn = get_warmup_imap_connection(email_account)
-    if not imap_conn:
-        return None
+    if not imap_conn: return None
 
     try:
-        # 0. Ensure the dedicated Warmup folder exists
-        if not ensure_folder_exists(imap_conn, TARGET_FOLDER):
-            TARGET_FOLDER = "INBOX"
-            quoted_target = "INBOX"
+        ensure_folder_exists(imap_conn, TARGET_FOLDER)
+        status, folder_list = imap_conn.list()
+        if status != 'OK': return None
 
-        # 1. Search the target 'Warmup' folder first
-        imap_conn.select(quoted_target) 
-        status, messages = imap_conn.search(None, f'(HEADER Message-ID "{target_message_id}")')
-        email_ids = messages[0].split()
-        
-        # 2. If not found, Search INBOX (Declutter logic)
-        if not email_ids:
-            imap_conn.select("INBOX")
-            status, messages = imap_conn.search(None, f'(HEADER Message-ID "{target_message_id}")')
-            inbox_ids = messages[0].split()
+        skip_attrs = [r'\Sent', r'\Trash', r'\Drafts', r'\Deleted']
+        found_uid, found_in_folder = None, None
+
+        for f_info in folder_list:
+            f_str = f_info.decode('utf-8', 'ignore')
+            if any(attr in f_str for attr in skip_attrs): continue
+
+            match = re.search(r'\((?P<attrs>.*)\)\s+"(?P<delim>.*)"\s+"?(?P<name>.*)"?', f_str)
+            if not match: continue
+            current_folder = match.group('name').strip('"')
             
-            if inbox_ids:
-                msg_num = inbox_ids[0]
-                # Only perform move if the target isn't already INBOX
-                if quoted_target != "INBOX":
-                    copy_res = imap_conn.copy(msg_num, quoted_target)
-                    if copy_res[0] == 'OK':
-                        imap_conn.store(msg_num, '+FLAGS', '\\Deleted')
-                        imap_conn.expunge()
-                        
-                        # Re-select Warmup to retrieve the new ID
-                        imap_conn.select(quoted_target)
-                        status, messages = imap_conn.search(None, f'(HEADER Message-ID "{target_message_id}")')
-                        email_ids = messages[0].split()
-                else:
-                    email_ids = inbox_ids
+            try:
+                res, _ = imap_conn.select(f'"{current_folder}"', readonly=False)
+                if res != 'OK': continue
 
-        # 3. Aggressive Spam Rescue: Dynamically find and search potential Spam folders
-        if not email_ids:
-            status, folder_list = imap_conn.list()
-            potential_spam_folders = []
+                res, data = imap_conn.uid('search', None, f'HEADER Message-ID "{search_id}"')
+                uids = data[0].split()
+                if not uids:
+                    res, data = imap_conn.uid('search', None, f'TEXT "{target_message_id}"')
+                    uids = data[0].split()
+
+                if uids:
+                    found_uid = uids[-1]
+                    found_in_folder = current_folder
+                    break 
+            except: continue
+
+        if not found_uid: return None
+
+        # FIX 1: Robust UID refreshing after move
+        if found_in_folder != TARGET_FOLDER:
+            copy_res = imap_conn.uid('copy', found_uid, f'"{TARGET_FOLDER}"')
+            if copy_res[0] == 'OK':
+                imap_conn.uid('store', found_uid, '+FLAGS', '\\Deleted')
+                imap_conn.expunge()
             
-            # Keywords to identify spam/junk folders across different providers
-            spam_keywords = ['spam', 'junk', 'bulk', 'track', 'dritt'] # 'dritt' example for localized junk
-            
-            if status == 'OK':
-                for f_info in folder_list:
-                    f_decoded = f_info.decode('utf-8', 'ignore').lower()
-                    if any(kw in f_decoded for kw in spam_keywords):
-                        # Extract folder name: handles various delimiters like "/" or "."
-                        # Standard IMAP LIST response: (Attributes) "Delimiter" "Name"
-                        parts = f_decoded.split(' "/" ') if ' "/" ' in f_decoded else f_decoded.split(' "." ')
-                        folder_name = parts[-1].strip().strip('"')
-                        potential_spam_folders.append(folder_name)
+            imap_conn.select(f'"{TARGET_FOLDER}"')
+            res, data = imap_conn.uid('search', None, f'HEADER Message-ID "{search_id}"')
+            new_uids = data[0].split()
+            if new_uids:
+                found_uid = new_uids[-1]
+            else:
+                # If message isn't indexed in Warmup yet, don't use the old UID
+                print(f"[IMAP Warning] Message {search_id} not found in {TARGET_FOLDER} after move.")
+                return None
 
-            # Unique list to avoid redundant searches
-            unique_spam_folders = list(set(potential_spam_folders))
-
-            for folder in unique_spam_folders:
-                try:
-                    quoted_folder = f'"{folder}"'
-                    # Use readonly=False because we need to delete the message after copying
-                    status, _ = imap_conn.select(quoted_folder)
-                    if status != 'OK': continue
-                        
-                    status, messages = imap_conn.search(None, f'(HEADER Message-ID "{target_message_id}")')
-                    spam_msg_ids = messages[0].split()
-                    
-                    if spam_msg_ids:
-                        print(f"Rescue: Found {target_message_id} in {folder}. Moving to {TARGET_FOLDER}.")
-                        msg_num = spam_msg_ids[0]
-                        
-                        # Copy to Warmup (or Inbox fallback)
-                        copy_res = imap_conn.copy(msg_num, quoted_target)
-                        
-                        if copy_res[0] == 'OK':
-                            # Mark as deleted in Spam and purge
-                            imap_conn.store(msg_num, '+FLAGS', '\\Deleted')
-                            imap_conn.expunge() 
-                            
-                            # Final selection to retrieve the message for parsing
-                            imap_conn.select(quoted_target)
-                            status, messages = imap_conn.search(None, f'(HEADER Message-ID "{target_message_id}")')
-                            email_ids = messages[0].split()
-                        break
-                except Exception as e:
-                    print(f"Error searching folder {folder}: {e}")
-                    continue
-            
-        if not email_ids:
-            return None # Message not found anywhere
-
-        # 4. Fetch and Parse Content
-        latest_email_id = email_ids[-1]
-        status, msg_data = imap_conn.fetch(latest_email_id, "(RFC822)")
-        
-        if status != 'OK' or not msg_data or not msg_data[0]:
-            return None
+        # 3. Fetch and Parse
+        status, msg_data = imap_conn.uid('fetch', found_uid, "(RFC822)")
+        if status != 'OK' or not msg_data: return None
 
         raw_email = msg_data[0][1]
         msg = email.message_from_bytes(raw_email)
         
-        body_content = ""
+        # FIX 2: Handle None payloads for malformed emails
+        body = ""
         if msg.is_multipart():
             for part in msg.walk():
-                # Focus on the plain text body, skipping attachments
-                if part.get_content_type() == "text/plain":
-                    cdisp = str(part.get("Content-Disposition"))
-                    if "attachment" not in cdisp:
-                        try:
-                            body_content = part.get_payload(decode=True).decode(errors='replace')
-                            break
-                        except:
-                            pass
+                if part.get_content_type() == "text/plain" and "attachment" not in str(part.get("Content-Disposition")):
+                    payload = part.get_payload(decode=True)
+                    if payload:
+                        body = payload.decode(errors='replace')
+                        break
         else:
-            try:
-                body_content = msg.get_payload(decode=True).decode(errors='replace')
-            except:
-                pass
-
-        return body_content
+            payload = msg.get_payload(decode=True)
+            if payload:
+                body = payload.decode(errors='replace')
+            
+        return body
 
     except Exception as e:
-        print(f"Error in rescue function for {email_account.email_address}: {e}")
+        print(f"Rescue Error [{email_account.email_address}]: {e}")
         return None
     finally:
-        # Guarantee connection closure to avoid 'Too many connections' errors
-        try:
-            imap_conn.close()
-            imap_conn.logout()
-        except:
-            pass
+        try: imap_conn.logout()
+        except: pass
 
 
 def process_audit_results(results_map):

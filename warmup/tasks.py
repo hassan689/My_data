@@ -16,6 +16,8 @@ from email.utils import formataddr, make_msgid
 import uuid
 import requests
 from django.db.models import Q
+from celery import shared_task, chord
+from django.core.cache import cache
 from .utilities import process_audit_results, generate_spintax_body, generate_spintax_subject
 
 
@@ -622,4 +624,80 @@ def verify_warmup_batch(self, email_list, start_time, job_id=None, processed_map
         pass 
 
     raise self.retry(countdown=AUDIT_POLL_INTERVAL, kwargs={'job_id': job_id, 'processed_map': processed_map})
+
+
+
+@shared_task(name="warmup.tasks.reputation_guard_orchestrator")
+def orchestrate_reputation_guard(cache_key=None, current_index=0):
+    BATCH_SIZE = 10
+
+    if cache_key is None:
+        # 1. Initial run: Fetch IDs
+        account_ids = list(EmailAccount.objects.filter(is_warmup_target=True).values_list('id', flat=True))
+        if not account_ids: return "No accounts to process"
+        
+        # 2. Store list in cache instead of passing it via arguments
+        cache_key = f"warmup_rescue_list_{uuid.uuid4().hex}"
+        cache.set(cache_key, account_ids, timeout=14400) # 4hr expiry
+    else:
+        account_ids = cache.get(cache_key)
+    
+    if not account_ids: return "Cache expired or empty"
+
+    batch_ids = account_ids[current_index : current_index + BATCH_SIZE]
+    remaining_index = current_index + BATCH_SIZE
+    
+    if not batch_ids:
+        cache.delete(cache_key) # Clean up
+        return "Cycle Complete"
+
+    # Chord Header: Parallel Workers
+    # Chord Body: Callback handles the next batch
+    header = [rescue_worker_task.s(acc_id) for acc_id in batch_ids]
+    callback = batch_complete_callback.s(cache_key, remaining_index)
+    
+    return chord(header)(callback)
+
+
+@shared_task(name="warmup.tasks.rescue_worker_task")
+def rescue_worker_task(account_id):
+    try:
+        account = EmailAccount.objects.get(id=account_id)
+        
+        # Find all messages sent TO this account in the last 72 hours
+        cutoff = timezone.now() - timedelta(hours=72)
+        messages_to_rescue = WarmupMessage.objects.filter(
+            recipient=account,
+            sent_at__gte=cutoff
+        ).values_list('message_id', flat=True)
+
+        if not messages_to_rescue:
+            return f"Success: {account.email_address} (0 messages to rescue)"
+
+        # Use the utility to crawl and move
+        count = 0
+        for msg_id in messages_to_rescue:
+            result = check_inbox_and_rescue(account, msg_id)
+            if result:
+                count += 1
+        
+        return f"Success: {account.email_address} ({count} rescued)"
+
+    except Exception as e:
+        # Move on if login fails or account doesn't exist
+        return f"Failed: Account {account_id} - {str(e)}"
+
+
+@shared_task(name="warmup.tasks.batch_complete_callback")
+def batch_complete_callback(worker_results, account_ids, next_index):
+    """
+    Fired after a batch of 10 workers finish.
+    worker_results: A list of strings returned by the 10 workers.
+    """
+    print(f"Batch Finished. Results: {worker_results}")
+    time.sleep(random.randint(5, 10))
+    
+    # Trigger the next batch
+    orchestrate_reputation_guard.delay(account_ids, next_index)
+    return "Next batch triggered"
 
