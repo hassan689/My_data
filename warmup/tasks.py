@@ -25,9 +25,6 @@ from .utilities import process_audit_results, generate_spintax_body, generate_sp
 def send_warmup_step(campaign_id, step_number):
     """
     Sends the next step of a warmup conversation for a given campaign.
-    - Cycle: 4 Steps (Sender -> Target -> Sender -> Target -> Sender -> Target)
-    - Step % 4 == 0: Refresh Targets & Start New Thread.
-    - Even steps: Sender replies. Odd steps: Targets reply.
     """
     try:
         try:
@@ -44,6 +41,13 @@ def send_warmup_step(campaign_id, step_number):
         if campaign.status in ['Complete', 'Failed']:
             print(f"Campaign {campaign.id} is already in {campaign.status} state. Skipping.")
             return
+        
+        # Update campaign status for the next step (even if it fails, it receives emails in the target's trunk, so we must advance the step to keep the logic consistent)
+        campaign.current_step += 1
+        campaign.last_action_at = timezone.now()
+        campaign.next_action_at = timezone.now() + timedelta(hours=4, minutes=random.randint(-15, 15))
+        
+        campaign.save(update_fields=['current_step', 'last_action_at', 'next_action_at'])
         
         # --- NEW LOGIC: Refresh targets every 6 steps (Start of a new conversation cycle) ---
         is_new_cycle = (step_number % 6 == 0)
@@ -465,12 +469,6 @@ def send_warmup_step(campaign_id, step_number):
                         send_mail(subject, body, settings.DEFAULT_FROM_EMAIL, recipient_list, fail_silently=False)
                         continue
 
-        # Update campaign status for the next step (only runs if no errors occurred)
-        campaign.current_step += 1
-        campaign.last_action_at = timezone.now()
-        campaign.next_action_at = timezone.now() + timedelta(hours=4, minutes=random.randint(-15, 15))
-        
-        campaign.save(update_fields=['current_step', 'last_action_at', 'next_action_at'])
 
         msg = f"--- [FINISH] Campaign {campaign.id} advanced to Step {campaign.current_step}"
         print(msg)
