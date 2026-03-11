@@ -45,8 +45,8 @@ def send_warmup_step(campaign_id, step_number):
             print(f"Campaign {campaign.id} is already in {campaign.status} state. Skipping.")
             return
         
-        # --- NEW LOGIC: Refresh targets every 4 steps (Start of a new conversation cycle) ---
-        is_new_cycle = (step_number % 4 == 0)
+        # --- NEW LOGIC: Refresh targets every 6 steps (Start of a new conversation cycle) ---
+        is_new_cycle = (step_number % 6 == 0)
         msg = f"--- [START] Processing Campaign {campaign.id} | Step {step_number} | New Cycle: {is_new_cycle}"
         print(msg)
 
@@ -208,7 +208,7 @@ def send_warmup_step(campaign_id, step_number):
                     email_message.send()
                 
                 elif "Daily user sending limit exceeded" in str(e):
-                    campaign.next_action_at = timezone.now() + timedelta(hours=random.uniform(4, 6))
+                    campaign.next_action_at = timezone.now() + timedelta(hours=4, minutes=random.randint(-15, 15))
                     campaign.save(update_fields=['next_action_at'])
 
                 elif "codec can't encode character" in str(e): 
@@ -266,7 +266,7 @@ def send_warmup_step(campaign_id, step_number):
                         campaign.save(update_fields=['next_action_at'])
 
                 elif "Temporary System Problem" in str(e) or "Concurrent connections limit exceeded" in str(e):
-                    campaign.next_action_at = timezone.now() + timedelta(hours=random.uniform(4, 6))
+                    campaign.next_action_at = timezone.now() + timedelta(hours=4, minutes=random.randint(-15, 15))
                     campaign.save(update_fields=['next_action_at'])
 
                 elif "Please log in with your web browser" in str(e) or "Sender address rejected" in str(e): 
@@ -277,7 +277,7 @@ def send_warmup_step(campaign_id, step_number):
                     body = f"Error during sender's turn (step {step_number}) for Campaign sender {campaign.sender_account}: {e}"
                     recipient_list = ['abdullahatif132@gmail.com']
                     send_mail(subject, body, settings.DEFAULT_FROM_EMAIL, recipient_list, fail_silently=False)
-                    campaign.next_action_at = timezone.now() + timedelta(hours=random.uniform(4, 6))
+                    campaign.next_action_at = timezone.now() + timedelta(hours=4, minutes=random.randint(-15, 15))
                     campaign.save(update_fields=['next_action_at'])
 
                 return
@@ -468,7 +468,7 @@ def send_warmup_step(campaign_id, step_number):
         # Update campaign status for the next step (only runs if no errors occurred)
         campaign.current_step += 1
         campaign.last_action_at = timezone.now()
-        campaign.next_action_at = timezone.now() + timedelta(hours=random.uniform(4, 6))
+        campaign.next_action_at = timezone.now() + timedelta(hours=4, minutes=random.randint(-15, 15))
         
         campaign.save(update_fields=['current_step', 'last_action_at', 'next_action_at'])
 
@@ -638,7 +638,7 @@ def orchestrate_reputation_guard(cache_key=None, current_index=0):
         
         # 2. Store list in cache instead of passing it via arguments
         cache_key = f"warmup_rescue_list_{uuid.uuid4().hex}"
-        cache.set(cache_key, account_ids, timeout=14400) # 4hr expiry
+        cache.set(cache_key, account_ids, timeout=36000) # 10hr expiry
     else:
         account_ids = cache.get(cache_key)
     

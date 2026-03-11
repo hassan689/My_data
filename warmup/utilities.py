@@ -131,9 +131,9 @@ def generate_spintax_subject(recipient_first_name=None, sender_company_name=None
 
 
 def refresh_targets(campaign):
-    TARGET_LIMIT = 2
-    MEMBERSHIP_CAP = 6 
-    DAILY_VELOCITY_CAP = 6
+    TARGET_LIMIT = 5
+    MEMBERSHIP_CAP = 6
+    DAILY_VELOCITY_CAP = 18
     
     sender_account = campaign.sender_account
     sender_user = sender_account.user
@@ -162,7 +162,7 @@ def refresh_targets(campaign):
                     active_target_count__lt=MEMBERSHIP_CAP,
                     received_today_count__lt=DAILY_VELOCITY_CAP
                 ).order_by('active_target_count', 'received_today_count', '?')
-                .values_list('id', flat=True)[:40]
+                .values_list('id', flat=True)[:100]
             )
 
             if not eligible_ids:
