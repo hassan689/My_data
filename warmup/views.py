@@ -10,9 +10,9 @@ from django.db import transaction
 import random
 
 def refresh_targets(campaign):
-    TARGET_LIMIT = 5
-    MEMBERSHIP_CAP = 6
-    DAILY_VELOCITY_CAP = 18
+    TARGET_LIMIT = 3       # Reduced for safety
+    MEMBERSHIP_CAP = 5     # Maximum 5 campaigns as a target
+    DAILY_VELOCITY_CAP = 10 # 10 incoming emails max per day
     
     sender_account = campaign.sender_account
     sender_user = sender_account.user

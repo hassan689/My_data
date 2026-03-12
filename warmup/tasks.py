@@ -18,7 +18,7 @@ import requests
 from django.db.models import Q
 from celery import shared_task, chord
 from django.core.cache import cache
-from .utilities import process_audit_results, generate_spintax_body, generate_spintax_subject
+from .utilities import process_audit_results, generate_spintax_body, generate_spintax_subject, get_humanized_delay
 
 
 @app.task(name="warmup.tasks.send_warmup_step", soft_time_limit=600, time_limit=700)
@@ -45,7 +45,7 @@ def send_warmup_step(campaign_id, step_number):
         # Update campaign status for the next step (even if it fails, it receives emails in the target's trunk, so we must advance the step to keep the logic consistent)
         campaign.current_step += 1
         campaign.last_action_at = timezone.now()
-        campaign.next_action_at = timezone.now() + timedelta(hours=4, minutes=random.randint(-15, 15))
+        campaign.next_action_at = timezone.now() + timedelta(hours=get_humanized_delay())
         
         campaign.save(update_fields=['current_step', 'last_action_at', 'next_action_at'])
         
@@ -119,7 +119,14 @@ def send_warmup_step(campaign_id, step_number):
                             ).order_by('-sent_at').first()
 
                             if last_msg:
-                                quoted_body = check_inbox_and_rescue(sender_account, last_msg.message_id)
+                                imap_conn = get_warmup_imap_connection(sender_account)
+                                if imap_conn:
+                                    try:
+                                        quoted_body = check_inbox_and_rescue(imap_conn, last_msg.message_id)
+                                    finally:
+                                        try: imap_conn.logout() 
+                                        except: pass
+                                
                                 if quoted_body:
                                     is_reply = True
                                     parent_message_id = last_msg.message_id
@@ -127,13 +134,14 @@ def send_warmup_step(campaign_id, step_number):
 
                         if is_reply:
                             subject_raw = last_msg.subject
-                            personalized_subject = f"Re: {subject_raw}" if not subject_raw.lower().startswith("re:") else generate_spintax_subject(recipient_account.user.first_name, getattr(sender_account.user, "company_name", "Dispatch Skool"))
-                            fresh_body = generate_spintax_body(recipient_account.user.first_name, getattr(recipient_account.user, "company_name", "ABC Transports LLC"))
+                            # If it already has Re:, keep it. If not, add it.
+                            personalized_subject = subject_raw if subject_raw.lower().startswith("re:") else f"Re: {subject_raw}"
+                            fresh_body = generate_spintax_body(recipient_account.user.first_name, getattr(recipient_account.user, "company_name", "ABC Transports LLC"), step_number)
                             personalized_body = f"{fresh_body}\n\nOn {last_msg.sent_at.strftime('%a, %b %d, %Y')}, {recipient_account.email_address} wrote:\n> {quoted_body.replace(chr(10), chr(10)+'> ')}"
                         else:
-                            # This block was missing for Step 0/New Cycles
+                            # Step 0 or Thread Broken
                             personalized_subject = generate_spintax_subject(recipient_account.user.first_name, getattr(sender_account.user, "company_name", "ABC Transports"))
-                            personalized_body = generate_spintax_body(recipient_account.user.first_name, getattr(recipient_account.user, "company_name", "ABC Transports LLC"))
+                            personalized_body = generate_spintax_body(recipient_account.user.first_name, getattr(recipient_account.user, "company_name", "ABC Transports LLC"), step_number)
 
                         # --- PREPARE MESSAGE ---
                         from_email = formataddr((sender_account.display_name, sender_account.email_address)) if sender_account.display_name else sender_account.email_address
@@ -167,7 +175,7 @@ def send_warmup_step(campaign_id, step_number):
                         )
 
                         connections.close_all()
-                        time.sleep(random.randint(30, 60))
+                        time.sleep(random.randint(10, 40))
 
                     except Exception as e:
                         # If one recipient fails, log it and CONTINUE to the next recipient
@@ -212,7 +220,7 @@ def send_warmup_step(campaign_id, step_number):
                     email_message.send()
                 
                 elif "Daily user sending limit exceeded" in str(e):
-                    campaign.next_action_at = timezone.now() + timedelta(hours=4, minutes=random.randint(-15, 15))
+                    campaign.next_action_at = timezone.now() + timedelta(hours=get_humanized_delay())
                     campaign.save(update_fields=['next_action_at'])
 
                 elif "codec can't encode character" in str(e): 
@@ -221,7 +229,7 @@ def send_warmup_step(campaign_id, step_number):
                         recipient_first_name=recipient_account.user.first_name,
                         sender_company_name=getattr(sender_account.user, "company_name", "ABC Transports")
                     )
-                    personalized_body = generate_spintax_body(recipient_account.user.first_name, getattr(sender_account.user, "company_name", "ABC Transports LLC"))
+                    personalized_body = generate_spintax_body(recipient_account.user.first_name, getattr(sender_account.user, "company_name", "ABC Transports LLC"), step_number)
                     main_msg = EmailMultiAlternatives(subject=personalized_subject, body=personalized_body, from_email=sender_account.email_address, to=[recipient_account.email_address], connection=connection)
                     main_msg.encoding = 'utf-8'
                     try:
@@ -270,7 +278,7 @@ def send_warmup_step(campaign_id, step_number):
                         campaign.save(update_fields=['next_action_at'])
 
                 elif "Temporary System Problem" in str(e) or "Concurrent connections limit exceeded" in str(e):
-                    campaign.next_action_at = timezone.now() + timedelta(hours=4, minutes=random.randint(-15, 15))
+                    campaign.next_action_at = timezone.now() + timedelta(hours=get_humanized_delay())
                     campaign.save(update_fields=['next_action_at'])
 
                 elif "Please log in with your web browser" in str(e) or "Sender address rejected" in str(e): 
@@ -281,7 +289,7 @@ def send_warmup_step(campaign_id, step_number):
                     body = f"Error during sender's turn (step {step_number}) for Campaign sender {campaign.sender_account}: {e}"
                     recipient_list = ['abdullahatif132@gmail.com']
                     send_mail(subject, body, settings.DEFAULT_FROM_EMAIL, recipient_list, fail_silently=False)
-                    campaign.next_action_at = timezone.now() + timedelta(hours=4, minutes=random.randint(-15, 15))
+                    campaign.next_action_at = timezone.now() + timedelta(hours=get_humanized_delay())
                     campaign.save(update_fields=['next_action_at'])
 
                 return
@@ -321,8 +329,14 @@ def send_warmup_step(campaign_id, step_number):
                     ).order_by('-sent_at').first()
 
                     if last_msg:
+                        imap_conn = get_warmup_imap_connection(sender_account)
                         # Target checks their inbox for the Campaign Sender's email
-                        quoted_body = check_inbox_and_rescue(sender_account, last_msg.message_id)
+                        if imap_conn:
+                            try:
+                                quoted_body = check_inbox_and_rescue(imap_conn, last_msg.message_id)
+                            finally:
+                                try: imap_conn.logout() 
+                                except: pass
                         
                         if quoted_body:
                             is_reply = True
@@ -337,22 +351,14 @@ def send_warmup_step(campaign_id, step_number):
                     # --- CONTENT GENERATION ---
                     if is_reply:
                         subject_raw = last_msg.subject
-                        if not subject_raw.lower().startswith("re:"):
-                            personalized_subject = f"Re: {subject_raw}"
-                        else:
-                            personalized_subject = generate_spintax_subject(
-                                recipient_first_name=recipient_account.user.first_name,
-                                sender_company_name=getattr(sender_account.user, "company_name", "Dispatch Skool")
-                            )
-                        
-                        fresh_body = generate_spintax_body(recipient_account.user.first_name, getattr(recipient_account.user, "company_name", "ABC Transports LLC"))
+                        # If it already has Re:, keep it. If not, add it.
+                        personalized_subject = subject_raw if subject_raw.lower().startswith("re:") else f"Re: {subject_raw}"
+                        fresh_body = generate_spintax_body(recipient_account.user.first_name, getattr(recipient_account.user, "company_name", "ABC Transports LLC"), step_number)
                         personalized_body = f"{fresh_body}\n\nOn {last_msg.sent_at.strftime('%a, %b %d, %Y')}, {recipient_account.email_address} wrote:\n> {quoted_body.replace(chr(10), chr(10)+'> ')}"
                     else:
-                        personalized_subject = generate_spintax_subject(
-                            recipient_first_name=recipient_account.user.first_name,
-                            sender_company_name=getattr(sender_account.user, "company_name", "ABC Transports")
-                        )
-                        personalized_body = generate_spintax_body(recipient_account.user.first_name, getattr(recipient_account.user, "company_name", "ABC Transports LLC"))
+                        # Step 0 or Thread Broken
+                        personalized_subject = generate_spintax_subject(recipient_account.user.first_name, getattr(sender_account.user, "company_name", "ABC Transports"))
+                        personalized_body = generate_spintax_body(recipient_account.user.first_name, getattr(recipient_account.user, "company_name", "ABC Transports LLC"), step_number)
                     
                     # Check if display_name exists, otherwise just use the email address
                     if sender_account.display_name:
@@ -662,8 +668,8 @@ def rescue_worker_task(account_id):
     try:
         account = EmailAccount.objects.get(id=account_id)
         
-        # Find all messages sent TO this account in the last 72 hours
-        cutoff = timezone.now() - timedelta(hours=72)
+        # Find all messages sent TO this account in the last 5 days
+        cutoff = timezone.now() - timedelta(hours=120)
         messages_to_rescue = WarmupMessage.objects.filter(
             recipient=account,
             sent_at__gte=cutoff
@@ -672,12 +678,24 @@ def rescue_worker_task(account_id):
         if not messages_to_rescue:
             return f"Success: {account.email_address} (0 messages to rescue)"
 
+        # Open connection ONCE per worker task
+        imap_conn = get_warmup_imap_connection(account)
+        if not imap_conn:
+            return f"Failed: {account.email_address} - IMAP connection failed"
+        
         # Use the utility to crawl and move
         count = 0
-        for msg_id in messages_to_rescue:
-            result = check_inbox_and_rescue(account, msg_id)
-            if result:
-                count += 1
+        try:
+            for msg_id in messages_to_rescue:
+                result = check_inbox_and_rescue(imap_conn, msg_id)
+                if result:
+                    count += 1
+        finally:
+            # Tear down connection after the loop
+            try:
+                imap_conn.logout()
+            except:
+                pass
         
         return f"Success: {account.email_address} ({count} rescued)"
 
@@ -687,15 +705,14 @@ def rescue_worker_task(account_id):
 
 
 @shared_task(name="warmup.tasks.batch_complete_callback")
-def batch_complete_callback(worker_results, account_ids, next_index):
+def batch_complete_callback(worker_results, cache_key, next_index):
     """
     Fired after a batch of 10 workers finish.
-    worker_results: A list of strings returned by the 10 workers.
     """
     print(f"Batch Finished. Results: {worker_results}")
     time.sleep(random.randint(5, 10))
     
     # Trigger the next batch
-    orchestrate_reputation_guard.delay(account_ids, next_index)
+    orchestrate_reputation_guard.delay(cache_key, next_index)
     return "Next batch triggered"
 
