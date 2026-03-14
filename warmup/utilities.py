@@ -217,43 +217,84 @@ def refresh_targets(campaign):
         return []
 
 
+# def get_humanized_delay():
+#     now = timezone.now()
+#     day_of_week = now.weekday() # 0=Mon, 5=Sat, 6=Sun
+    
+#     # 1. Base Logic: Random 2 to 7 hours
+#     delay_hours = random.uniform(2, 7)
+#     next_action = now + timedelta(hours=delay_hours)
+    
+#     # 2. Weekend Logic (Saturday/Sunday)
+#     if day_of_week >= 5:
+#         # Saturday: Target 10 AM - 1 PM
+#         if day_of_week == 5:
+#             target_hour = random.randint(10, 13)
+#         # Sunday: Target 7 PM - 10 PM
+#         else:
+#             target_hour = random.randint(19, 22)
+            
+#         # If the delay lands outside the target, push it to the next day's target window
+#         if next_action.hour < target_hour:
+#             delay_hours += (target_hour - next_action.hour)
+#         else:
+#             delay_hours += (24 - next_action.hour + target_hour)
+#         return delay_hours
+
+#     # 3. Weekday Logic (9 AM - 6 PM)
+#     # If the delay pushes into the "Night" (after 6 PM)
+#     if next_action.hour >= 18 or next_action.hour < 9:
+#         # Calculate hours until 9 AM the next morning
+#         if next_action.hour >= 18:
+#             hours_to_9am = (24 - next_action.hour) + 9
+#         else:
+#             hours_to_9am = 9 - next_action.hour
+            
+#         # Add a random "start of day" jitter (9 AM to 11 AM)
+#         delay_hours += hours_to_9am + random.uniform(0, 2)
+        
+#     return delay_hours
+
 def get_humanized_delay():
+    """
+    Returns an absolute datetime for the next action, 
+    strictly enforcing 9AM-6PM weekdays and custom weekend windows.
+    """
     now = timezone.now()
     day_of_week = now.weekday() # 0=Mon, 5=Sat, 6=Sun
     
-    # 1. Base Logic: Random 2 to 7 hours
-    delay_hours = random.uniform(2, 7)
-    next_action = now + timedelta(hours=delay_hours)
+    # 1. Base Logic: Random 2 to 4 hour delay
+    base_delay = random.uniform(2, 4)
+    target_time = now + timedelta(hours=base_delay)
     
     # 2. Weekend Logic (Saturday/Sunday)
     if day_of_week >= 5:
-        # Saturday: Target 10 AM - 1 PM
-        if day_of_week == 5:
-            target_hour = random.randint(10, 13)
-        # Sunday: Target 7 PM - 10 PM
-        else:
-            target_hour = random.randint(19, 22)
-            
-        # If the delay lands outside the target, push it to the next day's target window
-        if next_action.hour < target_hour:
-            delay_hours += (target_hour - next_action.hour)
-        else:
-            delay_hours += (24 - next_action.hour + target_hour)
-        return delay_hours
+        # Sat Target: 10AM-1PM | Sun Target: 7PM-10PM
+        t_hour = random.randint(10, 13) if day_of_week == 5 else random.randint(19, 22)
+        
+        # Lock to the target hour with random minutes/seconds
+        target_time = target_time.replace(
+            hour=t_hour, 
+            minute=random.randint(0, 59), 
+            second=random.randint(0, 59)
+        )
+        
+        # If the target hour for today has already passed, move to tomorrow's target
+        if target_time < now:
+            target_time += timedelta(days=1)
+        return target_time
 
     # 3. Weekday Logic (9 AM - 6 PM)
-    # If the delay pushes into the "Night" (after 6 PM)
-    if next_action.hour >= 18 or next_action.hour < 9:
-        # Calculate hours until 9 AM the next morning
-        if next_action.hour >= 18:
-            hours_to_9am = (24 - next_action.hour) + 9
-        else:
-            hours_to_9am = 9 - next_action.hour
-            
-        # Add a random "start of day" jitter (9 AM to 11 AM)
-        delay_hours += hours_to_9am + random.uniform(0, 2)
+    # If the target lands in the "Night" (after 6 PM or before 9 AM)
+    if target_time.hour >= 18 or target_time.hour < 9:
+        # Move to tomorrow morning
+        tomorrow = now + timedelta(days=1)
+        # Start at 9 AM and add a random jitter up to 2 hours (9 AM - 11 AM)
+        target_time = tomorrow.replace(
+            hour=9, minute=0, second=0, microsecond=0
+        ) + timedelta(minutes=random.randint(0, 120))
         
-    return delay_hours
+    return target_time
 
 
 def personalize_template(template, lead):
@@ -604,7 +645,7 @@ def check_inbox_and_rescue(imap_conn, target_message_id):
                     # Execute Rescue (Not Spam) Protocol
                     imap_conn.uid('store', target_uid, '-FLAGS', '\\Junk')
                     imap_conn.uid('store', target_uid, '+FLAGS', '$NotJunk')
-                    
+
                     copy_status = imap_conn.uid('copy', target_uid, '"INBOX"')
                     if copy_status[0] == 'OK':
                         imap_conn.uid('store', target_uid, '+FLAGS', '\\Deleted')
