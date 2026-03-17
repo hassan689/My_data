@@ -13,7 +13,8 @@ urlpatterns = [
     path('dashboard/', include('dashboard.urls')),
     path('dashboard/unibox/', include('unibox.urls')),
     path('affiliates/', include('affiliates.urls')),
-    path('warmup/', include('warmup.urls')),
+    # path('warmup/', include('warmup.urls')),
+    path('warmup/', include('new_warmup.urls')),
     path('drip-campaigns/', include('drip_campaigns.urls')),
     path('leads_data/', include('leads_data.urls')),
 

@@ -1012,17 +1012,15 @@ def index(request):
         .order_by('-launch_time')
         .values('status')[:1]
     )
-    latest_warmup_status_subquery = Subquery(
-        WarmupCampaign.objects.filter(sender_account=OuterRef('id'))
-        .order_by('-created_at')
-        .values('status')[:1]
-    )
 
-    email_accounts_queryset = EmailAccount.objects.filter(user=request.user).order_by('-last_used_at').annotate(
+    # 1. Removed the old WarmupCampaign subquery
+    # 2. Added select_related('warmup_profile') to fetch the profile instantly
+    email_accounts_queryset = EmailAccount.objects.filter(
+        user=request.user
+    ).order_by('-last_used_at').annotate(
         _latest_campaign_id=latest_campaign_id_subquery,
         last_campaign_status=Coalesce(latest_campaign_status_subquery, Value('N/A')),
-        latest_warmup_status=Coalesce(latest_warmup_status_subquery, Value('N/A'))
-    )
+    ).select_related('warmup_profile') 
 
     prefetched_campaigns = Prefetch(
         'campaigns',

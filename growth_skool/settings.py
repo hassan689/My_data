@@ -60,6 +60,7 @@ INSTALLED_APPS = [
     'unibox.apps.UniboxConfig',
     'affiliates.apps.AffiliatesConfig',
     'warmup.apps.WarmupConfig',
+    'new_warmup.apps.NewWarmupConfig',
     'drip_campaigns.apps.DripCampaignsConfig',
 
 		'widget_tweaks',

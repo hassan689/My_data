@@ -1,6 +1,7 @@
 from django.utils import timezone
+from new_warmup.models import WarmupProfile
 from subscriptions.models import Subscription, Revenue, Expense
-from warmup.models import WarmupCampaign
+# from warmup.models import WarmupCampaign
 from users.models import EmailAccount
 from datetime import datetime
 from decimal import Decimal
@@ -18,11 +19,7 @@ from dashboard.models import CampaignRecord
 @app.task(name="subscriptions.tasks.end_warmup")
 def end_warmup():
     
-    # set their warmup campaigns to complete where their email accounts are sender_accounts
-    # Remove their accounts from those campaings as well where they are in target_accounts
-
-    # NEW: Pause All Drip Campaigns for users whose subescription are expired
-    # NEW: Cancel all processing or pending campaigns other than Drip as well
+    # pause all warmup and campaigns for users with expired or canceled subscriptions
 
     expired_or_canceled_subscriptions = Subscription.objects.filter(
         status__in=["expired", "canceled"]
@@ -63,22 +60,23 @@ def end_warmup():
                 # No accounts for this user, skip
                 continue
 
-            # Mark campaigns as completed where user's accounts are senders
-            WarmupCampaign.objects.filter(sender_account__in=user_accounts).update(status="Complete")
-
-            # Remove user's accounts from all target lists
-            for account in user_accounts:
-                with transaction.atomic():
-                    
-                    account.target_of_warmup_campaigns.clear()
-                    account.is_warmup_target = False
-                    account.save(update_fields=["is_warmup_target"])
+            # ---------------------------------------------------------
+            # 2. NEW WARMUP PAUSE LOGIC
+            # ---------------------------------------------------------
+            # Flip the status and enabled switch for all accounts owned by this user
+            WarmupProfile.objects.filter(
+                email_account__user=user,
+                status='Warming'
+            ).update(
+                status='Paused',
+                warmup_enabled=False
+            )
             
                     
         except Exception as e:
             print(f"Error processing subscription {subscription.id} for user {user.id}: {e}")
             continue
-        
+
 
 
 @app.task(name="subscriptions.tasks.expire_subscriptions.expire_subscriptions")

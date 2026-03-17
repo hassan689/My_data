@@ -21,7 +21,7 @@ from django.core.cache import cache
 from .utilities import process_audit_results, generate_spintax_body, generate_spintax_subject, get_humanized_delay
 
 
-@app.task(name="warmup.tasks.send_warmup_step", soft_time_limit=600, time_limit=700)
+# @app.task(name="warmup.tasks.send_warmup_step", soft_time_limit=600, time_limit=700)
 def send_warmup_step(campaign_id, step_number):
     """
     Sends the next step of a warmup conversation for a given campaign.
@@ -488,7 +488,7 @@ def send_warmup_step(campaign_id, step_number):
         return
 
 
-@app.task(name="warmup.tasks.process_warmup_convo_beats")
+# @app.task(name="warmup.tasks.process_warmup_convo_beats")
 def process_warmup_convo_beats():
     """
     Celery Beat task that checks for active warmup campaigns due for their next step.
@@ -520,7 +520,7 @@ def process_warmup_convo_beats():
 
 
 # beat task to clear out warmup messages older than 7 days
-@app.task(name="warmup.tasks.clear_old_warmup_messages")
+# @app.task(name="warmup.tasks.clear_old_warmup_messages")
 def clear_old_warmup_messages():
     cutoff_date = timezone.now() - timedelta(days=7)
     WarmupMessage.objects.filter(sent_at__lt=cutoff_date).delete()
@@ -534,7 +534,7 @@ AUDIT_POLL_INTERVAL = 60
 AUDIT_HARD_DEADLINE = 300
 
 
-@app.task(name="warmup.tasks.audit_warmup_targets")
+# @app.task(name="warmup.tasks.audit_warmup_targets")
 def audit_warmup_targets():
     """
     Beat Task: Runs periodically (e.g., 4 times a day).
@@ -565,7 +565,7 @@ def audit_warmup_targets():
         verify_warmup_batch.delay(chunk, time.time())
 
 
-@app.task(bind=True, max_retries=10, name="warmup.tasks.verify_warmup_batch")
+# @app.task(bind=True, max_retries=10, name="warmup.tasks.verify_warmup_batch")
 def verify_warmup_batch(self, email_list, start_time, job_id=None, processed_map=None):
     """
     Worker Task: Submits a chunk of emails to Mails.so, polls for results,
@@ -631,7 +631,7 @@ def verify_warmup_batch(self, email_list, start_time, job_id=None, processed_map
 
 
 
-@shared_task(name="warmup.tasks.reputation_guard_orchestrator")
+# @shared_task(name="warmup.tasks.reputation_guard_orchestrator")
 def orchestrate_reputation_guard(cache_key=None, current_index=0):
     BATCH_SIZE = 10
 
@@ -663,7 +663,7 @@ def orchestrate_reputation_guard(cache_key=None, current_index=0):
     return chord(header)(callback)
 
 
-@shared_task(name="warmup.tasks.rescue_worker_task")
+# @shared_task(name="warmup.tasks.rescue_worker_task")
 def rescue_worker_task(account_id):
     try:
         account = EmailAccount.objects.get(id=account_id)
@@ -704,7 +704,7 @@ def rescue_worker_task(account_id):
         return f"Failed: Account {account_id} - {str(e)}"
 
 
-@shared_task(name="warmup.tasks.batch_complete_callback")
+# @shared_task(name="warmup.tasks.batch_complete_callback")
 def batch_complete_callback(worker_results, cache_key, next_index):
     """
     Fired after a batch of 10 workers finish.

@@ -9,7 +9,7 @@ from django.utils.html import strip_tags
 from django.urls import reverse
 from django.utils.encoding import force_str
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Q, F
 from django_celery_results.models import TaskResult
 from django.core.files.base import ContentFile
 from django.core.signing import TimestampSigner
@@ -1289,4 +1289,53 @@ def finalize_batch(results, batch_id):
     batch.save(update_fields=['status', 'output_file'])
     
     return f"Processed {len(flat_rows)} deliverable rows"
+
+
+
+@shared_task(name="dashboard.tasks.runaway_campaign_watchdog")
+def runaway_campaign_watchdog():
+    """
+    Runs every minute.
+    Hunts down campaigns where sent_count >= total_recipients but are still 'processing'.
+    Marks them as 'launched' and issues a SIGTERM to any active workers processing them.
+    """
+    # 1. Find the runaway campaigns
+    runaway_campaigns = CampaignRecord.objects.filter(
+        status='processing',
+        sent_count__gte=F('total_recipients')
+    )
+
+    if not runaway_campaigns.exists():
+        return "No runaway campaigns found."
+
+    killed_count = 0
+    
+    for campaign in runaway_campaigns:
+        print(f"[WATCHDOG] Catching runaway campaign: {campaign.id}. Sent: {campaign.sent_count}, Total: {campaign.total_recipients}")
+        
+        # 2. Halt the Database State
+        with transaction.atomic():
+            campaign_for_update = CampaignRecord.objects.select_for_update().get(id=campaign.id)
+            campaign_for_update.status = 'launched'
+            campaign_for_update.save(update_fields=['status'])
+            
+        # 3. Hunt down and kill the active Celery workers
+        # We use Celery's inspect tool to find active tasks
+        i = app.control.inspect()
+        active_tasks = i.active()
+        
+        if active_tasks:
+            for worker_name, tasks in active_tasks.items():
+                for task in tasks:
+                    # Check if this task belongs to our runaway campaign
+                    if task['name'] in ['dashboard.send_single_email', 'dashboard.send_emails_batch']:
+                        # Celery args are strings in the inspect payload, so we convert
+                        if str(campaign.id) in [str(arg) for arg in task['args']]:
+                            task_id = task['id']
+                            print(f"[WATCHDOG] Killing active task {task_id} for campaign {campaign.id} on worker {worker_name}")
+                            # terminate=True sends a SIGTERM signal to violently kill the worker process
+                            app.control.revoke(task_id, terminate=True, signal='SIGTERM')
+                            killed_count += 1
+                            
+    return f"Watchdog completed. Halted {runaway_campaigns.count()} campaigns, killed {killed_count} active workers."
 

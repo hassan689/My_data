@@ -3,10 +3,10 @@ from django.core.mail import send_mail
 from django.conf import settings
 from dashboard.models import CampaignRecord
 from drip_campaigns.models import DripCampaign, EmailAccountAndLeads
-from users.models import CustomUser, EmailAccount
+from new_warmup.models import WarmupProfile
+from users.models import CustomUser
 from growth_skool.celery import app
 from django.db import transaction
-from warmup.models import WarmupCampaign
 
 
 @app.task(
@@ -52,16 +52,17 @@ def check_free_trial_expiry():
     if expired_users_qs.exists():
         for user in expired_users_qs:
             try:
-                # --- WARMUP CLEANUP ---
-                user_accounts = EmailAccount.objects.filter(user=user)
-                if user_accounts.exists():
-                    WarmupCampaign.objects.filter(sender_account__in=user_accounts).update(status="Complete")
-
-                    for account in user_accounts:
-                        with transaction.atomic():
-                            account.target_of_warmup_campaigns.clear()
-                            account.is_warmup_target = False
-                            account.save(update_fields=["is_warmup_target"])
+                # ---------------------------------------------------------
+                # 2. NEW WARMUP PAUSE LOGIC
+                # ---------------------------------------------------------
+                # Flip the status and enabled switch for all accounts owned by this user
+                WarmupProfile.objects.filter(
+                    email_account__user=user,
+                    status='Warming'
+                ).update(
+                    status='Paused',
+                    warmup_enabled=False
+                )
 
                 # --- DRIP & OTHER CAMPAIGN CLEANUP ---
                 # Pause Drip Campaigns

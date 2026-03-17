@@ -160,18 +160,18 @@
                       Launch Campaign
                     </a>
                     
-                    {% if is_warmup_eligible and account.latest_warmup_status != "Active" %}
-                      <a href="{% url 'warmup:start_warmup_view' email_account_id=account.id %}" 
+                    {% if is_warmup_eligible and account.warmup_profile.status != "Warming" %}
+                      <a href="{% url 'new_warmup:start_warmup_view' email_account_id=account.id %}" 
                         class="bg-lime-600 text-white px-3 py-1 rounded hover:bg-lime-700 text-center whitespace-nowrap">
                         Activate Auto-Warmup
                       </a>
-                    {% elif account.latest_warmup_status == "Active" %}
+                    {% elif account.warmup_profile.status == "Warming" %}
                       <div class="flex flex-row justify-center space-x-1 items-center">
                         <div class="px-2 py-1 rounded font-semibold bg-lime-100 text-lime-800 text-center whitespace-nowrap">
                           Warmup Active
                         </div>
                         <div class="">
-                          <a href="{% url 'warmup:stop_warmup_view' email_account_id=account.id %}" 
+                          <a href="{% url 'new_warmup:stop_warmup_view' email_account_id=account.id %}" 
                             class="px-2 py-1 rounded font-semibold bg-red-700 text-white text-center whitespace-nowrap hover:bg-red-800">
                             STOP WARMUP
                           </a>
