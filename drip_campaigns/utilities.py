@@ -6,6 +6,8 @@ from django.conf import settings
 from django.utils.encoding import force_str
 import imaplib
 import re
+import random
+import time
 
 
 IMAP_SETTINGS_MAP = {
@@ -222,19 +224,29 @@ def get_imap_connection(email_account):
     if not imap_host:
         return None
 
-    try:
-        # 3. Establish SSL connection with a safety timeout
-        imap_conn = imaplib.IMAP4_SSL(imap_host, imap_port, timeout=30)
-        decrypted_password = email_account.get_password()
-        
-        if not decrypted_password:
-            return None
+    # Retry 3 times with random 1-5s delay
+    for attempt in range(3):
+        try:
+            imap_conn = imaplib.IMAP4_SSL(imap_host, imap_port, timeout=15)
+            decrypted_password = email_account.get_password()
+            
+            if not decrypted_password:
+                return None
 
-        imap_conn.login(email_account.email_address, decrypted_password)
-        return imap_conn
-    except (imaplib.IMAP4.error, TimeoutError, OSError) as e:
-        print(f"IMAP Connection Failed for {email_account.email_address}: {e}")
-        return None
+            imap_conn.login(email_account.email_address, decrypted_password)
+            return imap_conn # Success
+            
+        except (imaplib.IMAP4.error, TimeoutError, OSError) as e:
+            print(f"IMAP Attempt {attempt + 1} failed for {email_account.email_address}: {e}")
+            try:
+                if 'imap_conn' in locals():
+                    imap_conn.logout()
+            except Exception:
+                pass  # Ignore logout errors
+            if attempt < 2: # Don't sleep on the last attempt
+                time.sleep(random.randint(1, 5))
+    
+    return None # Total failure after 3 attempts
 
 
 def save_email_with_existing_connection(imap_conn, raw_email_message, message_id, cached_folder_name=None):

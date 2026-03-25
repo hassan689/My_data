@@ -9,9 +9,9 @@ from dashboard.models import GmailToken
 from unibox.models import EmailThread, OutgoingEmailMessage
 
 from dashboard.utilities import get_email_connection, personalize_template, sanitize_email_html, should_use_batch_processing, bake_lead_snapshot
-from .utilities import reschedule_or_finalize, normalize_provider, send_campaign_failure_alert, IMAP_SETTINGS_MAP, get_imap_connection, save_email_with_existing_connection, get_best_sent_folder
+from .utilities import reschedule_or_finalize, send_campaign_failure_alert, IMAP_SETTINGS_MAP, get_imap_connection, save_email_with_existing_connection, get_best_sent_folder
 from django.core.mail import EmailMultiAlternatives, send_mail
-from django.db import IntegrityError, transaction
+from django.db import IntegrityError, transaction, models
 from django.utils import timezone
 from django.utils.html import strip_tags
 from django.utils.encoding import force_str
@@ -145,26 +145,19 @@ def check_one_account_imap(self, account_info_id):
         email_account = account_info.email_account
         campaign = account_info.campaign
 
-        # 2. --- Get IMAP Settings ---
-        normalized_provider = normalize_provider(email_account.email_provider)
-        imap_settings = IMAP_SETTINGS_MAP.get(normalized_provider)
-        
-        if not imap_settings:
-            print(f"Skipping reply check for {email_account.email_address}: Provider '{email_account.email_provider}' is not recognized.")
-            account_info.last_reply_check_at = timezone.now()
-            account_info.save(update_fields=['last_reply_check_at'])
-            return f"Skipped: Provider '{email_account.email_provider}' not recognized."
-
-        # 3. Implement "History Point" Logic
+        # 2. Implement "History Point" Logic
         start_check_time = account_info.last_reply_check_at or campaign.created_at
         imap_search_date = start_check_time.strftime("%d-%b-%Y")
 
-        # 4. Log in to IMAP (using the correct settings)
-        imap_conn = imaplib.IMAP4_SSL(imap_settings['host'], imap_settings['port'])
-        imap_conn.login(email_account.email_address, email_account.get_password())
+        # 3. Log in to IMAP
+        imap_conn = get_imap_connection(email_account)
+
+        if not imap_conn:
+            return f"Failed: Could not connect to IMAP for {email_account.email_address} after 3 retries."
+
         imap_conn.select("INBOX")
 
-        # 5. ✅ Search for *all* messages (not just unread) since last check
+        # 4. ✅ Search for *all* messages (not just unread) since last check
         search_query = f'(SINCE "{imap_search_date}")'
         status, email_ids = imap_conn.search(None, search_query)
 
@@ -174,7 +167,7 @@ def check_one_account_imap(self, account_info_id):
         found_replies = 0
         email_id_list = email_ids[0].split()
 
-        # 6. Loop through found emails
+        # 5. Loop through found emails
         for e_id in email_id_list:
             # ✅ Fetch full message (not just headers)
             status, msg_data = imap_conn.fetch(e_id, '(RFC822)')
@@ -224,26 +217,17 @@ def check_one_account_imap(self, account_info_id):
                 # ✅ Mark as seen
                 imap_conn.store(e_id, '+FLAGS', '\\Seen')
 
-        # 10. Update our "History Point"
+        # 6. Update our "History Point"
         account_info.last_reply_check_at = timezone.now()
         account_info.save(update_fields=['last_reply_check_at'])
 
         return f"Checked {email_account.email_address}. Found {found_replies} replies."
 
     except Exception as e:
+        
         print(f"❌ Failed to check IMAP for {account_info_id}: {e}")
-        if account_info:
-            try:
-                account_info.last_reply_check_at = timezone.now()
-                account_info.save(update_fields=['last_reply_check_at'])
-            except Exception:
-                pass
-        try:
-            raise self.retry(exc=e, max_retries=3)
-        except MaxRetriesExceededError:
-            # DO NOT RAISE. Return a string so the Chord continues.
-            print(f"Max retries hit for IMAP check {account_info_id}. Skipping account.")
-            return f"Failed: Max Retries for {account_info_id}"    
+        return f"Error: {str(e)}"
+
     finally:
         if imap_conn:
             try:
@@ -1025,68 +1009,70 @@ def send_batch_emails(self, campaign_id, account_info_id, template_id, start_ind
 def finalize_drip_step_task(campaign_id):
     
     try:
-        campaign = DripCampaign.objects.get(id=campaign_id)
-        template = DripTemplate.objects.get(
-            campaign=campaign, 
-            step_number=campaign.current_step
-        )
         
-        if template.delivered_status == 'Sent':
-            print(f"Finalizer: Step {template.step_number} already marked 'Sent'. Exiting.")
-            return
-
-        if template.delivered_status == 'Cancelled':
-            print(f"Finalizer: Step {template.step_number} was 'Cancelled' (Skipped).")
-            # Do NOT set to 'Sent'. Just proceed.
-        else:
-            template.delivered_status = 'Sent'
-            template.save(update_fields=['delivered_status'])
-
-        # Set all 'Processing' accounts back to 'Ready'
-        EmailAccountAndLeads.objects.filter(
-            campaign=campaign,
-            status='Processing'
-        ).update(status='Ready')
-        
-        # Find the *next available step* with a number
-        # greater than the one we just finished.
-        
-        next_step_template = DripTemplate.objects.filter(
-            campaign=campaign, 
-            step_number__gt=campaign.current_step
-        ).order_by('step_number').first() # Get the very next one
-        
-        if next_step_template:
-            
-            # Calculate its run time according to last_action, so it's relative to last_action not relative to "completion of last action"
-            new_next_action_at = campaign.last_action_at + campaign.step_delay
-            
-            # Update the campaign to point to the new step
-            campaign.current_step = next_step_template.step_number
-            campaign.status = 'Active' # "Unlock" it
-            campaign.next_action_at = new_next_action_at # Set the new time
-            
-            campaign.save(
-                update_fields=['current_step', 'status', 'next_action_at']
+        with transaction.atomic():
+            campaign = DripCampaign.objects.select_for_update().get(id=campaign_id)
+            template = DripTemplate.objects.select_for_update().get(
+                campaign=campaign, 
+                step_number=campaign.current_step
             )
             
-            print(f"Step {template.step_number} finished. Queued Step {next_step_template.step_number}.")
-            return
-            
-        else:
-            campaign.status = 'Completed'
-            campaign.next_action_at = None
-            campaign.save(update_fields=['status', 'next_action_at'])
+            if template.delivered_status == 'Sent':
+                print(f"Finalizer: Step {template.step_number} already marked 'Sent'. Exiting.")
+                return
 
-            # --- NEW: Set all 'Ready' accounts to 'Completed' ---
+            if template.delivered_status == 'Cancelled':
+                print(f"Finalizer: Step {template.step_number} was 'Cancelled' (Skipped).")
+                # Do NOT set to 'Sent'. Just proceed.
+            else:
+                template.delivered_status = 'Sent'
+                template.save(update_fields=['delivered_status'])
+
+            # Set all 'Processing' accounts back to 'Ready'
             EmailAccountAndLeads.objects.filter(
                 campaign=campaign,
-                status='Ready'
-            ).update(status='Completed')
+                status='Processing'
+            ).update(status='Ready')
             
-            print(f"Campaign {campaign.id} successfully completed.")
-            return
+            # Find the *next available step* with a number
+            # greater than the one we just finished.
             
+            next_step_template = DripTemplate.objects.filter(
+                campaign=campaign, 
+                step_number__gt=campaign.current_step
+            ).order_by('step_number').first() # Get the very next one
+            
+            if next_step_template:
+                
+                # Calculate its run time according to last_action, so it's relative to last_action not relative to "completion of last action"
+                new_next_action_at = campaign.last_action_at + campaign.step_delay
+                
+                # Update the campaign to point to the new step
+                campaign.current_step = next_step_template.step_number
+                campaign.status = 'Active' # "Unlock" it
+                campaign.next_action_at = new_next_action_at # Set the new time
+                
+                campaign.save(
+                    update_fields=['current_step', 'status', 'next_action_at']
+                )
+                
+                print(f"Step {template.step_number} finished. Queued Step {next_step_template.step_number}.")
+                return
+                
+            else:
+                campaign.status = 'Completed'
+                campaign.next_action_at = None
+                campaign.save(update_fields=['status', 'next_action_at'])
+
+                # --- NEW: Set all 'Ready' accounts to 'Completed' ---
+                EmailAccountAndLeads.objects.filter(
+                    campaign=campaign,
+                    status='Ready'
+                ).update(status='Completed')
+                
+                print(f"Campaign {campaign.id} successfully completed.")
+                return
+                
     except Exception as e:
         print(f"Failed to finalize step for campaign {campaign_id}: {e}")
         DripCampaign.objects.filter(id=campaign_id).update(status='Failed')
@@ -1101,7 +1087,7 @@ def finalize_drip_step_task(campaign_id):
 
 
 # ===================================================================
-# TASK 5: CLEANUP OLD CAMPAIGNS AND DATA
+# TASK 5: CLEANUP TASKS
 # ===================================================================
 
 @app.task(name="drip_campaigns.tasks.clear_drip_campaigns")
@@ -1126,4 +1112,70 @@ def clear_drip_campaigns():
     ).delete()
 
     return f"Deleted {deleted_count} old drip campaigns and related data."
+
+
+@app.task(name="drip_campaigns.reap_stuck_campaigns")
+def reap_stuck_campaigns():
+    """
+    Watchdog: Finds 'Processing' campaigns where all accounts are done or haven't started (handling both extremes).
+    Uses a 5-minute cache 'mark' to prevent fighting with natural finishes.
+    """
+    # 1. Entry filter:
+    target_candidates = DripCampaign.objects.filter(status='Processing')
+    now = timezone.now()
+
+    for campaign in target_candidates:
+        # 2. All associated accounts
+        accounts = campaign.email_accounts_and_leads.all()
+        
+        # Avoid campaigns with no accounts
+        if not accounts.exists():
+            continue
+            
+        # --- REAPER PART 1: Campaign is finished but not advanced ---
+        is_objectively_done = all(acc.sent_count >= acc.recipient_count for acc in accounts)
+
+        # --- REAPER PART 2: Campaign is stuck in "Starting" phase (Zombie) ---
+        total_sent = accounts.aggregate(models.Sum('sent_count'))['sent_count__sum'] or 0
+        is_zombie = (total_sent == 0 and campaign.last_action_at < now - timedelta(minutes=10))
+
+        if is_objectively_done:
+            cache_key = f"reaper_mark_{campaign.id}"
+            is_already_marked = cache.get(cache_key)
+
+            if not is_already_marked:
+                # PASS 1: Mark the campaign in cache. 
+                cache.set(cache_key, True, timeout=360) # 6 min TTL just to be safe. So it stays long enough but not caught in 2 beat tasks. (5 minute intervals.)       
+                print(f"Reaper: Campaign {campaign.id} looks done. Marking for re-check on the next run (5 minutes).")
+            else:
+                # PASS 2: It's been 5+ mins and it's still stuck. Trigger repair.
+                print(f"Reaper: Advancing stuck Campaign {campaign.id} (All accounts sent).")
+                
+                # We trigger the existing finalizer.
+                finalize_drip_step_task.delay(campaign.id)
+                
+                # Cleanup the mark
+                cache.delete(cache_key)
+
+        elif is_zombie:
+            zombie_key = f"zombie_mark_{campaign.id}"
+            if not cache.get(zombie_key):
+                # PASS 1: Mark. We give it one more Beat cycle (5 mins) to start naturally.
+                cache.set(zombie_key, True, timeout=600)
+                print(f"Reaper: Campaign {campaign.id} is a potential Zombie (0 sent). Marking for re-check.")
+            else:
+                # PASS 2: Repair
+                print(f"Reaper: Zombie Campaign {campaign.id} confirmed. Force-triggering Dispatcher.")
+                
+                # Manual override: Trigger the dispatcher directly.
+                chain_starter_task.delay(None, campaign.id)
+                
+                # Update last_action_at to reset the 10-minute window for the next check
+                campaign.last_action_at = now
+                campaign.save(update_fields=['last_action_at'])
+                
+                # Cleanup the mark
+                cache.delete(zombie_key)
+
+    return f"Reaper checked {target_candidates.count()} processing campaigns."
 
