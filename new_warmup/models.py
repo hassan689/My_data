@@ -13,10 +13,10 @@ class WarmupProfile(models.Model):
     warmup_enabled = models.BooleanField(default=True)
     
     # Volume limits mapped from Node
-    daily_limit = models.IntegerField(default=40)
+    daily_limit = models.IntegerField(default=20)
     current_daily = models.IntegerField(default=5)
     ramp_rate = models.IntegerField(default=3) # daily increase in the warmup volume
-    reply_rate = models.IntegerField(default=35)
+    reply_rate = models.IntegerField(default=85)
     
     # Metrics
     health_score = models.DecimalField(max_digits=3, decimal_places=1, default=5.0)
