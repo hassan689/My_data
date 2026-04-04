@@ -177,7 +177,7 @@ def process_single_inbox(imap_conn):
         if status != 'OK': return found_emails
 
         # The Anchor: Strict header search for UNSEEN warmup emails
-        status, data = imap_conn.uid('search', None, 'UNSEEN X-Warmup-ID')
+        status, data = imap_conn.uid('search', None, 'UNSEEN HEADER "X-Warmup-ID" ""')
         if status == 'OK' and data[0]:
             uids = data[0].split()
             
@@ -336,7 +336,7 @@ def rescue_from_spam(imap_conn, email_address):
 
         status, _ = imap_conn.select(f'"{spam_folder}"', readonly=False)
         if status == 'OK':
-            status, data = imap_conn.uid('search', None, 'UNSEEN X-Warmup-ID')
+            status, data = imap_conn.uid('search', None, 'UNSEEN HEADER "X-Warmup-ID" ""')
             if status == 'OK' and data[0]:
                 uids = data[0].split()
                 

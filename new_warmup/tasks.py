@@ -12,6 +12,7 @@ from users.models import EmailAccount
 from .utilities import *
 from django.conf import settings
 from django.db.models import Q
+from django.db import transaction
 from django.core.cache import cache
 from celery import chord, shared_task, group
 from growth_skool.celery import app
@@ -63,7 +64,7 @@ def send_single_warmup_email(profile_id, target_volume):
         today = timezone.now().date()
         
         # 1. Check DB: Are we done for the day?
-        stat = DailyStat.objects.get(profile=profile, date=today)
+        stat, _ = DailyStat.objects.get_or_create(profile=profile, date=today)
         if stat.sent >= target_volume:
             return "Daily quota met."
 
@@ -403,7 +404,7 @@ def audit_warmup_targets():
     return f"Dispatched {len(candidate_list)} accounts in chunks."
 
 
-@shared_task(bind=True, max_retries=10)
+@shared_task(bind=True, name="warmup.tasks.verify_warmup_chunk", max_retries=10)
 def verify_warmup_chunk(self, email_list, start_time, job_id=None, processed_map=None):
     elapsed = time.time() - start_time
     processed_map = processed_map or {}
@@ -463,14 +464,14 @@ def finalize_warmup_audit(results_list):
     
     # 2. Fetch all relevant accounts
     accounts = EmailAccount.objects.select_related('warmup_profile').filter(
-        email_address__in=emails
+        email_address__iregex=r'^(' + '|'.join(map(re.escape, emails)) + r')$'
     )
 
     accounts_to_update = []
     profiles_to_update = []
 
     for account in accounts:
-        data = master_map.get(account.email_address, {})
+        data = master_map.get(account.email_address.lower(), {})
         status = str(data.get('status', data.get('result', ''))).lower()
         
         # Logic for blacklisting undeliverable accounts
