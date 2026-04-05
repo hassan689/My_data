@@ -326,7 +326,14 @@ def send_reply_to_warmup_email(sender_profile_id, target_email, original_subject
         sender_account = profile.email_account
         
         # 1. Stateless Thread Stitching
-        reply_subject = original_subject if original_subject.lower().startswith('re:') else f"Re: {original_subject}"
+        # reply_subject = original_subject if original_subject.lower().startswith('re:') else f"Re: {original_subject}"
+
+        # Strip newlines and spaces from the ID
+        clean_msg_id = str(original_msg_id).replace('\r', '').replace('\n', '').strip()
+
+        # Also sanitize the subject just in case it was folded
+        clean_subject = str(original_subject).replace('\r', '').replace('\n', '').strip()
+        reply_subject = clean_subject if clean_subject.lower().startswith('re:') else f"Re: {clean_subject}"
         
         # Generate a generic conversational body
         fresh_body = generate_spintax_body(sender_account.user.first_name, getattr(sender_account.user, "company_name", "ABC Transports"))
@@ -347,8 +354,8 @@ def send_reply_to_warmup_email(sender_profile_id, target_email, original_subject
             # Injecting standard threading headers + our tracking header
             reply_msg.extra_headers = {
                 'Message-ID': new_msg_id, 
-                'In-Reply-To': original_msg_id,
-                'References': original_msg_id,
+                'In-Reply-To': clean_msg_id,
+                'References': clean_msg_id,
                 'X-Warmup-ID': new_msg_id
             }
             reply_msg.encoding = 'utf-8'

@@ -177,7 +177,7 @@ def process_single_inbox(imap_conn):
         if status != 'OK': return found_emails
 
         # The Anchor: Strict header search for UNSEEN warmup emails
-        status, data = imap_conn.uid('search', None, 'UNSEEN HEADER "X-Warmup-ID" ""')
+        status, data = imap_conn.uid('search', None, '(UNSEEN HEADER X-Warmup-ID "")')
         if status == 'OK' and data[0]:
             uids = data[0].split()
             
@@ -220,7 +220,7 @@ def process_single_inbox(imap_conn):
     return found_emails
 
 
-def get_spam_folder(imap_conn, email_account=None):
+def get_spam_folder(imap_conn, email_address=None):
     """Dynamically locates the Spam/Junk folder using attributes or common names."""
     try:
         status, folder_list = imap_conn.list()
@@ -228,7 +228,7 @@ def get_spam_folder(imap_conn, email_account=None):
             return None
         
         # Special handling for Gmail
-        if email_account and '@gmail.com' in email_account.email_address:
+        if email_address and '@gmail.com' in email_address:
             # Try common Gmail spam folder paths
             gmail_spam_folders = ['[Gmail]/Spam', '[Gmail]/Junk', 'Spam', 'Junk']
             for folder in gmail_spam_folders:
@@ -336,7 +336,8 @@ def rescue_from_spam(imap_conn, email_address):
 
         status, _ = imap_conn.select(f'"{spam_folder}"', readonly=False)
         if status == 'OK':
-            status, data = imap_conn.uid('search', None, 'UNSEEN HEADER "X-Warmup-ID" ""')
+            # Use the same search as process_single_inbox
+            status, data = imap_conn.uid('search', None, '(UNSEEN HEADER X-Warmup-ID "")')
             if status == 'OK' and data[0]:
                 uids = data[0].split()
                 
@@ -351,17 +352,17 @@ def rescue_from_spam(imap_conn, email_address):
                             # Only process if it has our X-Warmup-ID header
                             if 'X-Warmup-ID' in msg:
                                 rescued_count += 1
-                                # Move to INBOX
-                                imap_conn.uid('store', target_uid, '-FLAGS', '\\Junk')
-                                imap_conn.uid('store', target_uid, '+FLAGS', '$NotJunk')
+                                # Copy to INBOX (don't try to modify flags that may not exist)
                                 copy_status = imap_conn.uid('copy', target_uid, '"INBOX"')
                                 
                                 if copy_status[0] == 'OK':
+                                    # Mark original for deletion
                                     imap_conn.uid('store', target_uid, '+FLAGS', '\\Deleted')
                     else:
                         # Still mark as seen even if not our email
                         imap_conn.uid('store', target_uid, '+FLAGS', '\\Seen')
                         
+                # Expunge deleted messages
                 imap_conn.expunge()
     except Exception as e:
         print(f"IMAP Rescue Error: {e}")
