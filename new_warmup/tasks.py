@@ -284,7 +284,10 @@ def process_single_imap_account(profile_id):
                     spam=F('spam') + rescued
                 )
 
-            # 2. Check Inbox & Roll for Replies
+            # 2. Audit for Bounces & Blacklist
+            dead_cleaned = audit_bounces_in_inbox(imap_conn, account.email_address)
+
+            # 3. Check Inbox & Roll for Replies
             inbox_emails = process_single_inbox(imap_conn)
             inbox_count = len(inbox_emails)
             if inbox_count > 0:
@@ -305,7 +308,7 @@ def process_single_imap_account(profile_id):
                     )
                     replies_triggered += 1
             
-            return f"Success: {account.email_address} (Rescued {rescued}, Replying {replies_triggered})"
+            return f"Success: {account.email_address} (Rescued {rescued}, Replying {replies_triggered}, Cleaned {dead_cleaned})"
             
         finally:
             try: imap_conn.logout() 
@@ -371,6 +374,31 @@ def send_reply_to_warmup_email(sender_profile_id, target_email, original_subject
     except Exception as e:
         print(f"Reply worker failed: {e}")
 
+
+@shared_task(name="warmup.tasks.cleanup_old_warmup_data")
+def cleanup_old_warmup_data():
+    """
+    Retention Policy: Deletes WarmupEmails and DailyStats older than 7 days.
+    """
+    cutoff_date = timezone.now().date() - timedelta(days=8)
+    cutoff_datetime = timezone.now() - timedelta(days=8)
+
+    try:
+        with transaction.atomic():
+            # 1. Delete old emails
+            emails_deleted, _ = WarmupEmail.objects.filter(
+                sent_at__lt=cutoff_datetime
+            ).delete()
+
+            # 2. Delete old stats
+            stats_deleted, _ = DailyStat.objects.filter(
+                date__lt=cutoff_date
+            ).delete()
+            return f"Cleanup Complete: Removed {emails_deleted} emails and {stats_deleted} stat records."
+            
+    except Exception as e:
+        print(f"Cleanup Task Failed: {e}")
+        return f"Error: {str(e)}"
 
 
 ############ Accounts cleanup ############

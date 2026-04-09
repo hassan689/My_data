@@ -423,3 +423,83 @@ def process_audit_results(results_map):
     except Exception as e:
         print(f"Failed to batch update audit results: {e}")
 
+
+def audit_bounces_in_inbox(imap_conn, sender_email):
+    """
+    Scans for 'Address not found' bounces and blacklists the target. This will be called inside the 
+    process_single_imap_account task so that blocked accounts are cleared out from the pool.
+    These emails tell which address cannot be delivered to.
+    """
+    dead_emails_found = []
+    
+    try:
+        status, _ = imap_conn.select('"INBOX"', readonly=False)
+        if status != 'OK': return 0
+
+        # Prong 1: Search for Gmail failure notifications
+        search_criterion = '(UNSEEN SUBJECT "Delivery Status Notification (Failure)")'
+        status, data = imap_conn.uid('search', None, search_criterion)
+        
+        if status == 'OK' and data[0]:
+            uids = data[0].split()
+            
+            for target_uid in uids:
+                status, msg_data = imap_conn.uid('fetch', target_uid, "(RFC822)")
+                if status == 'OK' and msg_data and msg_data[0]:
+                    raw_email = msg_data[0][1] if isinstance(msg_data[0], tuple) else None
+                    if raw_email:
+                        msg = email.message_from_bytes(raw_email)
+                        body = extract_text_body(msg)
+
+                        # Prong 2: Verify the 'Address not found' signature
+                        if "Address not found" in body:
+                            # Extract all email addresses found in the body
+                            # This regex captures standard email formats
+                            found_addresses = re.findall(r'[\w\.-]+@[\w\.-]+\.\w+', body)
+                            
+                            for addr in found_addresses:
+                                clean_addr = addr.lower().strip()
+                                # Ignore the sender's own address and common system addresses
+                                if clean_addr != sender_email.lower() and "google.com" not in clean_addr:
+                                    dead_emails_found.append(clean_addr)
+
+        if not dead_emails_found:
+            return 0
+
+        # Execute the "Kill Switch"
+        accounts_to_update = EmailAccount.objects.filter(
+            email_address__in=dead_emails_found,
+            black_list=False
+        ).select_related('warmup_profile')
+
+        if not accounts_to_update.exists():
+            return 0
+
+        final_accounts = []
+        final_profiles = []
+
+        for account in accounts_to_update:
+            account.black_list = True
+            account.is_warmup_target = False
+            final_accounts.append(account)
+
+            profile = getattr(account, 'warmup_profile', None)
+            if profile:
+                profile.status = 'Error'
+                profile.warmup_enabled = False
+                final_profiles.append(profile)
+
+        with transaction.atomic():
+            if final_accounts:
+                EmailAccount.objects.bulk_update(final_accounts, ['black_list', 'is_warmup_target'])
+            if final_profiles:
+                WarmupProfile.objects.bulk_update(final_profiles, ['status', 'warmup_enabled'])
+
+        
+        return len(final_accounts)
+
+    except Exception as e:
+        print(f"Bounce Audit Error for {sender_email}: {e}")
+        return 0
+
+
