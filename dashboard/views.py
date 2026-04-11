@@ -1042,11 +1042,14 @@ def index(request):
             account.scheduled_launch_time_display = None
 
     user_subscription = getattr(request.user, 'subscription', None)
+
+    # all subs will have warmup. We just check if they are active or on trial to toggle the button
+
     is_warmup_eligible = (
         request.user.on_free_trial or (
             user_subscription is not None and
-            user_subscription.status == "active" and
-            user_subscription.type in ("warmup", "premium")
+            user_subscription.status == "active" # and
+            # user_subscription.type in ("warmup", "premium")
         )
     )
     is_unibox_eligible = (

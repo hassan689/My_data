@@ -10,7 +10,7 @@
 
 <div class="p-4 sm:ml-72">
 
-	{% if request.user.on_free_trial or request.user.subscription.status == "active" %}
+	{% if request.user.eligible_for_db %}
 
     <div class="text-center max-w-4xl mx-auto px-4 pt-16 pb-5">
       <h2 class="text-3xl md:text-4xl font-bold text-primary">

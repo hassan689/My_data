@@ -6,7 +6,7 @@
 {% block 'content' %}
 
 
-  {% if request.user.on_free_trial or request.user.subscription.status == "active" %}
+  {% if request.user.eligible_for_db %}
 
     <div class="p-4 sm:ml-72 min-h-screen bg-primary text-primary transition-colors duration-200">
         

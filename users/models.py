@@ -119,7 +119,23 @@ class CustomUser(AbstractUser):
         # 3. Check status
         return self.subscription.status == "active"
 
-        
+    @property
+    def eligible_for_db(self):
+        """
+        Business logic: User must not be on trial AND 
+        must have an active, non-basic subscription.
+        """
+        if self.on_free_trial:
+            return False
+            
+        try:
+            return (
+                self.subscription.status == "active" and 
+                self.subscription.type.lower() != "basic"
+            )
+        except AttributeError:
+            return False
+
     def is_free_trial_expired(self):
         
         """Check if 10 days have passed since the trial actually started."""
