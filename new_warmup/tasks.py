@@ -4,7 +4,7 @@ import uuid
 import time
 from django.utils import timezone
 from django.db.models import F, Sum
-from django.core.mail import EmailMultiAlternatives
+from django.core.mail import EmailMultiAlternatives, send_mail
 from email.utils import formataddr, make_msgid
 from datetime import timedelta
 from .models import WarmupProfile, DailyStat, WarmupEmail
@@ -226,10 +226,10 @@ def orchestrate_imap_cycle(cache_key=None, current_index=0):
     next_index = current_index + BATCH_SIZE
     
     if not batch_ids:
-        # Cycle Complete. Clean up and schedule the next cycle in 30 minutes.
         cache.delete(cache_key)
-        orchestrate_imap_cycle.apply_async(countdown=1800)
-        return "Cycle Complete. Next cycle scheduled."
+        # orchestrate_imap_cycle.apply_async(countdown=1800)
+        return "Cycle Complete."
+        # Will call it thru celery beat every 4 hours to clear out any doubts of it rescheduling"
 
     # Launch Chord
     header = [process_single_imap_account.s(p_id) for p_id in batch_ids]
@@ -412,6 +412,9 @@ AUDIT_HARD_DEADLINE = 300
 
 @app.task(name="warmup.tasks.audit_warmup_targets")
 def audit_warmup_targets():
+
+    print("\n Starting audit \n")
+
     # 1. Identify candidates
     candidates = EmailAccount.objects.filter(
         Q(user__subscription__status='active') | Q(user__on_free_trial=True),
@@ -440,18 +443,18 @@ def audit_warmup_targets():
 
 
 @shared_task(bind=True, name="warmup.tasks.verify_warmup_chunk", max_retries=10)
-def verify_warmup_chunk(self, email_list, start_time, job_id=None, processed_map=None):
-    elapsed = time.time() - start_time
+def verify_warmup_chunk(self, email_list, start_time_stamp, job_id=None, processed_map=None):
+    now = time.time()
     processed_map = processed_map or {}
     
+    # HARD STOP - If we exceed deadline, return what we have
+    if (now - start_time_stamp) >= AUDIT_HARD_DEADLINE:
+        return processed_map
+
     API_KEY = getattr(settings, 'MAILS_SO_API_KEY', '')
     headers = {'Content-Type': 'application/json', 'x-mails-api-key': API_KEY}
 
-    # 1. HARD STOP - Return what we have so far
-    if elapsed >= AUDIT_HARD_DEADLINE:
-        return processed_map
-
-    # 2. SUBMISSION PHASE
+    # SUBMISSION
     if not job_id:
         pending = [e.lower() for e in email_list if e.lower() not in processed_map]
         if not pending: return processed_map
@@ -465,17 +468,20 @@ def verify_warmup_chunk(self, email_list, start_time, job_id=None, processed_map
         except Exception:
             raise self.retry(countdown=AUDIT_POLL_INTERVAL, kwargs={'job_id': None, 'processed_map': processed_map})
 
-    # 3. POLLING PHASE
+    # POLLING
     try:
         poll_resp = requests.get(f"{AUDIT_API_SUBMIT_URL}/{job_id}", headers=headers, timeout=30)
         if poll_resp.status_code == 200:
             data = poll_resp.json()
+            # Pluck only the email and result status
             for r in data.get('emails', []):
-                processed_map[str(r.get('email', '')).lower()] = r
+                email_addr = str(r.get('email', '')).lower()
+                status_str = str(r.get('result', 'unknown')).lower()
+                processed_map[email_addr] = status_str
 
             if data.get('status') == 'completed':
+                print(f"DEBUG MAP: {processed_map}", flush=True)
                 return processed_map
-
     except Exception:
         pass 
 
@@ -484,32 +490,45 @@ def verify_warmup_chunk(self, email_list, start_time, job_id=None, processed_map
 
 @shared_task(name="warmup.tasks.finalize_warmup_audit")
 def finalize_warmup_audit(results_list):
-    """
-    results_list is a list of 'processed_map' dicts from all chunks.
-    """
-    # 1. Merge all chunk results into one master map
+
+    print("\n Finalizing and sending email \n")
+
     master_map = {}
     for chunk_map in results_list:
         master_map.update(chunk_map)
 
     if not master_map:
-        return "No results to process."
+        print("\n sending no results email")
+        send_mail(
+            "Warmup Audit Failed",
+            "The audit process completed but no email results were returned.",
+            settings.EMAIL_HOST_USER,
+            ['abdullahatif132@gmail.com']
+        )
+        return "No results."
 
-    emails = list(master_map.keys())
+    # Initialize stats
+    stats = {"deliverable": 0, "undeliverable": 0, "risky": 0, "unknown": 0}
     
-    # 2. Fetch all relevant accounts
+    emails = list(master_map.keys())
+    # Use __in for efficiency over regex
     accounts = EmailAccount.objects.select_related('warmup_profile').filter(
-        email_address__iregex=r'^(' + '|'.join(map(re.escape, emails)) + r')$'
+        email_address__in=emails
     )
 
     accounts_to_update = []
     profiles_to_update = []
 
     for account in accounts:
-        data = master_map.get(account.email_address.lower(), {})
-        status = str(data.get('status', data.get('result', ''))).lower()
+        status = master_map.get(account.email_address.lower(), 'unknown')
         
-        # Logic for blacklisting undeliverable accounts
+        # Increment stats for the email report
+        if status in stats:
+            stats[status] += 1
+        else:
+            stats["unknown"] += 1
+
+        # Business Logic for Blacklisting
         if status == 'undeliverable' and not account.black_list:
             account.black_list = True
             account.is_warmup_target = False
@@ -521,7 +540,8 @@ def finalize_warmup_audit(results_list):
                 profile.warmup_enabled = False
                 profiles_to_update.append(profile)
 
-    # 3. Atomic Bulk Update
+    # Bulk update
+    db_summary = "No changes needed."
     if accounts_to_update or profiles_to_update:
         try:
             with transaction.atomic():
@@ -529,9 +549,29 @@ def finalize_warmup_audit(results_list):
                     EmailAccount.objects.bulk_update(accounts_to_update, ['black_list', 'is_warmup_target'])
                 if profiles_to_update:
                     WarmupProfile.objects.bulk_update(profiles_to_update, ['status', 'warmup_enabled'])
-            return f"Audit Success: Blacklisted {len(accounts_to_update)} accounts."
+            db_summary = f"Successfully blacklisted {len(accounts_to_update)} accounts."
         except Exception as e:
-            return f"Database error during finalize: {e}"
-    
-    return "Audit complete: No new accounts required blacklisting."
+            db_summary = f"Database Error: {str(e)}"
 
+    # Construct and Send Email
+    report_body = (
+        f"Warmup Audit Complete\n"
+        f"----------------------\n"
+        f"Total Accounts Processed: {len(master_map)}\n\n"
+        f"Deliverable: {stats['deliverable']}\n"
+        f"Undeliverable: {stats['undeliverable']}\n"
+        f"Risky: {stats['risky']}\n"
+        f"Unknown: {stats['unknown']}\n\n"
+        f"Database Action: {db_summary}"
+    )
+
+    send_mail(
+        "Warmup Audit Report",
+        report_body,
+        settings.EMAIL_HOST_USER,
+        ['abdullahatif132@gmail.com'],
+        fail_silently=False
+    )
+    print("\n sent stats email")
+
+    return f"Audit processed {len(master_map)} accounts."
