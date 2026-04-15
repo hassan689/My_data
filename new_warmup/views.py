@@ -11,7 +11,7 @@ def start_warmup_view(request, email_account_id):
     sender_account = get_object_or_404(EmailAccount, id=email_account_id)
 
     if sender_account.black_list:
-        messages.error(request, f"The email account {sender_account.email_address} is blacklisted.")
+        messages.warning(request, f"The email account {sender_account.email_address} has been removed from the warmup pool because of low health. You can still launch launch your campaigns.")
         return redirect('dashboard:index')
 
     try:
