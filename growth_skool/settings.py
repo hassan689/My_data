@@ -57,7 +57,6 @@ INSTALLED_APPS = [
 		'subscriptions.apps.SubscriptionsConfig',
 		'leads_data.apps.LeadsDataConfig',
 		'dashboard.apps.DashboardConfig',
-    'unibox.apps.UniboxConfig',
     'affiliates.apps.AffiliatesConfig',
     'warmup.apps.WarmupConfig',
     'new_warmup.apps.NewWarmupConfig',
@@ -275,22 +274,6 @@ STATICFILES_DIRS = [
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
-
-# CKEDITOR_UPLOAD_PATH = "uploads/"
-# CKEDITOR_ALLOW_NONIMAGE_FILES = True
-
-# CKEDITOR_CONFIGS = {
-#     'default': {
-#         'toolbar': 'Full',  # or define your own toolbar
-#         'height': 300,
-#         'width': '100%',
-#         'extraPlugins': 'uploadimage',  # ✅ remove 'uploadfile'
-#         'filebrowserUploadUrl': '/ckeditor/upload/',
-#         'filebrowserBrowseUrl': '/ckeditor/browse/',
-#         'allowedContent': True,
-#     },
-# }
-
 
 
 LOGIN_REDIRECT_URL = 'dashboard:index'

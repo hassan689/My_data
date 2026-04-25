@@ -11,7 +11,6 @@ urlpatterns = [
 		path('', include('main.urls')),
     path('users/', include('users.urls')),
     path('dashboard/', include('dashboard.urls')),
-    path('dashboard/unibox/', include('unibox.urls')),
     path('affiliates/', include('affiliates.urls')),
     # path('warmup/', include('warmup.urls')),
     path('warmup/', include('new_warmup.urls')),
