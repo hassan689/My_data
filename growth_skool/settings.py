@@ -243,7 +243,7 @@ EMAIL_HOST_PASSWORD = "Ahmad@2134"
 
 DEFAULT_FROM_EMAIL = "info@dispatchskool.com"
 
-MAILS_SO_API_KEY = 'c76ac7d4-ac66-4b21-b0d8-5fb236b35077'
+MAILS_SO_API_KEY = '504cfd68-d818-4259-8f31-01c6dbcf47ab'
 
 LOGGING = {
     "version": 1,

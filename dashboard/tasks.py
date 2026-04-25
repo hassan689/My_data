@@ -13,6 +13,7 @@ from django.db.models import Q, F
 from django_celery_results.models import TaskResult
 from django.core.files.base import ContentFile
 from django.core.signing import TimestampSigner
+from django.core.cache import cache
 
 import re
 import random
@@ -1133,99 +1134,259 @@ def cleanup_old_task_results():
 
 
 # Constants for the "Strong" Architecture
-CHUNK_SIZE = 500        # Fewer chunks = less API noise
-POLL_INTERVAL = 60      # 1-minute nagging (let the API cook)
-SOFT_DEADLINE = 180     # 3 minutes to audit and resubmit
-HARD_DEADLINE = 300     # 5 minutes - PENS DOWN
+# CHUNK_SIZE = 500        # Fewer chunks = less API noise
+# POLL_INTERVAL = 60      # 1-minute nagging (let the API cook)
+# SOFT_DEADLINE = 180     # 3 minutes to audit and resubmit
+# HARD_DEADLINE = 300     # 5 minutes - PENS DOWN
+CACHE_TTL = 3600
 
-API_SUBMIT_URL = 'https://api.mails.so/v1/batch'
+# API_SUBMIT_URL = 'https://api.mails.so/v1/batch'
+
+# @shared_task(name="dashboard.verify_email_task")
+# def verify_email_task(batch_id):
+#     batch = VerificationBatch.objects.get(id=batch_id)
+#     headers = batch.original_headers
+
+#     with batch.clean_data_file.open('r') as f:
+#         all_leads = json.load(f)
+
+#     chunks = [all_leads[i:i + CHUNK_SIZE] for i in range(0, len(all_leads), CHUNK_SIZE)]
+
+#     print("chunks divided")
+
+#     # Prepare chunks and offload data to cache
+#     chord_tasks = []
+#     for i, chunk in enumerate(chunks):
+#         # Create a unique key for this specific chunk's state
+#         state_key = f"verify_chunk_state_{batch_id}_{i}_{int(time.time())}"
+        
+#         # Store the static chunk rows in cache to keep Celery messages lean
+#         cache.set(f"{state_key}_rows", list(chunk), CACHE_TTL)
+#         cache.set(f"{state_key}_map", {}, CACHE_TTL)
+
+#         # Change the signature to use ONLY kwargs
+#         chord_tasks.append(
+#             verify_email_chunk.s(
+#                 batch_id=batch_id, 
+#                 state_key=state_key, 
+#                 start_time=time.time(), 
+#                 original_headers=headers
+#             )
+#         )
+
+#     job = chord(group(chord_tasks), finalize_batch.s(batch_id))
+#     job.delay()
+#     return f"Dispatched {len(chunks)} chunks using cached state."
+
+
+# @shared_task(bind=True, max_retries=50)
+# def verify_email_chunk(self, batch_id=None, state_key=None, start_time=None, job_id=None, original_headers=None):
+#     """
+#     Strong, cache-backed verification chunk. 
+#     Uses kwargs-only signature to prevent 'multiple values for argument' TypeErrors during retry.
+#     """
+#     # 1. State Recovery from DB Cache
+#     original_headers = original_headers or []
+#     chunk_rows = cache.get(f"{state_key}_rows")
+#     processed_map = cache.get(f"{state_key}_map") or {}
+
+#     if chunk_rows is None:
+#         print(f"[ERROR] Cache expired or missing key: {state_key}. Task ID: {self.request.id}")
+#         return []
+
+#     elapsed = time.time() - start_time
+#     API_KEY = getattr(settings, 'MAILS_SO_API_KEY', '')
+#     headers = {'Content-Type': 'application/json', 'x-mails-api-key': API_KEY}
+
+#     # 2. Hard Stop Logic
+#     if elapsed >= HARD_DEADLINE:
+#         print(f"[TIMEOUT] Hard deadline reached ({int(elapsed)}s). Returning current state.")
+#         return fill_missing_and_return(chunk_rows, processed_map, original_headers)
+
+#     # 3. Submission Phase
+#     if not job_id:
+#         pending_emails = [
+#             str(r.get('Email', '')).strip().lower() 
+#             for r in chunk_rows if str(r.get('Email', '')).lower() not in processed_map
+#         ]
+        
+#         if not pending_emails:
+#             print(f"[INFO] No pending emails found for chunk {state_key}.")
+#             return fill_missing_and_return(chunk_rows, processed_map, original_headers)
+
+#         try:
+#             print(f"[INFO] Submitting {len(pending_emails)} emails to Bulk API...")
+#             resp = requests.post(API_SUBMIT_URL, headers=headers, json={'emails': pending_emails}, timeout=20)
+            
+#             # Handle API Rate Limiting (The 429 Fix)
+#             if resp.status_code == 429:
+#                 print(f"[RATE LIMIT] 429 Received. Too many active jobs. Backing off 120s...")
+#                 raise self.retry(countdown=120)
+
+#             if resp.status_code in (200, 201, 202):
+#                 job_id = resp.json().get('id')
+#                 print(f"[DEBUG] Submission successful. Job ID: {job_id}")
+#             else:
+#                 print(f"[WARNING] API Rejected submission: {resp.status_code} - {resp.text}")
+#                 raise self.retry(countdown=POLL_INTERVAL)
+
+#         except Exception as e:
+#             # Re-raise retry exceptions so Celery handles them correctly
+#             if isinstance(e, self.MaxRetriesExceededError): raise e
+#             print(f"[EXCEPTION] Submission phase error: {str(e)}")
+#             raise self.retry(exc=e, countdown=POLL_INTERVAL)
+
+#     # 4. Polling Phase
+#     try:
+#         print(f"[INFO] Polling Job {job_id} | Elapsed: {int(elapsed)}s")
+#         poll_resp = requests.get(f"{API_SUBMIT_URL}/{job_id}", headers=headers, timeout=20)
+        
+#         if poll_resp.status_code == 200:
+#             data = poll_resp.json()
+#             # Sync API results into our cache-backed map
+#             for r in data.get('emails', []):
+#                 email = str(r.get('email', '')).lower()
+#                 processed_map[email] = r
+            
+#             # Save progress to cache to keep the broker message lean
+#             cache.set(f"{state_key}_map", processed_map, CACHE_TTL)
+
+#             if data.get('status') == 'completed':
+#                 print(f"[SUCCESS] Job {job_id} completed. Finalizing chunk.")
+#                 final_data = fill_missing_and_return(chunk_rows, processed_map, original_headers)
+#                 # Cleanup cache once chunk is finished
+#                 cache.delete_many([f"{state_key}_rows", f"{state_key}_map"])
+#                 return final_data
+
+#         elif poll_resp.status_code == 404:
+#             print(f"[ERROR] Job {job_id} not found on API. Resetting for re-submission.")
+#             job_id = None 
+
+#         # Reset Job ID if we are stalling to try a fresh batch submission
+#         if elapsed >= SOFT_DEADLINE and len(processed_map) < len(chunk_rows):
+#             print(f"[SOFT TIMEOUT] Stalling. Resetting Job ID.")
+#             job_id = None 
+
+#     except Exception as e:
+#         print(f"[EXCEPTION] Polling phase error: {str(e)}")
+
+#     # 5. The Lean Retry
+#     # We pass all state back via kwargs. No positional args allowed here.
+#     raise self.retry(countdown=POLL_INTERVAL, kwargs={
+#         'batch_id': batch_id,
+#         'state_key': state_key,
+#         'start_time': start_time,
+#         'job_id': job_id,
+#         'original_headers': original_headers
+#     })
+
+
+CHUNK_SIZE = 50       # Small chunks = frequent cache updates
+SINGLE_API_URL = 'https://api.mails.so/v1/validate'
+HARD_DEADLINE = 1200  # 20 minutes max per chunk
+
 
 @shared_task(name="dashboard.verify_email_task")
 def verify_email_task(batch_id):
     batch = VerificationBatch.objects.get(id=batch_id)
     headers = batch.original_headers
 
+    # Small chunks for Single-API streaming
+    # 50 rows * ~1.5s delay = ~75 seconds per worker execution
+    L_CHUNK_SIZE = 50 
+
     with batch.clean_data_file.open('r') as f:
         all_leads = json.load(f)
 
-    chunks = [all_leads[i:i + CHUNK_SIZE] for i in range(0, len(all_leads), CHUNK_SIZE)]
+    # Divide into smaller chunks to maximize parallel worker usage
+    chunks = [all_leads[i:i + L_CHUNK_SIZE] for i in range(0, len(all_leads), L_CHUNK_SIZE)]
 
-    job = chord(
-        group(
-            verify_email_chunk.s(batch_id, list(chunk), time.time(), original_headers=headers) 
-            for chunk in chunks
-        ),
-        finalize_batch.s(batch_id)
-    )
-    job.delay()
-    return f"Dispatched {len(chunks)} chunks"
+    print(f"Divided into {len(chunks)} chunks for parallel processing.")
 
-
-@shared_task(bind=True, max_retries=10)
-def verify_email_chunk(self, batch_id, chunk_rows, start_time, job_id=None, processed_map=None, original_headers=None):
-    elapsed = time.time() - start_time
-    processed_map = processed_map or {}
-    
-    # Ensure original_headers is at least an empty list to prevent downstream errors
-    original_headers = original_headers or []
-    
-    API_KEY = getattr(settings, 'MAILS_SO_API_KEY', '')
-    headers = {'Content-Type': 'application/json', 'x-mails-api-key': API_KEY}
-
-    # 1. HARD STOP
-    if elapsed >= HARD_DEADLINE:
-        return fill_missing_and_return(chunk_rows, processed_map, original_headers)
-
-    # 2. SUBMISSION PHASE
-    if not job_id:
-        pending_emails = [
-            str(r.get('Email', '')).strip().lower() 
-            for r in chunk_rows if str(r.get('Email', '')).lower() not in processed_map
-        ]
+    chord_tasks = []
+    for i, chunk in enumerate(chunks):
+        # Unique state key for this execution
+        state_key = f"verify_chunk_state_{batch_id}_{i}_{int(time.time())}"
         
-        if not pending_emails:
-            return fill_missing_and_return(chunk_rows, processed_map, original_headers)
+        # Offload lead data to cache to keep Celery broker/DB results light
+        cache.set(f"{state_key}_rows", list(chunk), CACHE_TTL)
+        cache.set(f"{state_key}_map", {}, CACHE_TTL)
+
+        # Dispatch with keyword arguments
+        chord_tasks.append(
+            verify_email_chunk.s(
+                batch_id=batch_id, 
+                state_key=state_key, 
+                start_time=time.time(), 
+                original_headers=headers
+            )
+        )
+
+    # The finalize_batch callback remains the same
+    job = chord(group(chord_tasks), finalize_batch.s(batch_id))
+    job.delay()
+    
+    return f"Dispatched {len(chunks)} parallel chunks (Size: {L_CHUNK_SIZE})"
+
+
+@shared_task(bind=True, max_retries=5, rate_limit='5/s')
+def verify_email_chunk(self, batch_id=None, state_key=None, start_time=None, original_headers=None):
+    """
+    Verified via Single API endpoint. 
+    Processes emails one-by-one with a gentle delay.
+    """
+    original_headers = original_headers or []
+    chunk_rows = cache.get(f"{state_key}_rows")
+    processed_map = cache.get(f"{state_key}_map") or {}
+
+    if chunk_rows is None:
+        return []
+
+    API_KEY = getattr(settings, 'MAILS_SO_API_KEY', '')
+    headers = {'x-mails-api-key': API_KEY}
+
+    for row in chunk_rows:
+        email = str(row.get('Email', '')).strip().lower()
+        
+        # Skip if already processed (in case of retry)
+        if email in processed_map:
+            continue
+
+        # Hard stop safety check
+        if (time.time() - start_time) > HARD_DEADLINE:
+            break
 
         try:
-            resp = requests.post(API_SUBMIT_URL, headers=headers, json={'emails': pending_emails}, timeout=30)
-            if resp.status_code in (200, 201, 202):
-                job_id = resp.json().get('id')
-            else:
-                raise self.retry(countdown=POLL_INTERVAL, kwargs={
-                    'job_id': None, 
-                    'processed_map': processed_map,
-                    'original_headers': original_headers
-                })
-        except Exception:
-            raise self.retry(countdown=POLL_INTERVAL, kwargs={
-                'job_id': None, 
-                'processed_map': processed_map,
-                'original_headers': original_headers
-            })
+            # Hit Single API
+            url = f"{SINGLE_API_URL}?email={email}"
+            resp = requests.get(url, headers=headers, timeout=15)
+            
+            if resp.status_code == 200:
+                data = resp.json().get('data', {})
+                processed_map[email] = data
+                
+                # ATOMIC UPDATE: Save progress after every email
+                # This allows frontend progress tracking
+                cache.set(f"{state_key}_map", processed_map, CACHE_TTL)
+            
+            elif resp.status_code == 429:
+                # If we hit a rate limit, back off and retry the whole task
+                raise self.retry(countdown=random.randint(60, 120))
+            
+            # Gentle delay to play nice with the API
+            time.sleep(random.uniform(0.8, 1.5))
 
-    # 3. POLLING PHASE
-    try:
-        poll_resp = requests.get(f"{API_SUBMIT_URL}/{job_id}", headers=headers, timeout=30)
-        if poll_resp.status_code == 200:
-            data = poll_resp.json()
-            for r in data.get('emails', []):
-                email = str(r.get('email', '')).lower()
-                processed_map[email] = r
+        except Exception as e:
+            if isinstance(e, self.MaxRetriesExceededError): raise e
+            print(f"Error validating {email}: {str(e)}")
+            continue # Move to next email
 
-            if data.get('status') == 'completed' and len(processed_map) >= len(chunk_rows):
-                return fill_missing_and_return(chunk_rows, processed_map, original_headers)
-
-        if elapsed >= SOFT_DEADLINE and len(processed_map) < len(chunk_rows):
-            job_id = None 
-
-    except Exception:
-        pass 
-
-    raise self.retry(countdown=POLL_INTERVAL, kwargs={
-        'job_id': job_id, 
-        'processed_map': processed_map,
-        'original_headers': original_headers
-    })
+    # Once loop is done or deadline hit, merge results
+    final_data = fill_missing_and_return(chunk_rows, processed_map, original_headers)
+    
+    # Cleanup rows, but keep map briefly for the finalizer if needed
+    cache.delete(f"{state_key}_rows") 
+    return final_data
 
 
 @shared_task

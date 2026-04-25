@@ -405,29 +405,65 @@ def cleanup_old_warmup_data():
 
 # A robust Celery task using your Mails.so API to proactively blacklist bad accounts.
 
-AUDIT_API_SUBMIT_URL = 'https://api.mails.so/v1/batch'
-AUDIT_CHUNK_SIZE = 500
-AUDIT_POLL_INTERVAL = 120
-AUDIT_HARD_DEADLINE = 600
+# AUDIT_API_SUBMIT_URL = 'https://api.mails.so/v1/batch'
+# AUDIT_CHUNK_SIZE = 500
+# AUDIT_POLL_INTERVAL = 120
+# AUDIT_HARD_DEADLINE = 600
+
+
+# Constants for Single-Stream Audit
+AUDIT_SINGLE_API_URL = 'https://api.mails.so/v1/validate'
+AUDIT_CHUNK_SIZE = 50   # 50 emails per worker
+AUDIT_HARD_DEADLINE = 1800 # 30 minutes
+CACHE_TTL = 7200
+
+
+# def dispatch_audit_chord(email_list, audit_id, attempt):
+#     """
+#     Helper to bundle the verification group and the finalization callback.
+#     """
+#     # Using a 5-minute delay for retries to allow the API to resolve 'unknown' statuses
+#     countdown = 300 if attempt > 1 else 0
+
+#     job = chord(
+#         group(
+#             verify_warmup_chunk.s(
+#                 email_list[i:i + AUDIT_CHUNK_SIZE], 
+#                 time.time()
+#             ) 
+#             for i in range(0, len(email_list), AUDIT_CHUNK_SIZE)
+#         ),
+#         finalize_warmup_audit.s(audit_id)
+#     )
+#     return job.apply_async(countdown=countdown)
 
 
 def dispatch_audit_chord(email_list, audit_id, attempt):
     """
-    Helper to bundle the verification group and the finalization callback.
+    Bundles the single-stream verification group and finalization callback.
     """
-    # Using a 5-minute delay for retries to allow the API to resolve 'unknown' statuses
     countdown = 300 if attempt > 1 else 0
+    chord_tasks = []
 
-    job = chord(
-        group(
+    # Divide list into small chunks for parallel single-api hits
+    for i in range(0, len(email_list), AUDIT_CHUNK_SIZE):
+        chunk = email_list[i:i + AUDIT_CHUNK_SIZE]
+        # Unique key for this chunk's specific results
+        chunk_state_key = f"audit_chunk_{audit_id}_{attempt}_{i}"
+        
+        # Store the emails in cache so the worker stays lean
+        cache.set(f"{chunk_state_key}_emails", list(chunk), timeout=CACHE_TTL)
+        cache.set(f"{chunk_state_key}_map", {}, timeout=CACHE_TTL)
+
+        chord_tasks.append(
             verify_warmup_chunk.s(
-                email_list[i:i + AUDIT_CHUNK_SIZE], 
-                time.time()
-            ) 
-            for i in range(0, len(email_list), AUDIT_CHUNK_SIZE)
-        ),
-        finalize_warmup_audit.s(audit_id)
-    )
+                audit_id=audit_id,
+                chunk_state_key=chunk_state_key,
+                start_time=time.time()
+            )
+        )
+
+    job = chord(group(chord_tasks), finalize_warmup_audit.s(audit_id))
     return job.apply_async(countdown=countdown)
 
 
@@ -455,50 +491,105 @@ def audit_warmup_targets():
     return f"Started audit {audit_id} with {len(candidate_list)} accounts."
 
 
-@shared_task(bind=True, name="warmup.tasks.verify_warmup_chunk", max_retries=10)
-def verify_warmup_chunk(self, email_list, start_time_stamp, job_id=None, processed_map=None):
-    now = time.time()
-    processed_map = processed_map or {}
+# @shared_task(bind=True, name="warmup.tasks.verify_warmup_chunk", max_retries=10)
+# def verify_warmup_chunk(self, email_list, start_time_stamp, job_id=None, processed_map=None):
+#     now = time.time()
+#     processed_map = processed_map or {}
     
-    # HARD STOP - If we exceed deadline, return what we have
-    if (now - start_time_stamp) >= AUDIT_HARD_DEADLINE:
-        return processed_map
+#     # HARD STOP - If we exceed deadline, return what we have
+#     if (now - start_time_stamp) >= AUDIT_HARD_DEADLINE:
+#         return processed_map
+
+#     API_KEY = getattr(settings, 'MAILS_SO_API_KEY', '')
+#     headers = {'Content-Type': 'application/json', 'x-mails-api-key': API_KEY}
+
+#     # SUBMISSION
+#     if not job_id:
+#         pending = [e.lower() for e in email_list if e.lower() not in processed_map]
+#         if not pending: return processed_map
+
+#         try:
+#             resp = requests.post(AUDIT_API_SUBMIT_URL, headers=headers, json={'emails': pending}, timeout=30)
+#             if resp.status_code in (200, 201, 202):
+#                 job_id = resp.json().get('id')
+#             else:
+#                 raise self.retry(countdown=AUDIT_POLL_INTERVAL, kwargs={'job_id': None, 'processed_map': processed_map})
+#         except Exception:
+#             raise self.retry(countdown=AUDIT_POLL_INTERVAL, kwargs={'job_id': None, 'processed_map': processed_map})
+
+#     # POLLING
+#     try:
+#         poll_resp = requests.get(f"{AUDIT_API_SUBMIT_URL}/{job_id}", headers=headers, timeout=30)
+#         if poll_resp.status_code == 200:
+#             data = poll_resp.json()
+#             # Pluck only the email and result status
+#             for r in data.get('emails', []):
+#                 email_addr = str(r.get('email', '')).lower()
+#                 status_str = str(r.get('result', 'unknown')).lower()
+#                 processed_map[email_addr] = status_str
+
+#             if data.get('status') == 'completed':
+#                 print(f"DEBUG MAP: {processed_map}", flush=True)
+#                 return processed_map
+#     except Exception:
+#         pass 
+
+#     raise self.retry(countdown=AUDIT_POLL_INTERVAL, kwargs={'job_id': job_id, 'processed_map': processed_map})
+
+
+@shared_task(bind=True, name="warmup.tasks.verify_warmup_chunk", max_retries=15, rate_limit='5/s')
+def verify_warmup_chunk(self, audit_id=None, chunk_state_key=None, start_time=None):
+    """
+    Processes a chunk of warmup targets one-by-one via Single API.
+    Updates cache atomically after every successful hit.
+    """
+    email_list = cache.get(f"{chunk_state_key}_emails")
+    processed_map = cache.get(f"{chunk_state_key}_map") or {}
+
+    if not email_list:
+        return {}
 
     API_KEY = getattr(settings, 'MAILS_SO_API_KEY', '')
-    headers = {'Content-Type': 'application/json', 'x-mails-api-key': API_KEY}
+    headers = {'x-mails-api-key': API_KEY}
 
-    # SUBMISSION
-    if not job_id:
-        pending = [e.lower() for e in email_list if e.lower() not in processed_map]
-        if not pending: return processed_map
+    for email in email_list:
+        email_clean = email.lower().strip()
+        
+        # Skip if already done
+        if email_clean in processed_map or not email_clean:
+            continue
+
+        # Hard stop check
+        if (time.time() - start_time) >= AUDIT_HARD_DEADLINE:
+            break
 
         try:
-            resp = requests.post(AUDIT_API_SUBMIT_URL, headers=headers, json={'emails': pending}, timeout=30)
-            if resp.status_code in (200, 201, 202):
-                job_id = resp.json().get('id')
-            else:
-                raise self.retry(countdown=AUDIT_POLL_INTERVAL, kwargs={'job_id': None, 'processed_map': processed_map})
-        except Exception:
-            raise self.retry(countdown=AUDIT_POLL_INTERVAL, kwargs={'job_id': None, 'processed_map': processed_map})
+            url = f"{AUDIT_SINGLE_API_URL}?email={email_clean}"
+            resp = requests.get(url, headers=headers, timeout=15)
+            
+            if resp.status_code == 200:
+                # Pluck only the result (deliverable, undeliverable, etc.)
+                status = resp.json().get('data', {}).get('result', 'unknown')
+                processed_map[email_clean] = status
+                
+                # Atomic cache update for real-time progress tracking
+                cache.set(f"{chunk_state_key}_map", processed_map, timeout=CACHE_TTL)
+            
+            elif resp.status_code == 429:
+                # Rate limit hit, back off the whole chunk
+                raise self.retry(countdown=random.randint(60, 150))
+            
+            # Gentle delay to respect the single endpoint
+            time.sleep(random.uniform(0.8, 1.8))
 
-    # POLLING
-    try:
-        poll_resp = requests.get(f"{AUDIT_API_SUBMIT_URL}/{job_id}", headers=headers, timeout=30)
-        if poll_resp.status_code == 200:
-            data = poll_resp.json()
-            # Pluck only the email and result status
-            for r in data.get('emails', []):
-                email_addr = str(r.get('email', '')).lower()
-                status_str = str(r.get('result', 'unknown')).lower()
-                processed_map[email_addr] = status_str
+        except Exception as e:
+            if isinstance(e, self.MaxRetriesExceededError): raise e
+            print(f"Error auditing {email_clean}: {str(e)}")
+            continue
 
-            if data.get('status') == 'completed':
-                print(f"DEBUG MAP: {processed_map}", flush=True)
-                return processed_map
-    except Exception:
-        pass 
-
-    raise self.retry(countdown=AUDIT_POLL_INTERVAL, kwargs={'job_id': job_id, 'processed_map': processed_map})
+    # Cleanup email list from cache, return map to the chord
+    cache.delete(f"{chunk_state_key}_emails")
+    return processed_map
 
 
 @shared_task(name="warmup.tasks.finalize_warmup_audit")
