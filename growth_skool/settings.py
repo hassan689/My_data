@@ -61,6 +61,7 @@ INSTALLED_APPS = [
     'warmup.apps.WarmupConfig',
     'new_warmup.apps.NewWarmupConfig',
     'drip_campaigns.apps.DripCampaignsConfig',
+    'unibox.apps.UniboxConfig',
 
 		'widget_tweaks',
 		'django_ckeditor_5',
